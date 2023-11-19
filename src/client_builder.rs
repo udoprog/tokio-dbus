@@ -48,7 +48,7 @@ impl ClientBuilder {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use tokio_dbus::ClientBuilder;
     ///
     /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
@@ -64,7 +64,7 @@ impl ClientBuilder {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use tokio_dbus::ClientBuilder;
     ///
     /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {

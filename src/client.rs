@@ -133,7 +133,7 @@ impl Client {
     ///
     /// # Examples
     ///
-    /// ```
+    /// ```no_run
     /// use tokio_dbus::sasl::{Auth, SaslRequest, SaslResponse};
     /// use tokio_dbus::{Client, Connection, Message, MessageKind, Result};
     ///
