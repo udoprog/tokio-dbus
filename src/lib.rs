@@ -39,6 +39,9 @@ mod message;
 pub use self::client::Client;
 mod client;
 
+pub use self::client_builder::ClientBuilder;
+mod client_builder;
+
 mod lossy_str;
 
 mod utils;

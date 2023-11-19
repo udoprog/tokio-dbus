@@ -7,7 +7,7 @@ use tokio::io::{Interest, Ready};
 use crate::connection::{read_message, sasl_recv};
 use crate::error::Result;
 use crate::sasl::{SaslRequest, SaslResponse};
-use crate::{Connection, Error, Message, OwnedBuf};
+use crate::{ClientBuilder, Connection, Error, Message, OwnedBuf};
 
 /// An asynchronous D-Bus client.
 pub struct Client {
@@ -20,8 +20,22 @@ pub struct Client {
 }
 
 impl Client {
+    /// Shorthand for connecting the client to the system bus using the default
+    /// configuration.
+    #[inline]
+    pub async fn session_bus() -> Result<Self> {
+        ClientBuilder::new().session_bus().connect().await
+    }
+
+    /// Shorthand for connecting the client to the system bus using the default
+    /// configuration.
+    #[inline]
+    pub async fn system_bus() -> Result<Self> {
+        ClientBuilder::new().system_bus().connect().await
+    }
+
     /// Construct a new asynchronous D-Bus client.
-    pub fn new(connection: Connection) -> io::Result<Self> {
+    pub(crate) fn new(connection: Connection) -> io::Result<Self> {
         connection.set_nonblocking(true)?;
 
         Ok(Self {
@@ -121,40 +135,38 @@ impl Client {
     /// use tokio_dbus::sasl::{Auth, SaslRequest, SaslResponse};
     /// use tokio_dbus::{Client, Connection, Message, MessageKind, Result};
     ///
-    /// #[tokio::main]
-    /// async fn main() -> Result<()> {
-    ///     let mut c = Client::new(Connection::session_bus()?)?;
+    /// # #[tokio::main] async fn main() -> Result<()> {
+    /// let mut c = Client::new(Connection::session_bus()?)?;
     ///
-    ///     let sasl = c
-    ///         .sasl_request(&SaslRequest::Auth(Auth::External(b"31303030")))
-    ///         .await?;
+    /// let sasl = c
+    ///     .sasl_request(&SaslRequest::Auth(Auth::External(b"31303030")))
+    ///     .await?;
     ///
-    ///     match sasl {
-    ///         SaslResponse::Ok(..) => {}
+    /// match sasl {
+    ///     SaslResponse::Ok(..) => {}
+    /// }
+    ///
+    /// // Transition into binary mode.
+    /// c.sasl_begin().await?;
+    ///
+    /// let m = Message::method_call("/org/freedesktop/DBus", "Hello")
+    ///     .with_destination("org.freedesktop.DBus");
+    ///
+    /// let serial = c.write_message(&m)?;
+    ///
+    /// let message = c.process().await?;
+    ///
+    /// assert_eq!(
+    ///     message.kind(),
+    ///     MessageKind::MethodReturn {
+    ///         reply_serial: serial
     ///     }
+    /// );
     ///
-    ///     // Transition into binary mode.
-    ///     c.sasl_begin().await?;
-    ///
-    ///     let m = Message::method_call("/org/freedesktop/DBus", "Hello")
-    ///         .with_destination("org.freedesktop.DBus");
-    ///
-    ///     let serial = c.write_message(&m)?;
-    ///
-    ///     let message = c.process().await?;
-    ///
-    ///     assert_eq!(
-    ///         message.kind(),
-    ///         MessageKind::MethodReturn {
-    ///             reply_serial: serial
-    ///         }
-    ///     );
-    ///
-    ///     let mut body = message.body();
-    ///     let name = body.read::<str>()?;
-    ///     dbg!(message, body.len(), name);
-    ///     Ok(())
-    /// }    
+    /// let mut body = message.body();
+    /// let name = body.read::<str>()?;
+    /// dbg!(message, body.len(), name);
+    /// # Ok(()) }    
     /// ```
     pub async fn process(&mut self) -> Result<Message<'_>, Error> {
         loop {

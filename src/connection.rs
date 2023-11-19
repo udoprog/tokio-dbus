@@ -19,7 +19,9 @@ use crate::sasl::{Guid, SaslRequest, SaslResponse};
 use crate::ReadBuf;
 use crate::{Message, MessageKind, OwnedBuf, Signature};
 
-const ENV_SESSION_BUS: &[u8] = b"DBUS_SESSION_BUS_ADDRESS";
+const ENV_SESSION_BUS: &str = "DBUS_SESSION_BUS_ADDRESS";
+const ENV_SYSTEM_BUS: &str = "DBUS_SYSTEM_BUS_ADDRESS";
+const DEFAULT_SYSTEM_BUS: &str = "unix:path=/var/run/dbus/system_bus_socket";
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum SaslState {
@@ -81,11 +83,37 @@ impl Connection {
     /// This uses the `DBUS_SESSION_BUS_ADDRESS` environment variable to
     /// determine its address.
     pub fn session_bus() -> Result<Self> {
-        let Some(address) = env::var_os(OsStr::from_bytes(ENV_SESSION_BUS)) else {
-            return Err(Error::new(ErrorKind::MissingSessionBus));
+        Self::from_env(ENV_SESSION_BUS, None)
+    }
+
+    /// Construct a new connection to the session bus.
+    ///
+    /// This uses the `DBUS_SYSTEM_BUS_ADDRESS` environment variable to
+    /// determine its address or fallback to the well-known address
+    /// `unix:path=/var/run/dbus/system_bus_socket`.
+    pub fn system_bus() -> Result<Self> {
+        Self::from_env(ENV_SYSTEM_BUS, Some(DEFAULT_SYSTEM_BUS))
+    }
+
+    /// Construct a new connection to the session bus.
+    ///
+    /// This uses the `DBUS_SESSION_BUS_ADDRESS` environment variable to
+    /// determine its address.
+    fn from_env(env: &str, default: Option<&str>) -> Result<Self> {
+        let value;
+
+        let address: &OsStr = match env::var_os(env) {
+            Some(address) => {
+                value = address;
+                value.as_os_str()
+            }
+            None => match default {
+                Some(default) => default.as_ref(),
+                None => return Err(Error::new(ErrorKind::MissingBus)),
+            },
         };
 
-        let stream = match parse_address(address.as_bytes())? {
+        let stream = match parse_address(address)? {
             Address::Unix(address) => UnixStream::connect(OsStr::from_bytes(address))?,
         };
 
@@ -93,13 +121,13 @@ impl Connection {
     }
 
     /// Set the connection as non-blocking.
-    pub fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
+    pub(crate) fn set_nonblocking(&self, nonblocking: bool) -> io::Result<()> {
         self.stream.set_nonblocking(nonblocking)?;
         Ok(())
     }
 
-    /// Construct a connection directly from a unix stream.
-    fn from_std(stream: UnixStream) -> Self {
+    /// Constru.ct a connection directly from a unix stream.
+    pub(crate) fn from_std(stream: UnixStream) -> Self {
         Self {
             stream,
             state: ConnectionState::Sasl(SaslState::Init),
@@ -551,7 +579,12 @@ enum Address<'a> {
     Unix(&'a [u8]),
 }
 
-fn parse_address(bytes: &[u8]) -> Result<Address<'_>> {
+#[cfg(unix)]
+fn parse_address(string: &OsStr) -> Result<Address<'_>> {
+    parse_address_bytes(string.as_bytes())
+}
+
+fn parse_address_bytes(bytes: &[u8]) -> Result<Address<'_>> {
     let Some(index) = bytes.iter().position(|&b| b == b'=') else {
         return Err(Error::new(ErrorKind::InvalidAddress));
     };
