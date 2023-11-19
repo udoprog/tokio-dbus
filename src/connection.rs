@@ -10,7 +10,8 @@ use std::os::fd::RawFd;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::net::UnixStream;
 
-use crate::buf::padding_to;
+use crate::buf::MAX_ARRAY_LENGTH;
+use crate::buf::{padding_to, MAX_BODY_LENGTH};
 use crate::error::{Error, ErrorKind, Result};
 use crate::protocol;
 use crate::protocol::Variant;
@@ -333,26 +334,29 @@ impl Connection {
             match self.state {
                 ConnectionState::Idle => {
                     let mut header = self.read_frame::<protocol::Header>(buf)?;
+
+                    if header.body_length > MAX_BODY_LENGTH {
+                        return Err(Error::new(ErrorKind::BodyTooLong(header.body_length)));
+                    }
+
                     header.adjust(header.endianness);
                     buf.set_endianness(header.endianness);
                     self.state = ConnectionState::RecvHeaderFields(header);
                 }
                 ConnectionState::RecvHeaderFields(header) => {
-                    let headers = usize::try_from(self.read_frame::<u32>(buf)?)
-                        .map_err(|_| ErrorKind::HeaderLengthTooLong)?;
+                    let headers = self.read_frame::<u32>(buf)?;
 
-                    let body_length = usize::try_from(header.body_length)
-                        .map_err(|_| ErrorKind::BodyLengthTooLong)?;
+                    if headers > MAX_ARRAY_LENGTH {
+                        return Err(Error::new(ErrorKind::ArrayTooLong(headers)));
+                    }
 
                     let total = headers
-                        .checked_add(padding_to::<u64>(headers))
-                        .ok_or_else(|| ErrorKind::BodyLengthTooLong)?;
+                        .checked_add(padding_to::<u64>(headers as usize) as u32)
+                        .and_then(|total| total.checked_add(header.body_length))
+                        .and_then(|total| usize::try_from(total).ok())
+                        .ok_or_else(|| ErrorKind::MessageTooLong)?;
 
-                    let total = total
-                        .checked_add(body_length)
-                        .ok_or_else(|| ErrorKind::BodyLengthTooLong)?;
-
-                    self.state = ConnectionState::RecvBody(header, headers, total);
+                    self.state = ConnectionState::RecvBody(header, headers as usize, total);
                 }
                 ConnectionState::RecvBody(header, headers, total) => {
                     self.recv_buf(buf, total)?;

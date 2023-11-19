@@ -1,3 +1,5 @@
+use crate::buf::MAX_ARRAY_LENGTH;
+use crate::error::ErrorKind;
 use crate::{Error, Read, ReadBuf};
 
 /// Write an struct into a [`Buf`].
@@ -9,6 +11,11 @@ impl<'de> ArrayReader<'de> {
     #[inline]
     pub(super) fn new(buf: &mut ReadBuf<'de>) -> Result<Self, Error> {
         let bytes = buf.load::<u32>()?;
+
+        if bytes > MAX_ARRAY_LENGTH {
+            return Err(Error::new(ErrorKind::ArrayTooLong(bytes)));
+        }
+
         Ok(Self {
             buf: buf.read_buf(bytes as usize),
         })

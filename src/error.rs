@@ -84,14 +84,17 @@ impl fmt::Display for Error {
             ErrorKind::InvalidHeaderVariant(variant) => {
                 write!(f, "Unsupported header variant {:?}", variant)
             }
-            ErrorKind::HeaderLengthTooLong => {
-                write!(f, "Header length too long")
-            }
-            ErrorKind::BodyLengthTooLong => {
-                write!(f, "Body length too long")
-            }
             ErrorKind::NotNullTerminated => {
                 write!(f, "String is not null terminated")
+            }
+            ErrorKind::ArrayTooLong(length) => {
+                write!(f, "Array of length {length} is too long (max is 67108864)")
+            }
+            ErrorKind::BodyTooLong(length) => {
+                write!(f, "Body of length {length} is too long (max is 134217728)")
+            }
+            ErrorKind::MessageTooLong => {
+                writeln!(f, "Message is too long")
             }
         }
     }
@@ -128,7 +131,8 @@ pub(crate) enum ErrorKind {
     ZeroReplySerial,
     MissingErrorName,
     InvalidHeaderVariant(Variant),
-    HeaderLengthTooLong,
-    BodyLengthTooLong,
     NotNullTerminated,
+    BodyTooLong(u32),
+    ArrayTooLong(u32),
+    MessageTooLong,
 }

@@ -21,6 +21,11 @@ mod owned_buf;
 pub use self::struct_reader::StructReader;
 mod struct_reader;
 
+/// The maximum length of an array in bytes.
+pub(crate) const MAX_ARRAY_LENGTH: u32 = 1u32 << 26;
+/// The maximum length of a body in bytes.
+pub(crate) const MAX_BODY_LENGTH: u32 = 1u32 << 27;
+
 use core::mem::align_of;
 
 /// Calculate padding with the assumption that alignment is a power of two.
