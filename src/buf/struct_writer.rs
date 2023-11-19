@@ -1,4 +1,4 @@
-use crate::{OwnedBuf, Serialize};
+use crate::{Frame, OwnedBuf, Write};
 
 /// Helper to write a struct into a buffer.
 pub struct StructWriter<'a> {
@@ -12,11 +12,20 @@ impl<'a> StructWriter<'a> {
         Self { buf }
     }
 
+    /// Store a value in the struct.
+    #[inline]
+    pub fn store<T>(&mut self, value: T)
+    where
+        T: Frame,
+    {
+        self.buf.store(value);
+    }
+
     /// Write a field in the struct.
     #[inline]
     pub fn write<T>(&mut self, value: &T)
     where
-        T: ?Sized + Serialize,
+        T: ?Sized + Write,
     {
         self.buf.write(value);
     }

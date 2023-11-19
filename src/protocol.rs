@@ -3,7 +3,7 @@
 use std::fmt;
 use std::ops::{BitAnd, BitOr, BitXor};
 
-use crate::frame::Frame;
+use crate::Frame;
 
 /// A protocol header.
 #[derive(Debug, Clone, Copy)]

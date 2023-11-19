@@ -51,8 +51,8 @@ impl ClientBuilder {
     /// ```
     /// use tokio_dbus::ClientBuilder;
     ///
-    /// # #[tokio::main] async fn main() -> Result<()> {
-    /// let c = ClientBuilder::new().session_bus().build().await?;
+    /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
+    /// let c = ClientBuilder::new().session_bus().connect().await?;
     /// # Ok(()) }
     /// ```
     pub fn session_bus(&mut self) -> &mut Self {
@@ -67,8 +67,8 @@ impl ClientBuilder {
     /// ```
     /// use tokio_dbus::ClientBuilder;
     ///
-    /// # #[tokio::main] async fn main() -> Result<()> {
-    /// let c = ClientBuilder::new().system_bus().build().await?;
+    /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
+    /// let c = ClientBuilder::new().system_bus().connect().await?;
     /// # Ok(()) }
     /// ```
     pub fn system_bus(&mut self) -> &mut Self {

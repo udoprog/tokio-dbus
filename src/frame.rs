@@ -1,6 +1,6 @@
 use crate::protocol::Endianness;
 
-/// A message frame in the protocol.
+/// A verbatim frame that can be stored and loaded from a buffer.
 ///
 /// # Safety
 ///
@@ -8,7 +8,7 @@ use crate::protocol::Endianness;
 /// pattern.
 ///
 /// Any type implementing `Frame` must have an alignment of at most `8`.
-pub(crate) unsafe trait Frame {
+pub unsafe trait Frame {
     /// Adjust the endianness of the frame.
     fn adjust(&mut self, endianness: Endianness);
 }

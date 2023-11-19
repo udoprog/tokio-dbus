@@ -108,7 +108,7 @@ fn write_blobs() {
 }
 
 fn write_blob(buf: &mut OwnedBuf) {
-    buf.write(&Header {
+    buf.store(Header {
         endianness: buf.endianness(),
         message_type: MessageType::METHOD_RETURN,
         flags: Flags::default() | Flags::NO_AUTO_START,
@@ -120,17 +120,17 @@ fn write_blob(buf: &mut OwnedBuf) {
     let mut array = buf.write_array();
 
     let mut st = array.write_struct();
-    st.write(&Variant::REPLY_SERIAL);
+    st.store(Variant::REPLY_SERIAL);
     st.write(Signature::UINT32);
-    st.write(&0xabcdef12u32);
+    st.store(0xabcdef12u32);
 
     let mut st = array.write_struct();
-    st.write(&Variant::SIGNATURE);
+    st.store(Variant::SIGNATURE);
     st.write(Signature::SIGNATURE);
     st.write(Signature::UINT32);
 
     array.finish();
 
     buf.align_mut::<u64>();
-    buf.write(&0xdeadbeefu32);
+    buf.store(0xdeadbeefu32);
 }

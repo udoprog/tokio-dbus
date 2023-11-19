@@ -54,7 +54,7 @@ impl Client {
     /// use tokio_dbus::sasl::{Auth, SaslRequest};
     ///
     /// # #[tokio::main] async fn main() -> Result<(), tokio_dbus::Error> {
-    /// let mut c = Client::new(Connection::session_bus()?)?;
+    /// let mut c = Client::session_bus().await?;
     /// let sasl = c.sasl_request(&SaslRequest::Auth(Auth::External(b"31303030"))).await?;
     /// # Ok(()) }
     /// ```
@@ -122,6 +122,8 @@ impl Client {
     /// This only errors if the connection is not in a state yet to buffer
     /// messages, such as before authentication.
     pub fn write_message(&mut self, message: &Message<'_>) -> Result<NonZeroU32, Error> {
+        self.send.update_alignment_base();
+
         self.connection
             .get_mut()
             .write_message(&mut self.send, message)
@@ -136,18 +138,7 @@ impl Client {
     /// use tokio_dbus::{Client, Connection, Message, MessageKind, Result};
     ///
     /// # #[tokio::main] async fn main() -> Result<()> {
-    /// let mut c = Client::new(Connection::session_bus()?)?;
-    ///
-    /// let sasl = c
-    ///     .sasl_request(&SaslRequest::Auth(Auth::External(b"31303030")))
-    ///     .await?;
-    ///
-    /// match sasl {
-    ///     SaslResponse::Ok(..) => {}
-    /// }
-    ///
-    /// // Transition into binary mode.
-    /// c.sasl_begin().await?;
+    /// let mut c = Client::session_bus().await?;
     ///
     /// let m = Message::method_call("/org/freedesktop/DBus", "Hello")
     ///     .with_destination("org.freedesktop.DBus");

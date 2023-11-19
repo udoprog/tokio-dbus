@@ -2,7 +2,7 @@ use std::mem::ManuallyDrop;
 
 use crate::buf::owned_buf::Alloc;
 use crate::buf::{OwnedBuf, StructWriter};
-use crate::Serialize;
+use crate::{Frame, Write};
 
 /// Write an array into a [`Buf`].
 #[must_use = "Arrays must be finalized using ArrayWriter::finish"]
@@ -19,11 +19,20 @@ impl<'a> ArrayWriter<'a> {
         Self { start, len, buf }
     }
 
-    /// Push a value into the array.
+    /// Store a [`Frame`] value into the array.
     #[inline]
-    pub fn push<T>(&mut self, value: &T)
+    pub fn store<T>(&mut self, value: T)
     where
-        T: ?Sized + Serialize,
+        T: Frame,
+    {
+        self.buf.store(value);
+    }
+
+    /// Write a value into the array.
+    #[inline]
+    pub fn write<T>(&mut self, value: &T)
+    where
+        T: ?Sized + Write,
     {
         value.write_to(self.buf);
     }
@@ -49,7 +58,7 @@ impl<'a> ArrayWriter<'a> {
     fn finalize(&mut self) {
         let end = self.buf.len();
         let len = (end - self.start) as u32;
-        self.buf.store_at(self.len, &len);
+        self.buf.store_at(self.len, len);
     }
 }
 

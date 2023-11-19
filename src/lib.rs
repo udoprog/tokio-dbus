@@ -2,12 +2,12 @@
 mod stack;
 
 #[doc(inline)]
-pub use self::ser::Serialize;
-mod ser;
+pub use self::write::Write;
+mod write;
 
 #[doc(inline)]
-pub use self::de::Deserialize;
-mod de;
+pub use self::read::Read;
+mod read;
 
 #[doc(inline)]
 pub use self::connection::Connection;
@@ -30,6 +30,8 @@ pub mod sasl;
 pub use self::signature::{Signature, SignatureError};
 mod signature;
 
+#[doc(inline)]
+pub use self::frame::Frame;
 mod frame;
 
 pub use self::message::{Message, MessageKind};

@@ -90,6 +90,9 @@ impl fmt::Display for Error {
             ErrorKind::BodyLengthTooLong => {
                 write!(f, "Body length too long")
             }
+            ErrorKind::NotNullTerminated => {
+                write!(f, "String is not null terminated")
+            }
         }
     }
 }
@@ -127,4 +130,5 @@ pub(crate) enum ErrorKind {
     InvalidHeaderVariant(Variant),
     HeaderLengthTooLong,
     BodyLengthTooLong,
+    NotNullTerminated,
 }

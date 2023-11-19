@@ -3,7 +3,7 @@ use std::ffi::OsStr;
 use std::fmt;
 use std::io;
 use std::io::{Read, Write};
-use std::mem;
+use std::mem::size_of;
 use std::num::NonZeroU32;
 use std::os::fd::AsRawFd;
 use std::os::fd::RawFd;
@@ -12,12 +12,11 @@ use std::os::unix::net::UnixStream;
 
 use crate::buf::padding_to;
 use crate::error::{Error, ErrorKind, Result};
-use crate::frame::Frame;
 use crate::protocol;
 use crate::protocol::Variant;
 use crate::sasl::{Guid, SaslRequest, SaslResponse};
 use crate::ReadBuf;
-use crate::{Message, MessageKind, OwnedBuf, Signature};
+use crate::{Frame, Message, MessageKind, OwnedBuf, Signature};
 
 const ENV_SESSION_BUS: &str = "DBUS_SESSION_BUS_ADDRESS";
 const ENV_SYSTEM_BUS: &str = "DBUS_SYSTEM_BUS_ADDRESS";
@@ -232,7 +231,7 @@ impl Connection {
             self.serial
         };
 
-        buf.write(&protocol::Header {
+        buf.store(protocol::Header {
             endianness: buf.endianness(),
             message_type: message.message_type(),
             flags: message.flags,
@@ -249,38 +248,38 @@ impl Connection {
         match message.kind {
             MessageKind::MethodCall { path, member } => {
                 let mut st = array.write_struct();
-                st.write(&Variant::PATH);
+                st.store(Variant::PATH);
                 st.write(Signature::OBJECT_PATH);
                 st.write(path);
 
                 let mut st = array.write_struct();
-                st.write(&Variant::MEMBER);
+                st.store(Variant::MEMBER);
                 st.write(Signature::STRING);
                 st.write(member);
             }
             MessageKind::MethodReturn { reply_serial } => {
                 let mut st = array.write_struct();
-                st.write(&Variant::REPLY_SERIAL);
+                st.store(Variant::REPLY_SERIAL);
                 st.write(Signature::UINT32);
-                st.write(&reply_serial.get());
+                st.store(reply_serial.get());
             }
             MessageKind::Error {
                 error_name,
                 reply_serial,
             } => {
                 let mut st = array.write_struct();
-                st.write(&Variant::ERROR_NAME);
+                st.store(Variant::ERROR_NAME);
                 st.write(Signature::STRING);
                 st.write(error_name);
 
                 let mut st = array.write_struct();
-                st.write(&Variant::REPLY_SERIAL);
+                st.store(Variant::REPLY_SERIAL);
                 st.write(Signature::UINT32);
-                st.write(&reply_serial.get());
+                st.store(reply_serial.get());
             }
             MessageKind::Signal { member } => {
                 let mut st = array.write_struct();
-                st.write(&Variant::MEMBER);
+                st.store(Variant::MEMBER);
                 st.write(Signature::STRING);
                 st.write(member);
             }
@@ -288,28 +287,28 @@ impl Connection {
 
         if let Some(interface) = message.interface {
             let mut st = array.write_struct();
-            st.write(&Variant::INTERFACE);
+            st.store(Variant::INTERFACE);
             st.write(Signature::STRING);
             st.write(interface);
         }
 
         if let Some(destination) = message.destination {
             let mut st = array.write_struct();
-            st.write(&Variant::DESTINATION);
+            st.store(Variant::DESTINATION);
             st.write(Signature::STRING);
             st.write(destination);
         }
 
         if let Some(sender) = message.sender {
             let mut st = array.write_struct();
-            st.write(&Variant::SENDER);
+            st.store(Variant::SENDER);
             st.write(Signature::STRING);
             st.write(sender);
         }
 
         if !message.signature.is_empty() {
             let mut st = array.write_struct();
-            st.write(&Variant::SIGNATURE);
+            st.store(Variant::SIGNATURE);
             st.write(Signature::SIGNATURE);
             st.write(message.signature);
         }
@@ -333,13 +332,13 @@ impl Connection {
         loop {
             match self.state {
                 ConnectionState::Idle => {
-                    let mut header = *self.read_frame::<protocol::Header>(buf)?;
+                    let mut header = self.read_frame::<protocol::Header>(buf)?;
                     header.adjust(header.endianness);
                     buf.set_endianness(header.endianness);
                     self.state = ConnectionState::RecvHeaderFields(header);
                 }
                 ConnectionState::RecvHeaderFields(header) => {
-                    let headers = usize::try_from(*self.read_frame::<u32>(buf)?)
+                    let headers = usize::try_from(self.read_frame::<u32>(buf)?)
                         .map_err(|_| ErrorKind::HeaderLengthTooLong)?;
 
                     let body_length = usize::try_from(header.body_length)
@@ -369,17 +368,19 @@ impl Connection {
     ///
     /// This simply reads into the buffer pointed to by `header`, without
     /// validating the header.
-    pub(crate) fn read_frame<'buf, T>(&mut self, buf: &'buf mut OwnedBuf) -> io::Result<&'buf T>
+    pub(crate) fn read_frame<'buf, T>(&mut self, buf: &mut OwnedBuf) -> Result<T>
     where
         T: Frame,
     {
-        buf.reserve_and_align::<T>();
+        buf.align_mut::<T>();
 
-        while buf.len() < mem::size_of::<T>() {
+        while buf.len() < size_of::<T>() {
             recv_some(&mut self.stream, buf)?;
         }
 
-        Ok(buf.load())
+        let mut read_buf = buf.read_buf(size_of::<T>());
+        let frame = read_buf.load()?;
+        Ok(frame)
     }
 
     /// Fill a buffer up to `n` bytes.
@@ -434,7 +435,7 @@ pub(crate) fn read_message(
 
     while !header_slice.is_empty() {
         header_slice.align::<u64>();
-        let variant = *header_slice.read::<protocol::Variant>()?;
+        let variant = header_slice.load::<protocol::Variant>()?;
         let sig = header_slice.read::<Signature>()?;
 
         match (variant, sig.as_bytes()) {
@@ -451,7 +452,7 @@ pub(crate) fn read_message(
                 error_name = Some(header_slice.read::<str>()?);
             }
             (protocol::Variant::REPLY_SERIAL, b"u") => {
-                let number = *header_slice.read::<u32>()?;
+                let number = header_slice.load::<u32>()?;
                 let number = NonZeroU32::new(number).ok_or(ErrorKind::ZeroReplySerial)?;
                 reply_serial = Some(number);
             }

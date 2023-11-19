@@ -7,7 +7,7 @@ mod tests;
 
 use crate::protocol::Type;
 use crate::stack::{Stack, StackValue};
-use crate::{Deserialize, Error, OwnedBuf, ReadBuf, Serialize};
+use crate::{Error, OwnedBuf, Read, ReadBuf, Write};
 
 /// The maximum individual container depth.
 const MAX_CONTAINER_DEPTH: usize = 32;
@@ -148,18 +148,18 @@ impl fmt::Debug for Signature {
     }
 }
 
-impl Serialize for Signature {
+impl Write for Signature {
     #[inline]
     fn write_to(&self, buf: &mut OwnedBuf) {
-        buf.store(&(self.0.len() as u8));
+        buf.store(self.0.len() as u8);
         buf.extend_from_slice_nul(&self.0);
     }
 }
 
-impl Deserialize for Signature {
+impl Read for Signature {
     #[inline]
     fn read_from<'de>(buf: &mut ReadBuf<'de>) -> Result<&'de Self, Error> {
-        let len = *buf.read::<u8>()? as usize;
+        let len = buf.load::<u8>()? as usize;
         let bytes = buf.load_slice_nul(len)?;
         Ok(Signature::new(bytes)?)
     }

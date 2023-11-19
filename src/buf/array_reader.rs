@@ -1,4 +1,4 @@
-use crate::{Deserialize, Error, ReadBuf};
+use crate::{Error, Read, ReadBuf};
 
 /// Write an struct into a [`Buf`].
 pub struct ArrayReader<'de> {
@@ -8,7 +8,7 @@ pub struct ArrayReader<'de> {
 impl<'de> ArrayReader<'de> {
     #[inline]
     pub(super) fn new(buf: &mut ReadBuf<'de>) -> Result<Self, Error> {
-        let bytes = *buf.read::<u32>()?;
+        let bytes = buf.load::<u32>()?;
         Ok(Self {
             buf: buf.read_buf(bytes as usize),
         })
@@ -17,7 +17,7 @@ impl<'de> ArrayReader<'de> {
     /// Read a a field from the struct.
     pub fn read_next<T>(&mut self) -> Result<Option<&'de T>, Error>
     where
-        T: ?Sized + Deserialize,
+        T: ?Sized + Read,
     {
         if self.buf.is_empty() {
             return Ok(None);

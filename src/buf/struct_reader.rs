@@ -1,4 +1,4 @@
-use crate::{Deserialize, Error, ReadBuf};
+use crate::{Error, Read, ReadBuf};
 
 /// Write an struct into a [`Buf`].
 pub struct StructReader<'a, 'de> {
@@ -15,7 +15,7 @@ impl<'a, 'de> StructReader<'a, 'de> {
     /// Read a a field from the struct.
     pub fn read<T>(&mut self) -> Result<&'de T, Error>
     where
-        T: ?Sized + Deserialize,
+        T: ?Sized + Read,
     {
         T::read_from(self.buf)
     }
