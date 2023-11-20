@@ -5,7 +5,7 @@ use std::slice::{from_raw_parts, from_raw_parts_mut};
 
 use crate::buf::{max_size_for_align, padding_to, Alloc, ArrayWriter, BufMut, ReadBuf};
 use crate::protocol::Endianness;
-use crate::Frame;
+use crate::{Frame, Write};
 
 /// The alignment of the buffer.
 const ALIGNMENT: usize = 1;
@@ -141,6 +141,14 @@ impl OwnedBuf {
             ptr::copy_nonoverlapping(src, dst, size_of::<T>());
             self.written += size_of::<T>();
         }
+    }
+
+    /// Write a type which can be serialized.
+    pub(crate) fn write<T>(&mut self, value: &T)
+    where
+        T: ?Sized + Write,
+    {
+        value.write_to(self);
     }
 
     /// Extend the buffer with a slice.

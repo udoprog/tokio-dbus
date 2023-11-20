@@ -35,6 +35,13 @@ impl RecvBuf {
     }
 }
 
+impl Default for RecvBuf {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 /// Read a message out of the buffer.
 pub(crate) fn read_message(
     mut buf: ReadBuf<'_>,
@@ -88,8 +95,8 @@ pub(crate) fn read_message(
             (protocol::Variant::SENDER, b"s") => {
                 sender = Some(header_slice.read::<str>()?);
             }
-            (variant, _) => {
-                return Err(Error::new(ErrorKind::InvalidHeaderVariant(variant)));
+            (_, _) => {
+                sig.skip(&mut header_slice)?;
             }
         }
     }

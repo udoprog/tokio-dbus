@@ -30,8 +30,8 @@ pub enum MessageKind<'a> {
 
 impl MessageKind<'_> {
     #[inline]
-    pub(crate) fn to_owned(&self) -> OwnedMessageKind {
-        match *self {
+    pub(crate) fn to_owned(self) -> OwnedMessageKind {
+        match self {
             MessageKind::MethodCall { path, member } => OwnedMessageKind::MethodCall {
                 path: path.into(),
                 member: member.into(),

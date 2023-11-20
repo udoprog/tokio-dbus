@@ -5,7 +5,7 @@ use std::mem::size_of;
 use std::ptr;
 use std::slice::from_raw_parts;
 
-use crate::error::ErrorKind;
+use crate::error::{ErrorKind, Result};
 use crate::{Endianness, Error, Frame, Read};
 
 use super::{padding_to, ArrayReader, StructReader};
@@ -140,7 +140,7 @@ impl<'a> ReadBuf<'a> {
     /// # read(&mut ReadBuf::from_slice_le(b"\x04\x00\x00\x00\x01\x02"))?;
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ````
-    pub fn read<T>(&mut self) -> Result<&'a T, Error>
+    pub fn read<T>(&mut self) -> Result<&'a T>
     where
         T: ?Sized + Read,
     {
@@ -184,7 +184,7 @@ impl<'a> ReadBuf<'a> {
     }
 
     /// Read an array.
-    pub fn read_array(&mut self) -> Result<ArrayReader<'a>, Error> {
+    pub fn read_array(&mut self) -> Result<ArrayReader<'a>> {
         ArrayReader::new(self)
     }
 
@@ -221,7 +221,7 @@ impl<'a> ReadBuf<'a> {
     /// # read(&mut ReadBuf::from_slice_le(b"\x07\x00\x00\x00foo bar\x00"))?;
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn load<T>(&mut self) -> Result<T, Error>
+    pub fn load<T>(&mut self) -> Result<T>
     where
         T: Frame,
     {
@@ -242,6 +242,16 @@ impl<'a> ReadBuf<'a> {
         Ok(frame)
     }
 
+    /// Advance the read cursor by `n`.
+    pub(crate) fn advance(&mut self, n: usize) -> Result<()> {
+        if self.read + n > self.written {
+            return Err(Error::new(ErrorKind::BufferUnderflow));
+        }
+
+        self.read += n;
+        Ok(())
+    }
+
     /// Align the read side of the buffer.
     pub(crate) fn align<T>(&mut self) {
         let padding = padding_to::<T>(self.read);
@@ -256,7 +266,7 @@ impl<'a> ReadBuf<'a> {
     }
 
     /// Load a slice ending with a NUL byte, excluding the null byte.
-    pub(crate) fn load_slice_nul(&mut self, len: usize) -> Result<&'a [u8], Error> {
+    pub(crate) fn load_slice_nul(&mut self, len: usize) -> Result<&'a [u8]> {
         if self.read + len + 1 > self.written {
             return Err(Error::from(io::Error::from(io::ErrorKind::UnexpectedEof)));
         }

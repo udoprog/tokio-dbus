@@ -4,7 +4,6 @@ use std::io;
 use std::str::Utf8Error;
 
 use crate::connection::ConnectionState;
-use crate::protocol::Variant;
 use crate::SignatureError;
 
 /// Result alias using an [`Error`] as the error type by default.
@@ -81,9 +80,6 @@ impl fmt::Display for Error {
             ErrorKind::ZeroSerial => write!(f, "Zero in header serial"),
             ErrorKind::ZeroReplySerial => write!(f, "Zero REPLY_SERIAL header"),
             ErrorKind::MissingErrorName => write!(f, "Missing required ERROR_NAME header"),
-            ErrorKind::InvalidHeaderVariant(variant) => {
-                write!(f, "Unsupported header variant {:?}", variant)
-            }
             ErrorKind::NotNullTerminated => {
                 write!(f, "String is not null terminated")
             }
@@ -127,7 +123,6 @@ pub(crate) enum ErrorKind {
     ZeroSerial,
     ZeroReplySerial,
     MissingErrorName,
-    InvalidHeaderVariant(Variant),
     NotNullTerminated,
     BodyTooLong(u32),
     ArrayTooLong(u32),

@@ -120,3 +120,10 @@ impl ClientBuilder {
         Ok(c)
     }
 }
+
+impl Default for ClientBuilder {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}

@@ -2,7 +2,7 @@ use std::fmt;
 use std::str::from_utf8_unchecked;
 
 use crate::buf::BufMut;
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::protocol::Type;
 use crate::stack::{Stack, StackValue};
 use crate::OwnedSignature;
@@ -247,6 +247,39 @@ impl Signature {
     /// Get the signature as a byte slice.
     pub(crate) fn as_bytes(&self) -> &[u8] {
         &self.0
+    }
+
+    /// Skip over the current signature in the read buffer.
+    pub(crate) fn skip(&self, read: &mut ReadBuf<'_>) -> Result<()> {
+        for &b in self.0.iter() {
+            let n = match Type(b) {
+                Type::BYTE => 1,
+                Type::BOOLEAN => 1,
+                Type::INT16 => 2,
+                Type::UINT16 => 2,
+                Type::INT32 => 4,
+                Type::UINT32 => 4,
+                Type::INT64 => 8,
+                Type::UINT64 => 8,
+                Type::DOUBLE => 8,
+                Type::STRING => read.load::<u32>()? as usize + 1,
+                Type::OBJECT_PATH => read.load::<u32>()? as usize + 1,
+                Type::SIGNATURE => read.load::<u8>()? as usize + 1,
+                Type::VARIANT => {
+                    read.load::<u8>()?;
+                    let sig = read.read::<Self>()?;
+                    sig.skip(read)?;
+                    continue;
+                }
+                Type::UNIX_FD => 4,
+                Type::ARRAY => read.load::<u32>()? as usize,
+                b => return Err(Error::from(SignatureError::UnknownTypeCode(b.0))),
+            };
+
+            read.advance(n)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -513,7 +546,7 @@ const fn validate(bytes: &[u8]) -> Result<(), SignatureError> {
 
                 false
             }
-            _ => return Err(SignatureError::UnknownTypeCode),
+            t => return Err(SignatureError::UnknownTypeCode(t.0)),
         };
 
         while let Some((Kind::Array, _)) = stack_peek!(stack) {

@@ -131,3 +131,10 @@ impl SendBuf {
         Ok(serial)
     }
 }
+
+impl Default for SendBuf {
+    #[inline]
+    fn default() -> Self {
+        Self::new()
+    }
+}

@@ -53,7 +53,7 @@ macro_rules! raw_enum {
             fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
                 match *self {
                     $(Self::$variant => f.write_str(stringify!($variant)),)*
-                    _ => f.write_str("INVALID"),
+                    b => write!(f, "INVALID({:02x})", b.0),
                 }
             }
         }

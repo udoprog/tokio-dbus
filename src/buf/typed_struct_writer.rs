@@ -1,23 +1,17 @@
 use std::marker::PhantomData;
 
-use crate::buf::{BufMut, StructWriter, TypedArrayWriter};
+use crate::buf::{OwnedBuf, StructWriter, TypedArrayWriter};
 use crate::ty;
 use crate::{Frame, Write};
 
 /// Write a typed struct.
-pub struct TypedStructWriter<'a, O, E>
-where
-    O: BufMut,
-{
-    inner: StructWriter<'a, O>,
+pub struct TypedStructWriter<'a, E> {
+    inner: StructWriter<'a, OwnedBuf>,
     _marker: PhantomData<E>,
 }
 
-impl<'a, O, E> TypedStructWriter<'a, O, E>
-where
-    O: BufMut,
-{
-    pub(super) fn new(inner: StructWriter<'a, O>) -> Self {
+impl<'a, E> TypedStructWriter<'a, E> {
+    pub(super) fn new(inner: StructWriter<'a, OwnedBuf>) -> Self {
         Self {
             inner,
             _marker: PhantomData,
@@ -43,7 +37,7 @@ where
     /// assert_eq!(buf.get(), &[10, 0, 0, 0, 10, 0, 0, 0]);
     /// ```
     #[inline]
-    pub fn store(mut self, value: E::First) -> TypedStructWriter<'a, O, E::Remaining>
+    pub fn store(mut self, value: E::First) -> TypedStructWriter<'a, E::Remaining>
     where
         E: ty::Fields,
         E::First: Frame,
@@ -73,7 +67,7 @@ where
     pub fn write(
         mut self,
         value: &<E::First as ty::Unsized>::Target,
-    ) -> TypedStructWriter<'a, O, E::Remaining>
+    ) -> TypedStructWriter<'a, E::Remaining>
     where
         E: ty::Fields,
         E::First: ty::Unsized,
@@ -106,9 +100,9 @@ where
     /// assert_eq!(buf.get(), &[16, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 4, 0, 0, 0]);
     /// ```
     #[inline]
-    pub fn write_array<W, T>(mut self, writer: W) -> TypedStructWriter<'a, O, E::Remaining>
+    pub fn write_array<W, T>(mut self, writer: W) -> TypedStructWriter<'a, E::Remaining>
     where
-        W: FnOnce(&mut TypedArrayWriter<'_, O, T>),
+        W: FnOnce(&mut TypedArrayWriter<'_, T>),
         E: ty::Fields<First = ty::Array<T>>,
     {
         let mut w = TypedArrayWriter::new(self.inner.write_array());
@@ -119,9 +113,9 @@ where
 
     /// Store a value and return the builder for the next value to store.
     #[inline]
-    pub fn write_struct<W>(mut self, writer: W) -> TypedStructWriter<'a, O, E::Remaining>
+    pub fn write_struct<W>(mut self, writer: W) -> TypedStructWriter<'a, E::Remaining>
     where
-        W: FnOnce(&mut TypedStructWriter<'_, O, E::First>),
+        W: FnOnce(&mut TypedStructWriter<'_, E::First>),
         E: ty::Fields,
         E::First: ty::Fields,
     {
@@ -131,10 +125,7 @@ where
     }
 }
 
-impl<'a, O> TypedStructWriter<'a, O, ()>
-where
-    O: BufMut,
-{
+impl TypedStructWriter<'_, ()> {
     /// Finish writing the struct.
     pub fn finish(self) {}
 }

@@ -1,3 +1,6 @@
+use crate::buf::OwnedBuf;
+use crate::error::Result;
+
 use super::{Signature, SignatureError};
 
 use SignatureError::*;
@@ -22,7 +25,7 @@ fn signature_tests() {
     test!(b"b", Ok(..));
     test!(b"ai", Ok(..));
     test!(b"(i)", Ok(..));
-    test!(b"w", Err(UnknownTypeCode));
+    test!(b"w", Err(UnknownTypeCode(..)));
     test!(b"a", Err(MissingArrayElementType));
     test!(b"aaaaaa", Err(MissingArrayElementType));
     test!(b"ii(ii)a", Err(MissingArrayElementType));
@@ -49,10 +52,10 @@ fn signature_tests() {
     test!(b"a{ia}", Err(MissingArrayElementType));
     test!(b"a{}", Err(DictEntryHasNoFields));
     test!(b"a{aii}", Err(DictKeyMustBeBasicType));
-    test!(b" ", Err(UnknownTypeCode));
-    test!(b"not a valid signature", Err(UnknownTypeCode));
-    test!(b"123", Err(UnknownTypeCode));
-    test!(b".", Err(UnknownTypeCode));
+    test!(b" ", Err(UnknownTypeCode(..)));
+    test!(b"not a valid signature", Err(UnknownTypeCode(..)));
+    test!(b"123", Err(UnknownTypeCode(..)));
+    test!(b".", Err(UnknownTypeCode(..)));
     /* https://bugs.freedesktop.org/show_bug.cgi?id=17803 */
     test!(b"a{(ii)i}", Err(DictKeyMustBeBasicType));
     test!(b"a{i}", Err(DictEntryHasOnlyOneField));
@@ -68,4 +71,18 @@ fn signature_tests() {
         b"(((((((((((((((((((((((((((((((((ii))))))))))))))))))))))))))))))))",
         Err(ExceededMaximumStructRecursion)
     };
+}
+
+#[test]
+fn signature_skip() -> Result<()> {
+    let mut buf = OwnedBuf::new();
+    buf.write("Hello World");
+    let sig = Signature::new_const(b"s");
+
+    let mut read_buf = buf.read_buf(buf.len());
+
+    sig.skip(&mut read_buf)?;
+
+    assert!(read_buf.is_empty(), "{:?}", read_buf.get());
+    Ok(())
 }

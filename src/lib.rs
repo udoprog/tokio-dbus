@@ -1,3 +1,9 @@
+//! # tokio-dbus
+//!
+//! An asynchronous D-Bus implementation for the Tokio ecosystem.
+
+#![allow(clippy::module_inception)]
+
 #[macro_use]
 mod stack;
 

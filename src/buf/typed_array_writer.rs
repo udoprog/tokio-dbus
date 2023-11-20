@@ -1,23 +1,17 @@
 use std::marker::PhantomData;
 
-use crate::buf::{ArrayWriter, BufMut, TypedStructWriter};
+use crate::buf::{ArrayWriter, OwnedBuf, TypedStructWriter};
 use crate::ty;
 use crate::{Frame, Write};
 
 /// Write a typed array.
-pub struct TypedArrayWriter<'a, O, E>
-where
-    O: BufMut,
-{
-    inner: ArrayWriter<'a, O>,
+pub struct TypedArrayWriter<'a, E> {
+    inner: ArrayWriter<'a, OwnedBuf>,
     _marker: PhantomData<E>,
 }
 
-impl<'a, O, E> TypedArrayWriter<'a, O, E>
-where
-    O: BufMut,
-{
-    pub(super) fn new(inner: ArrayWriter<'a, O>) -> Self {
+impl<'a, E> TypedArrayWriter<'a, E> {
+    pub(super) fn new(inner: ArrayWriter<'a, OwnedBuf>) -> Self {
         Self {
             inner,
             _marker: PhantomData,
@@ -32,10 +26,7 @@ where
     }
 }
 
-impl<'a, O, E> TypedArrayWriter<'a, O, E>
-where
-    O: BufMut,
-{
+impl<'a, E> TypedArrayWriter<'a, E> {
     /// Store a value and return the builder for the next value to store.
     pub fn store(&mut self, value: E)
     where
@@ -55,7 +46,7 @@ where
 
     /// Write a struct inside of the array.
     #[inline]
-    pub fn write_struct(&mut self) -> TypedStructWriter<'_, O, E>
+    pub fn write_struct(&mut self) -> TypedStructWriter<'_, E>
     where
         E: ty::Fields,
     {
@@ -63,13 +54,10 @@ where
     }
 }
 
-impl<'a, O, E> TypedArrayWriter<'a, O, ty::Array<E>>
-where
-    O: BufMut,
-{
+impl<'a, E> TypedArrayWriter<'a, ty::Array<E>> {
     /// Write an array inside of the array.
     #[inline]
-    pub fn write_array(&mut self) -> TypedArrayWriter<'_, O, E> {
+    pub fn write_array(&mut self) -> TypedArrayWriter<'_, E> {
         TypedArrayWriter::new(self.inner.write_array())
     }
 }
