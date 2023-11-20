@@ -27,18 +27,18 @@ pub mod buf;
 pub mod sasl;
 
 #[doc(inline)]
-pub use self::signature::{Signature, SignatureError};
+pub use self::signature::{OwnedSignature, Signature, SignatureError};
 mod signature;
 
 #[doc(inline)]
 pub use self::frame::Frame;
 mod frame;
 
-pub use self::message::{Message, MessageKind};
+pub use self::message::{Message, MessageKind, OwnedMessage, OwnedMessageKind};
 mod message;
 
 #[cfg(feature = "tokio")]
-pub use self::client::Client;
+pub use self::client::{Client, RecvBuf, SendBuf};
 mod client;
 
 pub use self::client_builder::ClientBuilder;

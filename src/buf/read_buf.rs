@@ -48,6 +48,19 @@ impl<'a> ReadBuf<'a> {
         }
     }
 
+    /// Construct a read buffer from a slice.
+    pub(crate) const fn from_slice(data: &[u8], endianness: Endianness) -> Self {
+        Self {
+            // SAFETY: data is taken directly from a slice, so it's guaranteed
+            // to be non-null.
+            data: unsafe { ptr::NonNull::new_unchecked(data.as_ptr() as *mut _) },
+            read: 0,
+            len: data.len(),
+            endianness,
+            _marker: PhantomData,
+        }
+    }
+
     /// Construct a new read buffer wrapping pointed to data.
     pub(crate) fn new(data: ptr::NonNull<u8>, len: usize, endianness: Endianness) -> Self {
         Self {
@@ -268,3 +281,12 @@ impl fmt::Debug for ReadBuf<'_> {
             .finish()
     }
 }
+
+impl<'a, 'b> PartialEq<ReadBuf<'a>> for ReadBuf<'b> {
+    #[inline]
+    fn eq(&self, other: &ReadBuf<'a>) -> bool {
+        self.get() == other.get() && self.endianness == other.endianness
+    }
+}
+
+impl<'a> Eq for ReadBuf<'a> {}

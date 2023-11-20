@@ -1,5 +1,7 @@
+use std::borrow::Borrow;
 use std::error;
 use std::fmt;
+use std::ops::Deref;
 use std::str::from_utf8_unchecked;
 
 #[cfg(test)]
@@ -47,6 +49,42 @@ impl error::Error for SignatureError {}
 
 /// A D-Bus signature.
 ///
+/// This is the owned variant which dereferences to [`Signature`].
+#[derive(Clone, PartialEq, Eq)]
+pub struct OwnedSignature(Vec<u8>);
+
+impl OwnedSignature {
+    /// An empty owned signature.
+    pub const EMPTY: Self = OwnedSignature(Vec::new());
+}
+
+impl fmt::Debug for OwnedSignature {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_tuple("OwnedSignature")
+            .field(&self.as_str())
+            .finish()
+    }
+}
+
+impl Deref for OwnedSignature {
+    type Target = Signature;
+
+    fn deref(&self) -> &Self::Target {
+        // Construction of OwnedSignature ensures that the signature is valid.
+        unsafe { Signature::new_unchecked(&self.0) }
+    }
+}
+
+impl Borrow<Signature> for OwnedSignature {
+    #[inline]
+    fn borrow(&self) -> &Signature {
+        self
+    }
+}
+
+/// A D-Bus signature.
+///
 /// # Examples
 ///
 /// ```
@@ -61,6 +99,8 @@ impl error::Error for SignatureError {}
 pub struct Signature([u8]);
 
 impl Signature {
+    /// The empty signature.
+    pub const EMPTY: &'static Signature = Signature::new_const(b"");
     /// The signature of a stored signature.
     pub const SIGNATURE: &'static Signature = Signature::new_const(b"g");
     /// A simple object path.
@@ -143,6 +183,7 @@ impl Signature {
 }
 
 impl fmt::Debug for Signature {
+    #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_tuple("Signature").field(&self.as_str()).finish()
     }
@@ -162,6 +203,83 @@ impl Read for Signature {
         let len = buf.load::<u8>()? as usize;
         let bytes = buf.load_slice_nul(len)?;
         Ok(Signature::new(bytes)?)
+    }
+}
+
+impl ToOwned for Signature {
+    type Owned = OwnedSignature;
+
+    #[inline]
+    fn to_owned(&self) -> Self::Owned {
+        OwnedSignature(self.0.to_owned())
+    }
+}
+
+/// Equality check between [`Signature`] and [`OwnedSignature`].
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::{Signature, OwnedSignature};
+///
+/// assert_eq!(OwnedSignature::EMPTY, *Signature::EMPTY);
+/// assert_eq!(Signature::STRING.to_owned(), *Signature::STRING);
+/// ```
+impl PartialEq<Signature> for OwnedSignature {
+    #[inline]
+    fn eq(&self, other: &Signature) -> bool {
+        self.0 == other.0
+    }
+}
+
+/// Equality check between a borrowed [`Signature`] and [`OwnedSignature`].
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::{Signature, OwnedSignature};
+///
+/// assert_eq!(OwnedSignature::EMPTY, *Signature::EMPTY);
+/// assert_eq!(Signature::STRING.to_owned(), *Signature::STRING);
+/// ```
+impl PartialEq<&Signature> for OwnedSignature {
+    #[inline]
+    fn eq(&self, other: &&Signature) -> bool {
+        self.0 == other.0
+    }
+}
+
+/// Equality check between [`OwnedSignature`] and [`Signature`].
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::{Signature, OwnedSignature};
+///
+/// assert_eq!(*Signature::EMPTY, OwnedSignature::EMPTY);
+/// assert_eq!(*Signature::STRING, Signature::STRING.to_owned());
+/// ```
+impl PartialEq<OwnedSignature> for Signature {
+    #[inline]
+    fn eq(&self, other: &OwnedSignature) -> bool {
+        self.0 == other.0
+    }
+}
+
+/// Equality check between [`OwnedSignature`] and a borrowed [`Signature`].
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::{Signature, OwnedSignature};
+///
+/// assert_eq!(Signature::EMPTY, OwnedSignature::EMPTY);
+/// assert_eq!(Signature::STRING, Signature::STRING.to_owned());
+/// ```
+impl PartialEq<OwnedSignature> for &Signature {
+    #[inline]
+    fn eq(&self, other: &OwnedSignature) -> bool {
+        self.0 == other.0
     }
 }
 

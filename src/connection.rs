@@ -14,7 +14,6 @@ use crate::buf::MAX_ARRAY_LENGTH;
 use crate::buf::{padding_to, MAX_BODY_LENGTH};
 use crate::error::{Error, ErrorKind, Result};
 use crate::protocol;
-use crate::protocol::Variant;
 use crate::sasl::{Guid, SaslRequest, SaslResponse};
 use crate::ReadBuf;
 use crate::{Frame, Message, MessageKind, OwnedBuf, Signature};
@@ -22,6 +21,13 @@ use crate::{Frame, Message, MessageKind, OwnedBuf, Signature};
 const ENV_SESSION_BUS: &str = "DBUS_SESSION_BUS_ADDRESS";
 const ENV_SYSTEM_BUS: &str = "DBUS_SYSTEM_BUS_ADDRESS";
 const DEFAULT_SYSTEM_BUS: &str = "unix:path=/var/run/dbus/system_bus_socket";
+
+/// The parameters of a message.
+pub struct MessageRef {
+    pub(crate) header: protocol::Header,
+    pub(crate) headers: usize,
+    pub(crate) total: usize,
+}
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum SaslState {
@@ -73,8 +79,6 @@ pub struct Connection {
     stream: UnixStream,
     // The state of the connection.
     state: ConnectionState,
-    // Current serial used by the connection.
-    serial: u32,
 }
 
 impl Connection {
@@ -131,7 +135,6 @@ impl Connection {
         Self {
             stream,
             state: ConnectionState::Sasl(SaslState::Init),
-            serial: 0,
         }
     }
 
@@ -154,7 +157,7 @@ impl Connection {
                         *sasl = SaslState::Send;
                     }
                     SaslState::Send => {
-                        send_buf(&mut self.stream, buf)?;
+                        send_buf(&mut &self.stream, buf)?;
                         *sasl = SaslState::Idle;
                         return Ok(());
                     }
@@ -168,7 +171,7 @@ impl Connection {
     pub(crate) fn sasl_recv(&mut self, buf: &mut OwnedBuf) -> Result<usize> {
         match self.state {
             ConnectionState::Sasl(SaslState::Idle) => {
-                let value = recv_line(&mut self.stream, buf)?;
+                let value = recv_line(&mut &self.stream, buf)?;
                 Ok(value)
             }
             state => Err(Error::new(ErrorKind::InvalidState(state))),
@@ -192,7 +195,7 @@ impl Connection {
                         *sasl = SaslState::Send;
                     }
                     SaslState::Send => {
-                        send_buf(&mut self.stream, buf)?;
+                        send_buf(&mut &self.stream, buf)?;
                         self.state = ConnectionState::Idle;
                         return Ok(());
                     }
@@ -202,134 +205,14 @@ impl Connection {
         }
     }
 
-    /// Write a `message` to the internal buffer and return the serial number
-    /// associated with it.
-    ///
-    /// This can be used to add a message to the internal buffer immediately
-    /// without sending it.
-    ///
-    /// To subsequently send the message you can use [`send_buf()`].
-    ///
-    /// [`send_buf()`]: Self::send_buf
-    pub fn write_message(
-        &mut self,
-        buf: &mut OwnedBuf,
-        message: &Message,
-    ) -> Result<NonZeroU32, Error> {
-        if matches!(self.state, ConnectionState::Sasl(..)) {
-            return Err(Error::new(ErrorKind::InvalidState(self.state)));
-        }
-
-        let serial = if let Some(serial) = message.serial {
-            serial.get()
-        } else {
-            self.serial += 1;
-
-            if self.serial == 0 {
-                self.serial = 1;
-            }
-
-            self.serial
-        };
-
-        buf.store(protocol::Header {
-            endianness: buf.endianness(),
-            message_type: message.message_type(),
-            flags: message.flags,
-            version: 1,
-            body_length: 0,
-            serial,
-        });
-
-        // SAFETY: We've ensured just above that it's non-zero.
-        let serial = unsafe { NonZeroU32::new_unchecked(self.serial) };
-
-        let mut array = buf.write_array();
-
-        match message.kind {
-            MessageKind::MethodCall { path, member } => {
-                let mut st = array.write_struct();
-                st.store(Variant::PATH);
-                st.write(Signature::OBJECT_PATH);
-                st.write(path);
-
-                let mut st = array.write_struct();
-                st.store(Variant::MEMBER);
-                st.write(Signature::STRING);
-                st.write(member);
-            }
-            MessageKind::MethodReturn { reply_serial } => {
-                let mut st = array.write_struct();
-                st.store(Variant::REPLY_SERIAL);
-                st.write(Signature::UINT32);
-                st.store(reply_serial.get());
-            }
-            MessageKind::Error {
-                error_name,
-                reply_serial,
-            } => {
-                let mut st = array.write_struct();
-                st.store(Variant::ERROR_NAME);
-                st.write(Signature::STRING);
-                st.write(error_name);
-
-                let mut st = array.write_struct();
-                st.store(Variant::REPLY_SERIAL);
-                st.write(Signature::UINT32);
-                st.store(reply_serial.get());
-            }
-            MessageKind::Signal { member } => {
-                let mut st = array.write_struct();
-                st.store(Variant::MEMBER);
-                st.write(Signature::STRING);
-                st.write(member);
-            }
-        }
-
-        if let Some(interface) = message.interface {
-            let mut st = array.write_struct();
-            st.store(Variant::INTERFACE);
-            st.write(Signature::STRING);
-            st.write(interface);
-        }
-
-        if let Some(destination) = message.destination {
-            let mut st = array.write_struct();
-            st.store(Variant::DESTINATION);
-            st.write(Signature::STRING);
-            st.write(destination);
-        }
-
-        if let Some(sender) = message.sender {
-            let mut st = array.write_struct();
-            st.store(Variant::SENDER);
-            st.write(Signature::STRING);
-            st.write(sender);
-        }
-
-        if !message.signature.is_empty() {
-            let mut st = array.write_struct();
-            st.store(Variant::SIGNATURE);
-            st.write(Signature::SIGNATURE);
-            st.write(message.signature);
-        }
-
-        array.finish();
-        buf.align_mut::<u64>();
-        Ok(serial)
-    }
-
     /// Write and sned a single message over the connection.
-    pub(crate) fn send_buf(&mut self, buf: &mut OwnedBuf) -> Result<(), Error> {
-        send_buf(&mut self.stream, buf)?;
+    pub(crate) fn send_buf(&self, buf: &mut OwnedBuf) -> Result<()> {
+        send_buf(&mut &self.stream, buf)?;
         Ok(())
     }
 
     /// Receive a message.
-    pub(crate) fn recv_message(
-        &mut self,
-        buf: &mut OwnedBuf,
-    ) -> Result<(protocol::Header, usize, usize), Error> {
+    pub(crate) fn recv_message(&mut self, buf: &mut OwnedBuf) -> Result<MessageRef> {
         loop {
             match self.state {
                 ConnectionState::Idle => {
@@ -361,7 +244,11 @@ impl Connection {
                 ConnectionState::RecvBody(header, headers, total) => {
                     self.recv_buf(buf, total)?;
                     self.state = ConnectionState::Idle;
-                    return Ok((header, headers, total));
+                    return Ok(MessageRef {
+                        header,
+                        headers,
+                        total,
+                    });
                 }
                 state => return Err(Error::new(ErrorKind::InvalidState(state))),
             }
@@ -372,14 +259,14 @@ impl Connection {
     ///
     /// This simply reads into the buffer pointed to by `header`, without
     /// validating the header.
-    pub(crate) fn read_frame<'buf, T>(&mut self, buf: &mut OwnedBuf) -> Result<T>
+    pub(crate) fn read_frame<'buf, T>(&self, buf: &mut OwnedBuf) -> Result<T>
     where
         T: Frame,
     {
         buf.align_mut::<T>();
 
         while buf.len() < size_of::<T>() {
-            recv_some(&mut self.stream, buf)?;
+            recv_some(&mut &self.stream, buf)?;
         }
 
         let mut read_buf = buf.read_buf(size_of::<T>());
@@ -388,11 +275,11 @@ impl Connection {
     }
 
     /// Fill a buffer up to `n` bytes.
-    pub(crate) fn recv_buf(&mut self, buf: &mut OwnedBuf, n: usize) -> io::Result<()> {
+    pub(crate) fn recv_buf(&self, buf: &mut OwnedBuf, n: usize) -> io::Result<()> {
         buf.reserve_bytes(n);
 
         while buf.len() < n {
-            recv_some(&mut self.stream, buf)?;
+            recv_some(&mut &self.stream, buf)?;
         }
 
         Ok(())
@@ -443,7 +330,7 @@ pub(crate) fn read_message(
         let sig = header_slice.read::<Signature>()?;
 
         match (variant, sig.as_bytes()) {
-            (protocol::Variant::PATH, b"s") => {
+            (protocol::Variant::PATH, b"o") => {
                 path = Some(header_slice.read::<str>()?);
             }
             (protocol::Variant::INTERFACE, b"s") => {
@@ -469,7 +356,9 @@ pub(crate) fn read_message(
             (protocol::Variant::SENDER, b"s") => {
                 sender = Some(header_slice.read::<str>()?);
             }
-            (variant, _) => return Err(Error::new(ErrorKind::InvalidHeaderVariant(variant))),
+            (variant, _) => {
+                return Err(Error::new(ErrorKind::InvalidHeaderVariant(variant)));
+            }
         }
     }
 
@@ -547,7 +436,7 @@ pub(crate) fn sasl_recv(bytes: &[u8]) -> Result<SaslResponse<'_>> {
 }
 
 /// Send the given buffer over the connection.
-fn send_buf(stream: &mut UnixStream, buf: &mut OwnedBuf) -> io::Result<()> {
+fn send_buf(stream: &mut &UnixStream, buf: &mut OwnedBuf) -> io::Result<()> {
     while !buf.is_empty() {
         let n = stream.write(buf.get())?;
         buf.advance(n);
@@ -557,7 +446,7 @@ fn send_buf(stream: &mut UnixStream, buf: &mut OwnedBuf) -> io::Result<()> {
     Ok(())
 }
 
-fn recv_line(stream: &mut UnixStream, buf: &mut OwnedBuf) -> io::Result<usize> {
+fn recv_line(stream: &mut &UnixStream, buf: &mut OwnedBuf) -> io::Result<usize> {
     loop {
         if let Some(n) = buf.get().iter().position(|b| *b == b'\n') {
             return Ok(n + 1);
@@ -568,7 +457,7 @@ fn recv_line(stream: &mut UnixStream, buf: &mut OwnedBuf) -> io::Result<usize> {
 }
 
 /// Receive data into the specified buffer.
-fn recv_some(stream: &mut UnixStream, buf: &mut OwnedBuf) -> io::Result<()> {
+fn recv_some(stream: &mut &UnixStream, buf: &mut OwnedBuf) -> io::Result<()> {
     buf.reserve_bytes(4096);
     let n = stream.read(buf.get_mut())?;
 

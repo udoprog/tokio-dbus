@@ -1,6 +1,7 @@
+use crate::client::{ClientState, RecvBuf, SendBuf};
 use crate::error::Result;
 use crate::sasl::{Auth, SaslRequest, SaslResponse};
-use crate::{Client, Connection};
+use crate::{Client, Connection, Message};
 
 enum BusKind {
     Session,
@@ -49,10 +50,12 @@ impl ClientBuilder {
     /// # Examples
     ///
     /// ```no_run
-    /// use tokio_dbus::ClientBuilder;
+    /// use tokio_dbus::{ClientBuilder, SendBuf, RecvBuf};
     ///
     /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
-    /// let c = ClientBuilder::new().session_bus().connect().await?;
+    /// let mut send = SendBuf::new();
+    /// let mut recv = RecvBuf::new();
+    /// let c = ClientBuilder::new().session_bus().connect(&mut send, &mut recv).await?;
     /// # Ok(()) }
     /// ```
     pub fn session_bus(&mut self) -> &mut Self {
@@ -65,10 +68,12 @@ impl ClientBuilder {
     /// # Examples
     ///
     /// ```no_run
-    /// use tokio_dbus::ClientBuilder;
+    /// use tokio_dbus::{ClientBuilder, SendBuf, RecvBuf};
     ///
     /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
-    /// let c = ClientBuilder::new().system_bus().connect().await?;
+    /// let mut send = SendBuf::new();
+    /// let mut recv = RecvBuf::new();
+    /// let c = ClientBuilder::new().system_bus().connect(&mut send, &mut recv).await?;
     /// # Ok(()) }
     /// ```
     pub fn system_bus(&mut self) -> &mut Self {
@@ -77,7 +82,7 @@ impl ClientBuilder {
     }
 
     /// Construct and connect a [`Client`] with the current configuration.
-    pub async fn connect(&self) -> Result<Client> {
+    pub async fn connect(&self, send: &mut SendBuf, recv: &mut RecvBuf) -> Result<Client> {
         let c = match self.bus {
             BusKind::Session => Connection::session_bus()?,
             BusKind::System => Connection::system_bus()?,
@@ -97,7 +102,7 @@ impl ClientBuilder {
         let mut c = Client::new(c)?;
 
         if let Some(auth) = auth {
-            let sasl = c.sasl_request(&SaslRequest::Auth(auth)).await?;
+            let sasl = c.sasl_request(send, recv, &SaslRequest::Auth(auth)).await?;
 
             match sasl {
                 SaslResponse::Ok(..) => {}
@@ -105,7 +110,13 @@ impl ClientBuilder {
         }
 
         // Transition to message mode.
-        c.sasl_begin().await?;
+        c.sasl_begin(send).await?;
+
+        let m = Message::method_call("/org/freedesktop/DBus", "Hello")
+            .with_destination("org.freedesktop.DBus");
+
+        let serial = send.write_message(&m)?;
+        c.set_state(ClientState::HelloSent(serial));
         Ok(c)
     }
 }

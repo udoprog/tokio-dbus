@@ -1,25 +1,16 @@
-use tokio_dbus::{Client, Message, MessageKind, Result};
+use tokio_dbus::{Client, OwnedBuf, RecvBuf, Result, SendBuf};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut c = Client::session_bus().await?;
+    let mut send = SendBuf::new();
+    let mut recv = RecvBuf::new();
+    let mut body = OwnedBuf::new();
 
-    let m = Message::method_call("/org/freedesktop/DBus", "Hello")
-        .with_destination("org.freedesktop.DBus");
+    let mut c = Client::session_bus(&mut send, &mut recv).await?;
 
-    let serial = c.write_message(&m)?;
-
-    let message = c.process().await?;
-
-    assert_eq!(
-        message.kind(),
-        MessageKind::MethodReturn {
-            reply_serial: serial
-        }
-    );
-
-    let mut body = message.body();
-    let name = body.read::<str>()?;
-    dbg!(message, body.len(), name);
-    Ok(())
+    loop {
+        let message = c.process(&mut send, &mut recv).await?;
+        let message = recv.message(&message)?;
+        dbg!(message);
+    }
 }
