@@ -2,7 +2,7 @@ use std::num::NonZeroU32;
 
 use crate::buf::OwnedBuf;
 use crate::error::Result;
-use crate::protocol::{self, Variant};
+use crate::protocol;
 use crate::{Message, MessageKind, Signature};
 
 /// Buffer used for sending messages through D-Bus.
@@ -61,18 +61,18 @@ impl SendBuf {
         match message.kind {
             MessageKind::MethodCall { path, member } => {
                 let mut st = array.write_struct();
-                st.store(Variant::PATH);
+                st.store(protocol::Variant::PATH);
                 st.write(Signature::OBJECT_PATH);
                 st.write(path);
 
                 let mut st = array.write_struct();
-                st.store(Variant::MEMBER);
+                st.store(protocol::Variant::MEMBER);
                 st.write(Signature::STRING);
                 st.write(member);
             }
             MessageKind::MethodReturn { reply_serial } => {
                 let mut st = array.write_struct();
-                st.store(Variant::REPLY_SERIAL);
+                st.store(protocol::Variant::REPLY_SERIAL);
                 st.write(Signature::UINT32);
                 st.store(reply_serial.get());
             }
@@ -81,18 +81,18 @@ impl SendBuf {
                 reply_serial,
             } => {
                 let mut st = array.write_struct();
-                st.store(Variant::ERROR_NAME);
+                st.store(protocol::Variant::ERROR_NAME);
                 st.write(Signature::STRING);
                 st.write(error_name);
 
                 let mut st = array.write_struct();
-                st.store(Variant::REPLY_SERIAL);
+                st.store(protocol::Variant::REPLY_SERIAL);
                 st.write(Signature::UINT32);
                 st.store(reply_serial.get());
             }
             MessageKind::Signal { member } => {
                 let mut st = array.write_struct();
-                st.store(Variant::MEMBER);
+                st.store(protocol::Variant::MEMBER);
                 st.write(Signature::STRING);
                 st.write(member);
             }
@@ -100,28 +100,28 @@ impl SendBuf {
 
         if let Some(interface) = message.interface {
             let mut st = array.write_struct();
-            st.store(Variant::INTERFACE);
+            st.store(protocol::Variant::INTERFACE);
             st.write(Signature::STRING);
             st.write(interface);
         }
 
         if let Some(destination) = message.destination {
             let mut st = array.write_struct();
-            st.store(Variant::DESTINATION);
+            st.store(protocol::Variant::DESTINATION);
             st.write(Signature::STRING);
             st.write(destination);
         }
 
         if let Some(sender) = message.sender {
             let mut st = array.write_struct();
-            st.store(Variant::SENDER);
+            st.store(protocol::Variant::SENDER);
             st.write(Signature::STRING);
             st.write(sender);
         }
 
         if !message.signature.is_empty() {
             let mut st = array.write_struct();
-            st.store(Variant::SIGNATURE);
+            st.store(protocol::Variant::SIGNATURE);
             st.write(Signature::SIGNATURE);
             st.write(message.signature);
         }

@@ -30,7 +30,7 @@ use super::{padding_to, ArrayReader, StructReader};
 pub struct ReadBuf<'a> {
     data: ptr::NonNull<u8>,
     read: usize,
-    len: usize,
+    written: usize,
     endianness: Endianness,
     _marker: PhantomData<&'a [u8]>,
 }
@@ -38,40 +38,38 @@ pub struct ReadBuf<'a> {
 impl<'a> ReadBuf<'a> {
     /// Construct an empty read buffer.
     pub(crate) const fn empty() -> Self {
-        Self {
-            data: ptr::NonNull::dangling(),
-            read: 0,
-            len: 0,
-            endianness: Endianness::NATIVE,
-            _marker: PhantomData,
-        }
+        Self::new(ptr::NonNull::dangling(), 0, Endianness::NATIVE)
     }
 
     /// Construct a read buffer from a slice.
     #[doc(hidden)]
+    #[inline]
     pub const fn from_slice_le(data: &'a [u8]) -> Self {
         Self::from_slice(data, Endianness::LITTLE)
     }
 
     /// Construct a read buffer from a slice.
+    #[inline]
     pub(crate) const fn from_slice(data: &'a [u8], endianness: Endianness) -> Self {
-        Self {
-            // SAFETY: data is taken directly from a slice, so it's guaranteed
-            // to be non-null.
-            data: unsafe { ptr::NonNull::new_unchecked(data.as_ptr() as *mut _) },
-            read: 0,
-            len: data.len(),
+        // SAFETY: data is taken directly from a slice, so it's guaranteed
+        // to be non-null.
+        Self::new(
+            unsafe { ptr::NonNull::new_unchecked(data.as_ptr() as *mut _) },
+            data.len(),
             endianness,
-            _marker: PhantomData,
-        }
+        )
     }
 
     /// Construct a new read buffer wrapping pointed to data.
-    pub(crate) fn new(data: ptr::NonNull<u8>, len: usize, endianness: Endianness) -> Self {
+    pub(crate) const fn new(
+        data: ptr::NonNull<u8>,
+        written: usize,
+        endianness: Endianness,
+    ) -> Self {
         Self {
             data,
             read: 0,
-            len,
+            written,
             endianness,
             _marker: PhantomData,
         }
@@ -80,6 +78,11 @@ impl<'a> ReadBuf<'a> {
     /// Get the endianness of the buffer.
     pub fn endianness(&self) -> Endianness {
         self.endianness
+    }
+
+    /// Adjust endianness of read buffer.
+    pub fn with_endianness(self, endianness: Endianness) -> Self {
+        Self { endianness, ..self }
     }
 
     /// Get a slice out of the buffer that has ben written to.
@@ -102,18 +105,18 @@ impl<'a> ReadBuf<'a> {
     pub fn get(&self) -> &'a [u8] {
         unsafe {
             let at = self.data.as_ptr().add(self.read);
-            from_raw_parts(at, self.len - self.read)
+            from_raw_parts(at, self.len())
         }
     }
 
     /// Test if the slice is empty.
     pub fn is_empty(&self) -> bool {
-        self.read == self.len
+        self.read == self.written
     }
 
     /// Get the length of the slice.
     pub fn len(&self) -> usize {
-        self.len
+        self.written - self.read
     }
 
     /// Read a reference from the buffer.
@@ -174,7 +177,7 @@ impl<'a> ReadBuf<'a> {
     /// }
     /// ```
     pub fn read_buf(&mut self, len: usize) -> ReadBuf<'a> {
-        assert!(len <= self.len);
+        assert!(len <= self.len());
         let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
         self.read += len;
         ReadBuf::new(data, len, self.endianness)
@@ -224,7 +227,7 @@ impl<'a> ReadBuf<'a> {
     {
         let padding = padding_to::<T>(self.read);
 
-        if self.read + padding + size_of::<T>() > self.len {
+        if self.read + padding + size_of::<T>() > self.written {
             return Err(Error::new(ErrorKind::BufferUnderflow));
         }
 
@@ -244,7 +247,7 @@ impl<'a> ReadBuf<'a> {
         let padding = padding_to::<T>(self.read);
 
         assert!(
-            self.read + padding <= self.len,
+            self.read + padding <= self.written,
             "{} + {padding} overflows buffer",
             self.read
         );
@@ -254,7 +257,7 @@ impl<'a> ReadBuf<'a> {
 
     /// Load a slice ending with a NUL byte, excluding the null byte.
     pub(crate) fn load_slice_nul(&mut self, len: usize) -> Result<&'a [u8], Error> {
-        if self.read + len + 1 > self.len {
+        if self.read + len + 1 > self.written {
             return Err(Error::from(io::Error::from(io::ErrorKind::UnexpectedEof)));
         }
 
@@ -280,7 +283,7 @@ impl Clone for ReadBuf<'_> {
         Self {
             data: self.data,
             read: self.read,
-            len: self.len,
+            written: self.written,
             endianness: self.endianness,
             _marker: self._marker,
         }
@@ -291,7 +294,7 @@ impl fmt::Debug for ReadBuf<'_> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ReadBuf")
-            .field("len", &self.len)
+            .field("len", &self.written)
             .field("endianness", &self.endianness)
             .finish()
     }

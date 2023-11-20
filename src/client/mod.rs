@@ -92,12 +92,14 @@ impl Client {
         send: &mut SendBuf,
         recv: &mut RecvBuf,
     ) -> Result<MessageRef, Error> {
-        if let Some(advance) = recv.advance.take() {
-            recv.buf.advance(advance.get());
-        }
-
         loop {
+            if let Some(advance) = recv.advance.take() {
+                recv.buf.advance(advance.get());
+                recv.buf.update_alignment_base();
+            }
+
             let message_ref = self.io(send, recv).await?;
+            recv.advance = NonZeroUsize::new(message_ref.total);
 
             if let ClientState::HelloSent(serial) = self.state {
                 // Read once for internal processing.
@@ -107,14 +109,12 @@ impl Client {
                     MessageKind::MethodReturn { reply_serial } if reply_serial == serial => {
                         self.name = Some(message.body().read::<str>()?.into());
                         self.state = ClientState::Idle;
-                        recv.buf.advance(message_ref.total);
                         continue;
                     }
                     _ => {}
                 }
             }
 
-            recv.advance = NonZeroUsize::new(message_ref.total);
             return Ok(message_ref);
         }
     }

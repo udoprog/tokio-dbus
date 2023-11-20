@@ -4,7 +4,6 @@ use std::fmt;
 use std::io;
 use std::io::{Read, Write};
 use std::mem::size_of;
-use std::num::NonZeroU32;
 use std::os::fd::AsRawFd;
 use std::os::fd::RawFd;
 use std::os::unix::ffi::OsStrExt;
@@ -17,14 +16,14 @@ use crate::error::{Error, ErrorKind, Result};
 use crate::protocol;
 use crate::sasl::Auth;
 use crate::sasl::{Guid, SaslRequest, SaslResponse};
-use crate::ReadBuf;
-use crate::{Frame, Message, MessageKind, Signature};
+use crate::Frame;
 
 const ENV_SESSION_BUS: &str = "DBUS_SESSION_BUS_ADDRESS";
 const ENV_SYSTEM_BUS: &str = "DBUS_SYSTEM_BUS_ADDRESS";
 const DEFAULT_SYSTEM_BUS: &str = "unix:path=/var/run/dbus/system_bus_socket";
 
 /// The parameters of a message.
+#[derive(Debug)]
 pub struct MessageRef {
     pub(crate) header: protocol::Header,
     pub(crate) headers: usize,
@@ -58,8 +57,6 @@ pub(crate) enum ConnectionState {
     Sasl(SaslState),
     // Connection is open and idle.
     Idle,
-    /// Header fields are being received.
-    RecvHeaderFields(protocol::Header),
     /// Body is being received.
     RecvBody(protocol::Header, usize, usize),
 }
@@ -69,7 +66,6 @@ impl fmt::Display for ConnectionState {
         match self {
             ConnectionState::Sasl(state) => write!(f, "sasl ({state})"),
             ConnectionState::Idle => write!(f, "idle"),
-            ConnectionState::RecvHeaderFields(..) => write!(f, "recv-header-fields"),
             ConnectionState::RecvBody(..) => write!(f, "recv-body"),
         }
     }
@@ -226,34 +222,41 @@ impl Connection {
         loop {
             match self.state {
                 ConnectionState::Idle => {
-                    let mut header = self.read_frame::<protocol::Header>(buf)?;
+                    self.recv_buf(buf, size_of::<protocol::Header>() + size_of::<u32>())?;
+
+                    let mut read_buf =
+                        buf.read_buf(size_of::<protocol::Header>() + size_of::<u32>());
+
+                    let mut header = read_buf.load::<protocol::Header>()?;
+                    let mut headers = read_buf.load::<u32>()?;
+
+                    header.adjust(header.endianness);
+                    headers.adjust(header.endianness);
 
                     if header.body_length > MAX_BODY_LENGTH {
                         return Err(Error::new(ErrorKind::BodyTooLong(header.body_length)));
                     }
 
-                    header.adjust(header.endianness);
-                    buf.set_endianness(header.endianness);
-                    self.state = ConnectionState::RecvHeaderFields(header);
-                }
-                ConnectionState::RecvHeaderFields(header) => {
-                    let headers = self.read_frame::<u32>(buf)?;
-
                     if headers > MAX_ARRAY_LENGTH {
                         return Err(Error::new(ErrorKind::ArrayTooLong(headers)));
                     }
 
-                    let total = headers
-                        .checked_add(padding_to::<u64>(headers as usize) as u32)
-                        .and_then(|total| total.checked_add(header.body_length))
-                        .and_then(|total| usize::try_from(total).ok())
-                        .ok_or_else(|| ErrorKind::MessageTooLong)?;
+                    let Some(body_length) = usize::try_from(header.body_length).ok() else {
+                        return Err(Error::new(ErrorKind::BodyTooLong(header.body_length)));
+                    };
 
-                    self.state = ConnectionState::RecvBody(header, headers as usize, total);
+                    let Some(headers) = usize::try_from(headers).ok() else {
+                        return Err(Error::new(ErrorKind::ArrayTooLong(headers)));
+                    };
+
+                    // Padding used in the header.
+                    let total = headers + padding_to::<u64>(headers) + body_length;
+                    self.state = ConnectionState::RecvBody(header, headers, total);
                 }
                 ConnectionState::RecvBody(header, headers, total) => {
                     self.recv_buf(buf, total)?;
                     self.state = ConnectionState::Idle;
+
                     return Ok(MessageRef {
                         header,
                         headers,
@@ -263,25 +266,6 @@ impl Connection {
                 state => return Err(Error::new(ErrorKind::InvalidState(state))),
             }
         }
-    }
-
-    /// Read a header from the connection.
-    ///
-    /// This simply reads into the buffer pointed to by `header`, without
-    /// validating the header.
-    pub(crate) fn read_frame<'buf, T>(&self, buf: &mut OwnedBuf) -> Result<T>
-    where
-        T: Frame,
-    {
-        buf.align_mut::<T>();
-
-        while buf.len() < size_of::<T>() {
-            recv_some(&mut &self.stream, buf)?;
-        }
-
-        let mut read_buf = buf.read_buf(size_of::<T>());
-        let frame = read_buf.load()?;
-        Ok(frame)
     }
 
     /// Fill a buffer up to `n` bytes.
@@ -313,122 +297,6 @@ impl Write for Connection {
     fn flush(&mut self) -> io::Result<()> {
         self.stream.flush()
     }
-}
-
-/// Read a message out of the buffer.
-pub(crate) fn read_message(
-    mut buf: ReadBuf<'_>,
-    header: protocol::Header,
-    headers: usize,
-) -> Result<Message<'_>> {
-    let serial = NonZeroU32::new(header.serial).ok_or(ErrorKind::ZeroSerial)?;
-
-    let mut path = None;
-    let mut interface = None;
-    let mut member = None;
-    let mut error_name = None;
-    let mut reply_serial = None;
-    let mut destination = None;
-    let mut signature = Signature::empty();
-    let mut sender = None;
-
-    let mut header_slice = buf.read_buf(headers);
-
-    while !header_slice.is_empty() {
-        header_slice.align::<u64>();
-        let variant = header_slice.load::<protocol::Variant>()?;
-        let sig = header_slice.read::<Signature>()?;
-
-        match (variant, sig.as_bytes()) {
-            (protocol::Variant::PATH, b"o") => {
-                path = Some(header_slice.read::<str>()?);
-            }
-            (protocol::Variant::INTERFACE, b"s") => {
-                interface = Some(header_slice.read::<str>()?);
-            }
-            (protocol::Variant::MEMBER, b"s") => {
-                member = Some(header_slice.read::<str>()?);
-            }
-            (protocol::Variant::ERROR_NAME, b"s") => {
-                error_name = Some(header_slice.read::<str>()?);
-            }
-            (protocol::Variant::REPLY_SERIAL, b"u") => {
-                let number = header_slice.load::<u32>()?;
-                let number = NonZeroU32::new(number).ok_or(ErrorKind::ZeroReplySerial)?;
-                reply_serial = Some(number);
-            }
-            (protocol::Variant::DESTINATION, b"s") => {
-                destination = Some(header_slice.read::<str>()?);
-            }
-            (protocol::Variant::SIGNATURE, b"g") => {
-                signature = header_slice.read::<Signature>()?;
-            }
-            (protocol::Variant::SENDER, b"s") => {
-                sender = Some(header_slice.read::<str>()?);
-            }
-            (variant, _) => {
-                return Err(Error::new(ErrorKind::InvalidHeaderVariant(variant)));
-            }
-        }
-    }
-
-    let kind = match header.message_type {
-        protocol::MessageType::METHOD_CALL => {
-            let Some(path) = path else {
-                return Err(Error::new(ErrorKind::MissingPath));
-            };
-
-            let Some(member) = member else {
-                return Err(Error::new(ErrorKind::MissingMember));
-            };
-
-            MessageKind::MethodCall { path, member }
-        }
-        protocol::MessageType::METHOD_RETURN => {
-            let Some(reply_serial) = reply_serial else {
-                return Err(Error::new(ErrorKind::MissingReplySerial));
-            };
-
-            MessageKind::MethodReturn { reply_serial }
-        }
-        protocol::MessageType::ERROR => {
-            let Some(error_name) = error_name else {
-                return Err(Error::new(ErrorKind::MissingErrorName));
-            };
-
-            let Some(reply_serial) = reply_serial else {
-                return Err(Error::new(ErrorKind::MissingReplySerial));
-            };
-
-            MessageKind::Error {
-                error_name,
-                reply_serial,
-            }
-        }
-        protocol::MessageType::SIGNAL => {
-            let Some(member) = member else {
-                return Err(Error::new(ErrorKind::MissingMember));
-            };
-
-            MessageKind::Signal { member }
-        }
-        _ => return Err(Error::new(ErrorKind::InvalidProtocol)),
-    };
-
-    buf.align::<u64>();
-
-    let body = buf.read_buf(header.body_length as usize);
-
-    Ok(Message {
-        kind,
-        serial: Some(serial),
-        flags: header.flags,
-        interface,
-        destination,
-        sender,
-        signature,
-        body,
-    })
 }
 
 /// Receive a SASL message from the connection.

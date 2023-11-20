@@ -93,9 +93,6 @@ impl fmt::Display for Error {
             ErrorKind::BodyTooLong(length) => {
                 write!(f, "Body of length {length} is too long (max is 134217728)")
             }
-            ErrorKind::MessageTooLong => {
-                writeln!(f, "Message is too long")
-            }
         }
     }
 }
@@ -134,5 +131,4 @@ pub(crate) enum ErrorKind {
     NotNullTerminated,
     BodyTooLong(u32),
     ArrayTooLong(u32),
-    MessageTooLong,
 }
