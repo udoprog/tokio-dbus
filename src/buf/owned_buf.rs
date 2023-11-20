@@ -1,30 +1,17 @@
 use std::alloc::{alloc, dealloc, handle_alloc_error, realloc, Layout};
-use std::marker::PhantomData;
 use std::mem::size_of;
 use std::ptr;
 use std::slice::{from_raw_parts, from_raw_parts_mut};
 
-use crate::buf::{max_size_for_align, padding_to, ArrayWriter, ReadBuf, StructWriter};
+use crate::buf::{max_size_for_align, padding_to, Alloc, ArrayWriter, BufMut, ReadBuf};
 use crate::protocol::Endianness;
-use crate::{Frame, Write};
-
-/// An allocated location in the buffer that can be written to later.
-pub struct Alloc<T>(usize, PhantomData<T>);
-
-impl<T> Clone for Alloc<T> {
-    #[inline]
-    fn clone(&self) -> Self {
-        *self
-    }
-}
-
-impl<T> Copy for Alloc<T> {}
+use crate::Frame;
 
 /// The alignment of the buffer.
 const ALIGNMENT: usize = 1;
 
-/// A buffer that can be used for receiving messages.
-pub struct OwnedBuf {
+/// A buffer that can be used for buffering aligned data.
+pub(crate) struct OwnedBuf {
     /// Pointed to data of the buffer.
     data: ptr::NonNull<u8>,
     /// The initialized capacity of the buffer.
@@ -41,28 +28,12 @@ pub struct OwnedBuf {
 
 impl OwnedBuf {
     /// Construct a new empty buffer.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tokio_dbus::OwnedBuf;
-    ///
-    /// let buf = OwnedBuf::new();
-    /// ```
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self::with_endianness(Endianness::NATIVE)
     }
 
     /// Construct a new buffer with the specified endianness.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tokio_dbus::{Endianness, OwnedBuf};
-    ///
-    /// let buf = OwnedBuf::with_endianness(Endianness::LITTLE);
-    /// ```
-    pub fn with_endianness(endianness: Endianness) -> Self {
+    pub(crate) fn with_endianness(endianness: Endianness) -> Self {
         Self {
             data: ptr::NonNull::dangling(),
             capacity: 0,
@@ -74,70 +45,18 @@ impl OwnedBuf {
     }
 
     /// Get the endianness of the buffer.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tokio_dbus::{Endianness, OwnedBuf};
-    ///
-    /// let buf = OwnedBuf::with_endianness(Endianness::LITTLE);
-    /// assert_eq!(buf.endianness(), Endianness::LITTLE);
-    /// ```
-    pub fn endianness(&self) -> Endianness {
+    pub(crate) fn endianness(&self) -> Endianness {
         self.endianness
     }
 
     /// Set the endianness of the buffer.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tokio_dbus::{Endianness, OwnedBuf};
-    ///
-    /// let mut buf = OwnedBuf::with_endianness(Endianness::LITTLE);
-    /// assert_eq!(buf.endianness(), Endianness::LITTLE);
-    /// buf.set_endianness(Endianness::BIG);
-    /// assert_eq!(buf.endianness(), Endianness::BIG);
-    /// ```
-    pub fn set_endianness(&mut self, endianness: Endianness) {
+    pub(crate) fn set_endianness(&mut self, endianness: Endianness) {
         self.endianness = endianness;
     }
 
     /// Write an array into the buffer.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tokio_dbus::{Endianness, OwnedBuf};
-    ///
-    /// let mut buf = OwnedBuf::with_endianness(Endianness::LITTLE);
-    /// let mut array = buf.write_array();
-    /// array.store(1u32);
-    /// array.finish();
-    ///
-    /// assert_eq!(buf.get(), &[4, 0, 0, 0, 1, 0, 0, 0]);
-    /// ```
-    pub fn write_array(&mut self) -> ArrayWriter<'_> {
+    pub(crate) fn write_array(&mut self) -> ArrayWriter<'_, Self> {
         ArrayWriter::new(self)
-    }
-
-    /// Write a struct.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tokio_dbus::{Endianness, OwnedBuf};
-    ///
-    /// let mut buf = OwnedBuf::with_endianness(Endianness::LITTLE);
-    /// buf.store(10u8);
-    ///
-    /// let mut st = buf.write_struct();
-    /// st.store(1u32);
-    ///
-    /// assert_eq!(buf.get(), &[10, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0]);
-    /// ```
-    pub fn write_struct(&mut self) -> StructWriter<'_> {
-        StructWriter::new(self)
     }
 
     /// Update alignment basis to match the write location.
@@ -148,14 +67,6 @@ impl OwnedBuf {
         self.base = self.written;
     }
 
-    /// Write a type which can be serialized.
-    pub fn write<T>(&mut self, value: &T)
-    where
-        T: ?Sized + Write,
-    {
-        value.write_to(self);
-    }
-
     /// Read `len` bytes from the buffer and make accessible through a
     /// [`ReadBuf`].
     ///
@@ -164,24 +75,7 @@ impl OwnedBuf {
     /// This panics if `len` is larger than [`len()`].
     ///
     /// [`len()`]: Self::len
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tokio_dbus::buf::OwnedBuf;
-    ///
-    /// let mut buf = OwnedBuf::new();
-    /// buf.write(b"\x01\x02\x03\x04");
-    ///
-    /// let mut read_buf = buf.read_buf(6);
-    ///
-    /// assert_eq!(read_buf.load::<u32>()?, 4);
-    /// assert_eq!(read_buf.load::<u8>()?, 1);
-    /// assert_eq!(read_buf.load::<u8>()?, 2);
-    /// assert_eq!(buf.get(), &[3, 4, 0]);
-    /// # Ok::<_, tokio_dbus::Error>(())
-    /// ```
-    pub fn read_buf(&mut self, len: usize) -> ReadBuf<'_> {
+    pub(crate) fn read_buf(&mut self, len: usize) -> ReadBuf<'_> {
         assert!(len <= self.len());
         let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
         self.advance(len);
@@ -208,15 +102,15 @@ impl OwnedBuf {
             self.zero(size_of::<T>());
         }
 
-        Alloc(at, PhantomData)
+        Alloc::new(at)
     }
 
-    /// Write the given value at the given offset.
+    /// Write the given value at the previously [`Alloc<T>`] position.
     pub(crate) fn store_at<T>(&mut self, at: Alloc<T>, mut frame: T)
     where
         T: Frame,
     {
-        let Alloc(at, _) = at;
+        let at = at.into_usize();
         assert!(at + size_of::<T>() <= self.written, "write underflow");
         frame.adjust(self.endianness);
 
@@ -232,7 +126,7 @@ impl OwnedBuf {
     ///
     /// This both allocates enough space for the frame and ensures that the
     /// buffer is aligned per the requirements of the frame.
-    pub fn store<T>(&mut self, mut frame: T)
+    pub(crate) fn store<T>(&mut self, mut frame: T)
     where
         T: Frame,
     {
@@ -286,37 +180,21 @@ impl OwnedBuf {
 
     /// Test if the buffer is empty.
     #[inline]
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.read == self.written
     }
 
     /// Remaining data to be read from the buffer.
     #[inline]
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         self.written - self.read
     }
 
     /// Get a slice out of the buffer that has ben written to.
-    pub fn get(&self) -> &[u8] {
+    pub(crate) fn get(&self) -> &[u8] {
         unsafe {
             let at = self.data.as_ptr().add(self.read);
             from_raw_parts(at, self.len())
-        }
-    }
-
-    /// Take `n` bytes from the buffer while advancing the reader.
-    ///
-    /// If `n` is larger than the length as reported by [`len()`], the length
-    /// will be used instead.
-    ///
-    /// [`len()`]: Self::len
-    pub fn take(&mut self, n: usize) -> &[u8] {
-        unsafe {
-            let at = self.data.as_ptr().add(self.read);
-            let len = self.len().min(n);
-            self.advance(n);
-            let bytes = from_raw_parts(at, len);
-            bytes
         }
     }
 
@@ -424,5 +302,51 @@ impl Drop for OwnedBuf {
                 self.capacity = 0;
             }
         }
+    }
+}
+
+impl BufMut for OwnedBuf {
+    #[inline]
+    fn align_mut<T>(&mut self) {
+        OwnedBuf::align_mut::<T>(self)
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        OwnedBuf::len(self)
+    }
+
+    #[inline]
+    fn store<T>(&mut self, frame: T)
+    where
+        T: Frame,
+    {
+        OwnedBuf::store(self, frame)
+    }
+
+    #[inline]
+    fn alloc<T>(&mut self) -> Alloc<T>
+    where
+        T: Frame,
+    {
+        OwnedBuf::alloc(self)
+    }
+
+    #[inline]
+    fn store_at<T>(&mut self, at: Alloc<T>, frame: T)
+    where
+        T: Frame,
+    {
+        OwnedBuf::store_at(self, at, frame)
+    }
+
+    #[inline]
+    fn extend_from_slice(&mut self, bytes: &[u8]) {
+        OwnedBuf::extend_from_slice(self, bytes);
+    }
+
+    #[inline]
+    fn extend_from_slice_nul(&mut self, bytes: &[u8]) {
+        OwnedBuf::extend_from_slice_nul(self, bytes);
     }
 }

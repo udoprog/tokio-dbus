@@ -1,8 +1,9 @@
 use std::num::NonZeroUsize;
 
+use crate::buf::OwnedBuf;
 use crate::connection::{read_message, MessageRef};
 use crate::error::Result;
-use crate::{Message, OwnedBuf};
+use crate::Message;
 
 /// Buffer used for receiving messages through D-Bus.
 pub struct RecvBuf {

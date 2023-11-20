@@ -10,13 +10,15 @@ use std::os::fd::RawFd;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::net::UnixStream;
 
+use crate::buf::OwnedBuf;
 use crate::buf::MAX_ARRAY_LENGTH;
 use crate::buf::{padding_to, MAX_BODY_LENGTH};
 use crate::error::{Error, ErrorKind, Result};
 use crate::protocol;
+use crate::sasl::Auth;
 use crate::sasl::{Guid, SaslRequest, SaslResponse};
 use crate::ReadBuf;
-use crate::{Frame, Message, MessageKind, OwnedBuf, Signature};
+use crate::{Frame, Message, MessageKind, Signature};
 
 const ENV_SESSION_BUS: &str = "DBUS_SESSION_BUS_ADDRESS";
 const ENV_SYSTEM_BUS: &str = "DBUS_SYSTEM_BUS_ADDRESS";
@@ -152,7 +154,15 @@ impl Connection {
                         *sasl = SaslState::Idle;
                     }
                     SaslState::Idle => {
-                        buf.write(request);
+                        match request {
+                            SaslRequest::Auth(auth) => match auth {
+                                Auth::External(external) => {
+                                    buf.extend_from_slice(b"AUTH EXTERNAL ");
+                                    buf.extend_from_slice(external);
+                                }
+                            },
+                        }
+
                         buf.extend_from_slice(b"\r\n");
                         *sasl = SaslState::Send;
                     }
@@ -182,7 +192,7 @@ impl Connection {
     ///
     /// This does not expect a response from the server, instead it is expected
     /// to transition into the binary D-Bus protocol.
-    pub fn sasl_begin(&mut self, buf: &mut OwnedBuf) -> Result<()> {
+    pub(crate) fn sasl_begin(&mut self, buf: &mut OwnedBuf) -> Result<()> {
         loop {
             match &mut self.state {
                 ConnectionState::Sasl(sasl) => match sasl {

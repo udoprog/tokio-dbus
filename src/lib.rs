@@ -21,7 +21,7 @@ mod error;
 pub use self::protocol::{Endianness, Flags};
 pub mod protocol;
 
-pub use self::buf::{OwnedBuf, ReadBuf};
+pub use self::buf::{BodyBuf, ReadBuf};
 pub mod buf;
 
 pub mod sasl;
@@ -47,3 +47,5 @@ mod client_builder;
 mod lossy_str;
 
 mod utils;
+
+pub mod ty;

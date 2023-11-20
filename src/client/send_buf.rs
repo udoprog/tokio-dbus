@@ -1,8 +1,9 @@
 use std::num::NonZeroU32;
 
+use crate::buf::OwnedBuf;
 use crate::error::Result;
 use crate::protocol::{self, Variant};
-use crate::{Message, MessageKind, OwnedBuf, Signature};
+use crate::{Message, MessageKind, Signature};
 
 /// Buffer used for sending messages through D-Bus.
 pub struct SendBuf {

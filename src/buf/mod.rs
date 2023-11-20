@@ -3,6 +3,12 @@
 #[cfg(test)]
 mod tests;
 
+pub use self::typed_array_writer::TypedArrayWriter;
+mod typed_array_writer;
+
+pub use self::typed_struct_writer::TypedStructWriter;
+mod typed_struct_writer;
+
 pub use self::read_buf::ReadBuf;
 mod read_buf;
 
@@ -15,11 +21,17 @@ mod array_reader;
 pub use self::struct_writer::StructWriter;
 mod struct_writer;
 
-pub use self::owned_buf::OwnedBuf;
+pub(crate) use self::owned_buf::OwnedBuf;
 mod owned_buf;
 
 pub use self::struct_reader::StructReader;
 mod struct_reader;
+
+pub use self::body_buf::BodyBuf;
+mod body_buf;
+
+pub use self::buf_mut::{Alloc, BufMut};
+mod buf_mut;
 
 /// The maximum length of an array in bytes.
 pub(crate) const MAX_ARRAY_LENGTH: u32 = 1u32 << 26;

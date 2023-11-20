@@ -6,7 +6,6 @@ mod tests;
 use core::fmt;
 
 use crate::lossy_str::LossyStr;
-use crate::{OwnedBuf, Write};
 
 /// A GUID sent over SASL.
 #[repr(transparent)]
@@ -81,18 +80,5 @@ impl<'a> Auth<'a> {
 
         buf[..n].reverse();
         Auth::External(&buf[..n])
-    }
-}
-
-impl Write for SaslRequest<'_> {
-    fn write_to(&self, buf: &mut OwnedBuf) {
-        match self {
-            SaslRequest::Auth(auth) => match auth {
-                Auth::External(external) => {
-                    buf.extend_from_slice(b"AUTH EXTERNAL ");
-                    buf.extend_from_slice(external);
-                }
-            },
-        }
     }
 }

@@ -1,13 +1,21 @@
-use crate::{Frame, OwnedBuf, Write};
+use crate::{Frame, Write};
+
+use crate::buf::{ArrayWriter, BufMut};
 
 /// Helper to write a struct into a buffer.
-pub struct StructWriter<'a> {
-    buf: &'a mut OwnedBuf,
+pub struct StructWriter<'a, O: ?Sized>
+where
+    O: BufMut,
+{
+    buf: &'a mut O,
 }
 
-impl<'a> StructWriter<'a> {
+impl<'a, O: ?Sized> StructWriter<'a, O>
+where
+    O: BufMut,
+{
     #[inline]
-    pub(super) fn new(buf: &'a mut OwnedBuf) -> Self {
+    pub(super) fn new(buf: &'a mut O) -> Self {
         buf.align_mut::<u64>();
         Self { buf }
     }
@@ -27,6 +35,18 @@ impl<'a> StructWriter<'a> {
     where
         T: ?Sized + Write,
     {
-        self.buf.write(value);
+        value.write_to(self.buf);
+    }
+
+    /// Write an array in the struct.
+    #[inline]
+    pub fn write_array(&mut self) -> ArrayWriter<'_, O> {
+        ArrayWriter::new(self.buf)
+    }
+
+    /// Write an struct in the struct.
+    #[inline]
+    pub fn write_struct(&mut self) -> StructWriter<'_, O> {
+        StructWriter::new(self.buf)
     }
 }

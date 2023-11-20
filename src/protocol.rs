@@ -3,7 +3,7 @@
 use std::fmt;
 use std::ops::{BitAnd, BitOr, BitXor};
 
-use crate::Frame;
+use crate::{Frame, Signature};
 
 /// A protocol header.
 #[derive(Debug, Clone, Copy)]
@@ -18,6 +18,8 @@ pub(crate) struct Header {
 }
 
 unsafe impl Frame for Header {
+    const SIGNATURE: &'static Signature = Signature::new_const(b"yyyyuu");
+
     fn adjust(&mut self, endianness: Endianness) {
         self.body_length.adjust(endianness);
         self.serial.adjust(endianness);
@@ -136,10 +138,10 @@ raw_enum! {
 impl Endianness {
     /// Native endian.
     #[cfg(target_endian = "little")]
-    pub(crate) const NATIVE: Self = Self::LITTLE;
+    pub const NATIVE: Self = Self::LITTLE;
     /// Native endian.
     #[cfg(target_endian = "big")]
-    pub(crate) const NATIVE: Self = Self::BIG;
+    pub const NATIVE: Self = Self::BIG;
 }
 
 raw_enum! {
@@ -307,6 +309,8 @@ raw_enum! {
 }
 
 unsafe impl Frame for Variant {
+    const SIGNATURE: &'static Signature = Signature::BYTE;
+
     #[inline]
     fn adjust(&mut self, _: Endianness) {
         // NB: single byte so no adjustment needed.

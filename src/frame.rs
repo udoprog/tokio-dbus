@@ -1,6 +1,8 @@
-use crate::protocol::Endianness;
+use crate::{protocol::Endianness, Signature};
 
 /// A verbatim frame that can be stored and loaded from a buffer.
+///
+/// This is implemented for primitives `Copy` types such as `u32`.
 ///
 /// # Safety
 ///
@@ -9,24 +11,37 @@ use crate::protocol::Endianness;
 ///
 /// Any type implementing `Frame` must have an alignment of at most `8`.
 pub unsafe trait Frame {
+    /// The signature of the frame.
+    const SIGNATURE: &'static Signature;
+
     /// Adjust the endianness of the frame.
     fn adjust(&mut self, endianness: Endianness);
 }
 
 unsafe impl Frame for u8 {
+    const SIGNATURE: &'static Signature = Signature::BYTE;
+
     #[inline]
     fn adjust(&mut self, _: Endianness) {}
 }
 
-unsafe impl Frame for i8 {
+unsafe impl Frame for f64 {
+    const SIGNATURE: &'static Signature = Signature::DOUBLE;
+
     #[inline]
-    fn adjust(&mut self, _: Endianness) {}
+    fn adjust(&mut self, endianness: Endianness) {
+        if endianness != Endianness::NATIVE {
+            *self = f64::from_bits(u64::swap_bytes(self.to_bits()));
+        }
+    }
 }
 
 macro_rules! impl_number {
-    ($($ty:ty),* $(,)?) => {
+    ($($ty:ty, $signature:ident),* $(,)?) => {
         $(
             unsafe impl Frame for $ty {
+                const SIGNATURE: &'static Signature = Signature::$signature;
+
                 #[inline]
                 fn adjust(&mut self, endianness: Endianness) {
                     if endianness != Endianness::NATIVE {
@@ -38,5 +53,5 @@ macro_rules! impl_number {
     }
 }
 
-impl_number!(u16, u32, u64, u128);
-impl_number!(i16, i32, i64, i128);
+impl_number!(i16, INT16, i32, INT32, i64, INT64);
+impl_number!(u16, UINT16, u32, UINT32, u64, UINT64);

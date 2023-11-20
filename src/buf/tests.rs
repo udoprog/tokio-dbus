@@ -1,6 +1,8 @@
+use crate::buf::OwnedBuf;
+use crate::error::Result;
 use crate::protocol::Header;
 use crate::protocol::{Endianness, Flags, MessageType, Variant};
-use crate::{OwnedBuf, Signature};
+use crate::Signature;
 
 #[rustfmt::skip]
 const LE_BLOB: [u8; 36] = [
@@ -133,4 +135,74 @@ fn write_blob(buf: &mut OwnedBuf) {
 
     buf.align_mut::<u64>();
     buf.store(0xdeadbeefu32);
+}
+
+#[test]
+fn test_read_buf() -> Result<()> {
+    let mut buf = OwnedBuf::new();
+
+    buf.store(4u32);
+    buf.extend_from_slice_nul(b"\x01\x02\x03\x04");
+
+    let mut read_buf = buf.read_buf(6);
+
+    assert_eq!(read_buf.load::<u32>()?, 4);
+    assert_eq!(read_buf.load::<u8>()?, 1);
+    assert_eq!(read_buf.load::<u8>()?, 2);
+    assert_eq!(buf.get(), &[3, 4, 0]);
+    Ok(())
+}
+
+#[test]
+fn test_read_buf_load() -> Result<()> {
+    let mut buf = OwnedBuf::new();
+    buf.store(7u32);
+    buf.extend_from_slice_nul(b"foo bar");
+
+    let mut read_buf = buf.read_buf(6);
+
+    assert_eq!(read_buf.load::<u32>()?, 7u32);
+    assert_eq!(read_buf.load::<u8>()?, b'f');
+    assert_eq!(read_buf.load::<u8>()?, b'o');
+    assert_eq!(buf.get(), &[b'o', b' ', b'b', b'a', b'r', 0]);
+    Ok(())
+}
+
+#[test]
+fn test_read_buf_read() -> Result<()> {
+    let mut buf = OwnedBuf::new();
+    buf.store(4u32);
+    buf.extend_from_slice_nul(b"\x01\x02\x03\x04");
+
+    let mut read_buf = buf.read_buf(6);
+
+    assert_eq!(read_buf.load::<u32>()?, 4);
+    assert_eq!(read_buf.load::<u8>()?, 1);
+    assert_eq!(read_buf.load::<u8>()?, 2);
+    assert!(read_buf.load::<u8>().is_err());
+    assert!(read_buf.is_empty());
+
+    let _ = buf.read_buf(3);
+    assert!(buf.is_empty());
+    Ok(())
+}
+
+#[test]
+fn test_nested_read_buf() -> Result<()> {
+    let mut buf = OwnedBuf::new();
+    buf.store(4u32);
+    buf.extend_from_slice_nul(b"\x01\x02\x03\x04");
+
+    let mut read_buf = buf.read_buf(6);
+    assert_eq!(read_buf.load::<u32>()?, 4);
+
+    let mut read_buf2 = read_buf.read_buf(2);
+    assert_eq!(read_buf2.load::<u8>()?, 1);
+    assert_eq!(read_buf2.load::<u8>()?, 2);
+
+    assert!(read_buf.is_empty());
+    assert!(read_buf2.is_empty());
+
+    assert_eq!(buf.get(), &[3, 4, 0]);
+    Ok(())
 }

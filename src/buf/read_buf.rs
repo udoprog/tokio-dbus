@@ -15,17 +15,16 @@ use super::{padding_to, ArrayReader, StructReader};
 /// # Examples
 ///
 /// ```
-/// use tokio_dbus::buf::OwnedBuf;
+/// use tokio_dbus::{Result, ReadBuf};
 ///
-/// let mut buf = OwnedBuf::new();
-/// buf.write("foo bar");
-///
-/// let mut read_buf = buf.read_buf(6);
-///
-/// assert_eq!(read_buf.load::<u32>()?, 7u32);
-/// assert_eq!(read_buf.load::<u8>()?, b'f');
-/// assert_eq!(read_buf.load::<u8>()?, b'o');
-/// assert_eq!(buf.get(), &[b'o', b' ', b'b', b'a', b'r', 0]);
+/// fn read(buf: &mut ReadBuf<'_>) -> Result<()> {
+///     assert_eq!(buf.load::<u32>()?, 7u32);
+///     assert_eq!(buf.load::<u8>()?, b'f');
+///     assert_eq!(buf.load::<u8>()?, b'o');
+///     assert_eq!(buf.get(), &[b'o', b' ', b'b', b'a', b'r', 0]);
+///     Ok(())
+/// }
+/// # read(&mut ReadBuf::from_slice_le(b"\x07\x00\x00\x00foo bar\x00"))?;
 /// # Ok::<_, tokio_dbus::Error>(())
 /// ```
 pub struct ReadBuf<'a> {
@@ -49,7 +48,13 @@ impl<'a> ReadBuf<'a> {
     }
 
     /// Construct a read buffer from a slice.
-    pub(crate) const fn from_slice(data: &[u8], endianness: Endianness) -> Self {
+    #[doc(hidden)]
+    pub const fn from_slice_le(data: &'a [u8]) -> Self {
+        Self::from_slice(data, Endianness::LITTLE)
+    }
+
+    /// Construct a read buffer from a slice.
+    pub(crate) const fn from_slice(data: &'a [u8], endianness: Endianness) -> Self {
         Self {
             // SAFETY: data is taken directly from a slice, so it's guaranteed
             // to be non-null.
@@ -78,10 +83,26 @@ impl<'a> ReadBuf<'a> {
     }
 
     /// Get a slice out of the buffer that has ben written to.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{Result, ReadBuf};
+    ///
+    /// fn read(buf: &mut ReadBuf<'_>) -> Result<()> {
+    ///     assert_eq!(buf.load::<u32>()?, 7u32);
+    ///     assert_eq!(buf.load::<u8>()?, b'f');
+    ///     assert_eq!(buf.load::<u8>()?, b'o');
+    ///     assert_eq!(buf.get(), &[b'o', b' ', b'b', b'a', b'r', 0]);
+    ///     Ok(())
+    /// }
+    /// # read(&mut ReadBuf::from_slice_le(b"\x07\x00\x00\x00foo bar\x00"))?;
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
     pub fn get(&self) -> &'a [u8] {
         unsafe {
             let at = self.data.as_ptr().add(self.read);
-            from_raw_parts(at, self.len)
+            from_raw_parts(at, self.len - self.read)
         }
     }
 
@@ -103,21 +124,17 @@ impl<'a> ReadBuf<'a> {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::buf::OwnedBuf;
+    /// use tokio_dbus::{Result, ReadBuf};
     ///
-    /// let mut buf = OwnedBuf::new();
-    /// buf.write(b"\x01\x02\x03\x04");
-    ///
-    /// let mut read_buf = buf.read_buf(6);
-    ///
-    /// assert_eq!(read_buf.load::<u32>()?, 4);
-    /// assert_eq!(read_buf.load::<u8>()?, 1);
-    /// assert_eq!(read_buf.load::<u8>()?, 2);
-    /// assert!(read_buf.load::<u8>().is_err());
-    /// assert!(read_buf.is_empty());
-    ///
-    /// let _ = buf.read_buf(3);
-    /// assert!(buf.is_empty());
+    /// fn read(buf: &mut ReadBuf<'_>) -> Result<()> {
+    ///     assert_eq!(buf.load::<u32>()?, 4);
+    ///     assert_eq!(buf.load::<u8>()?, 1);
+    ///     assert_eq!(buf.load::<u8>()?, 2);
+    ///     assert!(buf.load::<u8>().is_err());
+    ///     assert!(buf.is_empty());
+    ///     Ok(())
+    /// }
+    /// # read(&mut ReadBuf::from_slice_le(b"\x04\x00\x00\x00\x01\x02"))?;
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ````
     pub fn read<T>(&mut self) -> Result<&'a T, Error>
@@ -139,23 +156,22 @@ impl<'a> ReadBuf<'a> {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::buf::OwnedBuf;
+    /// use tokio_dbus::{Result, ReadBuf};
     ///
-    /// let mut buf = OwnedBuf::new();
-    /// buf.write(b"\x01\x02\x03\x04");
+    /// fn read(buf: &mut ReadBuf<'_>) -> Result<()> {
+    ///     let mut read_buf = buf.read_buf(6);
+    ///     assert_eq!(read_buf.load::<u32>()?, 4);
     ///
-    /// let mut read_buf = buf.read_buf(6);
-    /// assert_eq!(read_buf.load::<u32>()?, 4);
+    ///     let mut read_buf2 = read_buf.read_buf(2);
+    ///     assert_eq!(read_buf2.load::<u8>()?, 1);
+    ///     assert_eq!(read_buf2.load::<u8>()?, 2);
     ///
-    /// let mut read_buf2 = read_buf.read_buf(2);
-    /// assert_eq!(read_buf2.load::<u8>()?, 1);
-    /// assert_eq!(read_buf2.load::<u8>()?, 2);
+    ///     assert!(read_buf.is_empty());
+    ///     assert!(read_buf2.is_empty());
     ///
-    /// assert!(read_buf.is_empty());
-    /// assert!(read_buf2.is_empty());
-    ///
-    /// assert_eq!(buf.get(), &[3, 4, 0]);
-    /// # Ok::<_, tokio_dbus::Error>(())
+    ///     assert_eq!(buf.get(), &[3, 4, 0]);
+    ///     Ok(())
+    /// }
     /// ```
     pub fn read_buf(&mut self, len: usize) -> ReadBuf<'a> {
         assert!(len <= self.len);
@@ -190,17 +206,16 @@ impl<'a> ReadBuf<'a> {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::buf::OwnedBuf;
+    /// use tokio_dbus::{Result, ReadBuf};
     ///
-    /// let mut buf = OwnedBuf::new();
-    /// buf.write("foo bar");
-    ///
-    /// let mut read_buf = buf.read_buf(6);
-    ///
-    /// assert_eq!(read_buf.load::<u32>()?, 7u32);
-    /// assert_eq!(read_buf.load::<u8>()?, b'f');
-    /// assert_eq!(read_buf.load::<u8>()?, b'o');
-    /// assert_eq!(buf.get(), &[b'o', b' ', b'b', b'a', b'r', 0]);
+    /// fn read(buf: &mut ReadBuf<'_>) -> Result<()> {
+    ///     assert_eq!(buf.load::<u32>()?, 7u32);
+    ///     assert_eq!(buf.load::<u8>()?, b'f');
+    ///     assert_eq!(buf.load::<u8>()?, b'o');
+    ///     assert_eq!(buf.get(), &[b'o', b' ', b'b', b'a', b'r', 0]);
+    ///     Ok(())
+    /// }
+    /// # read(&mut ReadBuf::from_slice_le(b"\x07\x00\x00\x00foo bar\x00"))?;
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     pub fn load<T>(&mut self) -> Result<T, Error>

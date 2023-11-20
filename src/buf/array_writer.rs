@@ -1,27 +1,38 @@
 use std::mem::ManuallyDrop;
 
-use crate::buf::owned_buf::Alloc;
-use crate::buf::{OwnedBuf, StructWriter};
+use crate::buf::{Alloc, BufMut, StructWriter};
 use crate::{Frame, Write};
 
-/// Write an array into a [`Buf`].
+/// Write an array into a [`Buf`] where `E` is the type being written.
 #[must_use = "Arrays must be finalized using ArrayWriter::finish"]
-pub struct ArrayWriter<'a> {
+pub struct ArrayWriter<'a, O: ?Sized>
+where
+    O: BufMut,
+{
     start: usize,
     len: Alloc<u32>,
-    buf: &'a mut OwnedBuf,
+    buf: &'a mut O,
 }
 
-impl<'a> ArrayWriter<'a> {
-    pub(super) fn new(buf: &'a mut OwnedBuf) -> Self {
+impl<'a, O: ?Sized> ArrayWriter<'a, O>
+where
+    O: BufMut,
+{
+    pub(super) fn new(buf: &'a mut O) -> Self {
         let len = buf.alloc();
         let start = buf.len();
+
         Self { start, len, buf }
+    }
+
+    /// Finish writing the array.
+    pub(crate) fn finish(self) {
+        ManuallyDrop::new(self).finalize();
     }
 
     /// Store a [`Frame`] value into the array.
     #[inline]
-    pub fn store<T>(&mut self, value: T)
+    pub(crate) fn store<T>(&mut self, value: T)
     where
         T: Frame,
     {
@@ -30,28 +41,23 @@ impl<'a> ArrayWriter<'a> {
 
     /// Write a value into the array.
     #[inline]
-    pub fn write<T>(&mut self, value: &T)
+    pub(crate) fn write<T>(&mut self, value: &T)
     where
         T: ?Sized + Write,
     {
         value.write_to(self.buf);
     }
 
-    /// Push a struct inside of the array.
+    /// Push an array inside of the array.
     #[inline]
-    pub fn write_struct(&mut self) -> StructWriter<'_> {
-        StructWriter::new(self.buf)
+    pub(crate) fn write_array(&mut self) -> ArrayWriter<'_, O> {
+        ArrayWriter::new(self.buf)
     }
 
     /// Push an array inside of the array.
     #[inline]
-    pub fn write_array(&mut self) -> ArrayWriter<'_> {
-        ArrayWriter::new(self.buf)
-    }
-
-    /// Finish writing the array.
-    pub fn finish(self) {
-        ManuallyDrop::new(self).finalize();
+    pub(crate) fn write_struct(&mut self) -> StructWriter<'_, O> {
+        StructWriter::new(self.buf)
     }
 
     #[inline(always)]
@@ -62,7 +68,10 @@ impl<'a> ArrayWriter<'a> {
     }
 }
 
-impl Drop for ArrayWriter<'_> {
+impl<O: ?Sized> Drop for ArrayWriter<'_, O>
+where
+    O: BufMut,
+{
     fn drop(&mut self) {
         self.finalize();
     }
