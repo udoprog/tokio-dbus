@@ -8,11 +8,6 @@ async fn main() -> Result<()> {
 
     let mut c = Client::session_bus(&mut send, &mut recv).await?;
 
-    let message = c.process(&mut send, &mut recv).await?;
-    let message = recv.message(&message)?;
-
-    dbg!(message);
-
     let m = Message::method_call("/se/tedro/JapaneseDictionary", "GetPort")
         .with_destination("se.tedro.JapaneseDictionary")
         .with_interface("se.tedro.JapaneseDictionary");

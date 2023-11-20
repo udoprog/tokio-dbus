@@ -3,7 +3,9 @@ use std::mem::size_of;
 use std::ptr;
 use std::slice::{from_raw_parts, from_raw_parts_mut};
 
-use crate::buf::{max_size_for_align, padding_to, Alloc, ArrayWriter, BufMut, ReadBuf};
+use crate::buf::{
+    max_size_for_align, padding_to, Alloc, ArrayWriter, BufMut, ReadBuf, StructWriter,
+};
 use crate::protocol::Endianness;
 use crate::{Frame, Write};
 
@@ -57,6 +59,11 @@ impl OwnedBuf {
     /// Write an array into the buffer.
     pub(crate) fn write_array(&mut self) -> ArrayWriter<'_, Self> {
         ArrayWriter::new(self)
+    }
+
+    /// Write a struct into the buffer.
+    pub(crate) fn write_struct(&mut self) -> StructWriter<'_, Self> {
+        StructWriter::new(self)
     }
 
     /// Update alignment basis to match the write location.

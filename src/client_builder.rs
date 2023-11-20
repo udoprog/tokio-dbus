@@ -1,4 +1,4 @@
-use crate::client::{ClientState, RecvBuf, SendBuf};
+use crate::client::{ClientState, RecvBuf, SendBuf, ORG_FREEDESKTOP_DBUS};
 use crate::error::Result;
 use crate::sasl::{Auth, SaslRequest, SaslResponse};
 use crate::{Client, Connection, Message};
@@ -113,7 +113,7 @@ impl ClientBuilder {
         c.sasl_begin(send).await?;
 
         let m = Message::method_call("/org/freedesktop/DBus", "Hello")
-            .with_destination("org.freedesktop.DBus");
+            .with_destination(ORG_FREEDESKTOP_DBUS);
 
         let serial = send.write_message(&m)?;
         c.set_state(ClientState::HelloSent(serial));

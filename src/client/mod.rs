@@ -15,6 +15,9 @@ use crate::error::Result;
 use crate::sasl::{SaslRequest, SaslResponse};
 use crate::{ClientBuilder, Connection, Error, MessageKind};
 
+/// Well known interface name.
+pub(crate) const ORG_FREEDESKTOP_DBUS: &'static str = "org.freedesktop.DBus";
+
 /// The high level state of a client.
 pub(crate) enum ClientState {
     /// Just initialized.
@@ -101,10 +104,11 @@ impl Client {
             let message_ref = self.io(send, recv).await?;
             recv.advance = NonZeroUsize::new(message_ref.total);
 
-            if let ClientState::HelloSent(serial) = self.state {
-                // Read once for internal processing.
-                let message = recv.message(&message_ref)?;
+            // Read once for internal processing. Avoid this once borrow checker
+            // allows returning a reference here directly.
+            let message = recv.message(&message_ref)?;
 
+            if let ClientState::HelloSent(serial) = self.state {
                 match message.kind {
                     MessageKind::MethodReturn { reply_serial } if reply_serial == serial => {
                         self.name = Some(message.body().read::<str>()?.into());
@@ -113,6 +117,12 @@ impl Client {
                     }
                     _ => {}
                 }
+            }
+
+            if let Some(ORG_FREEDESKTOP_DBUS) = message.interface {
+                // TODO: Ignore for now, but eventually we might want to handle
+                // internally.
+                continue;
             }
 
             return Ok(message_ref);

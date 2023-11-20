@@ -1,6 +1,5 @@
-use crate::buf::{ArrayWriter, OwnedBuf, StructWriter, TypedArrayWriter, TypedStructWriter};
-use crate::ty;
-use crate::{Endianness, Frame, OwnedSignature, Signature, Write};
+use crate::buf::{OwnedBuf, TypedArrayWriter, TypedStructWriter};
+use crate::{ty, Endianness, Frame, OwnedSignature, ReadBuf, Signature, Write};
 
 /// A buffer that can be used to write a body.
 ///
@@ -115,6 +114,30 @@ impl BodyBuf {
         self.buf.get()
     }
 
+    /// Return a read buffer over the entire contents of this buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{BodyBuf, Signature, Endianness};
+    ///
+    /// let mut body = BodyBuf::with_endianness(Endianness::LITTLE);
+    ///
+    /// body.store(10u16);
+    /// body.store(20u32);
+    ///
+    /// assert_eq!(body.signature(), Signature::new(b"qu")?);
+    ///
+    /// let mut buf = body.read();
+    /// assert_eq!(buf.load::<u16>()?, 10);
+    /// assert_eq!(buf.load::<u32>()?, 20);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    pub fn read(&self) -> ReadBuf<'_> {
+        let len = self.buf.len();
+        self.buf.peek_buf(len)
+    }
+
     /// Set the endianness of the buffer.
     ///
     /// Note that this will not affect any data that has already been written to
@@ -177,7 +200,25 @@ impl BodyBuf {
         E: ty::Marker,
     {
         <ty::Array<E> as ty::Marker>::write_signature(&mut self.signature);
-        TypedArrayWriter::new(ArrayWriter::new(&mut self.buf))
+        TypedArrayWriter::new(self.buf.write_array())
+    }
+
+    /// Write a slice as an byte array.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{BodyBuf, Endianness};
+    ///
+    /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
+    /// buf.write_slice(&[1, 2, 3, 4]);
+    ///
+    /// assert_eq!(buf.signature(), b"ay");
+    /// assert_eq!(buf.get(), &[4, 0, 0, 0, 1, 2, 3, 4]);
+    /// ```
+    pub fn write_slice(&mut self, data: &[u8]) {
+        <ty::Array<u8> as ty::Marker>::write_signature(&mut self.signature);
+        self.buf.write_array().write_slice(data);
     }
 
     /// Write a struct into the buffer.
@@ -210,7 +251,7 @@ impl BodyBuf {
         E: ty::Fields,
     {
         E::write_signature(&mut self.signature);
-        TypedStructWriter::new(StructWriter::new(&mut self.buf))
+        TypedStructWriter::new(self.buf.write_struct())
     }
 }
 

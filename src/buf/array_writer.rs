@@ -21,7 +21,6 @@ where
     pub(super) fn new(buf: &'a mut O) -> Self {
         let len = buf.alloc();
         let start = buf.len();
-
         Self { start, len, buf }
     }
 
@@ -58,6 +57,14 @@ where
     #[inline]
     pub(crate) fn write_struct(&mut self) -> StructWriter<'_, O> {
         StructWriter::new(self.buf)
+    }
+
+    /// Write the array as a slice.
+    #[inline]
+    pub(crate) fn write_slice(self, data: &[u8]) {
+        let mut this = ManuallyDrop::new(self);
+        this.buf.extend_from_slice(data);
+        this.finalize();
     }
 
     #[inline(always)]

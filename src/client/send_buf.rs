@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 use crate::buf::OwnedBuf;
-use crate::error::Result;
+use crate::error::{Error, ErrorKind, Result};
 use crate::protocol;
 use crate::{Message, MessageKind, Signature};
 
@@ -44,12 +44,18 @@ impl SendBuf {
             self.serial
         };
 
+        let body = message.body();
+
+        let Some(body_length) = u32::try_from(body.len()).ok() else {
+            return Err(Error::new(ErrorKind::BodyTooLong(u32::MAX)));
+        };
+
         self.buf.store(protocol::Header {
             endianness: self.buf.endianness(),
             message_type: message.message_type(),
             flags: message.flags,
             version: 1,
-            body_length: 0,
+            body_length,
             serial,
         });
 
@@ -128,6 +134,7 @@ impl SendBuf {
 
         array.finish();
         self.buf.align_mut::<u64>();
+        self.buf.extend_from_slice(body.get());
         Ok(serial)
     }
 }

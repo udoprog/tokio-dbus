@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 use crate::protocol::{Flags, MessageType};
-use crate::{MessageKind, OwnedMessage, ReadBuf, Signature};
+use crate::{BodyBuf, MessageKind, OwnedMessage, ReadBuf, Signature};
 
 /// A D-Bus message.
 ///
@@ -73,6 +73,12 @@ impl<'a> Message<'a> {
     /// Get the kind of the message.
     pub fn kind(&self) -> MessageKind<'a> {
         self.kind
+    }
+
+    /// Modify the body and signature of the message to match that of the
+    /// provided body buffer.
+    pub fn with_body_buf(self, body: &'a BodyBuf) -> Self {
+        self.with_signature(body.signature()).with_body(body.read())
     }
 
     /// Get a buffer to the body of the message.
