@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 use crate::protocol::{Flags, MessageType};
-use crate::{BodyBuf, MessageKind, OwnedMessage, ReadBuf, SendBuf, Signature};
+use crate::{BodyBuf, MessageKind, OwnedMessage, ReadBuf, Signature};
 
 /// A D-Bus message.
 ///
@@ -28,6 +28,141 @@ pub struct Message<'a> {
 }
 
 impl<'a> Message<'a> {
+    /// Construct a method call [`Message`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroU32;
+    ///
+    /// use tokio_dbus::{Message, SendBuf};
+    ///
+    /// let mut send = SendBuf::new();
+    ///
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
+    /// let m2 = Message::method_call("/org/freedesktop/DBus", "Hello", m.serial());
+    /// assert_eq!(m, m2);
+    /// ```
+    pub fn method_call(path: &'a str, member: &'a str, serial: NonZeroU32) -> Self {
+        Self {
+            kind: MessageKind::MethodCall { path, member },
+            serial,
+            flags: Flags::EMPTY,
+            interface: None,
+            destination: None,
+            sender: None,
+            signature: Signature::empty(),
+            body: ReadBuf::empty(),
+        }
+    }
+
+    /// Convert this message into a [`MessageKind::MessageReturn`] message with
+    /// an empty body where the reply serial matches that of the current
+    /// message.
+    ///
+    /// The `send` argument is used to populate the next serial number.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroU32;
+    ///
+    /// use tokio_dbus::{Message, MessageKind, SendBuf};
+    ///
+    /// let mut send = SendBuf::new();
+    ///
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello")
+    ///     .with_sender("se.tedro.DBusExample")
+    ///     .with_destination("org.freedesktop.DBus");
+    ///
+    /// let m2 = m.method_return(send.next_serial());
+    /// assert!(matches!(m2.kind(), MessageKind::MethodReturn { .. }));
+    ///
+    /// assert_eq!(m.sender(), m2.destination());
+    /// assert_eq!(m.destination(), m2.sender());
+    /// ```
+    pub fn method_return(&self, serial: NonZeroU32) -> Self {
+        Self {
+            kind: MessageKind::MethodReturn {
+                reply_serial: self.serial,
+            },
+            serial,
+            flags: Flags::EMPTY,
+            signature: Signature::empty(),
+            interface: None,
+            destination: self.sender,
+            sender: self.destination,
+            body: ReadBuf::empty(),
+        }
+    }
+
+    /// Construct a signal [`Message`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroU32;
+    ///
+    /// use tokio_dbus::{Message, SendBuf};
+    ///
+    /// let mut send = SendBuf::new();
+    ///
+    /// let m = send.signal("Hello");
+    /// let m2 = Message::signal("Hello", m.serial());
+    /// assert_eq!(m, m2);
+    /// ```
+    pub fn signal(member: &'a str, serial: NonZeroU32) -> Self {
+        Self {
+            kind: MessageKind::Signal { member },
+            serial,
+            flags: Flags::EMPTY,
+            interface: None,
+            destination: None,
+            sender: None,
+            signature: Signature::empty(),
+            body: ReadBuf::empty(),
+        }
+    }
+
+    /// Convert this message into a [`MessageKind::Error`] message with
+    /// an empty body where the reply serial matches that of the current
+    /// message.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroU32;
+    ///
+    /// use tokio_dbus::{Message, MessageKind, SendBuf};
+    ///
+    /// let mut send = SendBuf::new();
+    ///
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello")
+    ///     .with_sender("se.tedro.DBusExample")
+    ///     .with_destination("org.freedesktop.DBus");
+    ///
+    /// let m2 = m.error("org.freedesktop.DBus.UnknownMethod", send.next_serial());
+    /// assert!(matches!(m2.kind(), MessageKind::Error { .. }));
+    ///
+    /// assert_eq!(m.sender(), m2.destination());
+    /// assert_eq!(m.destination(), m2.sender());
+    /// ```
+    pub fn error(&self, error_name: &'a str, serial: NonZeroU32) -> Self {
+        Self {
+            kind: MessageKind::Error {
+                error_name,
+                reply_serial: self.serial,
+            },
+            serial,
+            flags: Flags::EMPTY,
+            signature: Signature::empty(),
+            interface: None,
+            destination: self.sender,
+            sender: self.destination,
+            body: ReadBuf::empty(),
+        }
+    }
+
     /// Convert into an owned [`OwnedMessage`].
     ///
     /// # Examples
@@ -58,90 +193,109 @@ impl<'a> Message<'a> {
         }
     }
 
-    /// Construct a method call.
+    /// Get the kind of the message.
     ///
     /// # Examples
     ///
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, OwnedMessage, SendBuf};
+    /// use tokio_dbus::{Message, MessageKind, SendBuf};
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = Message::method_call("/org/freedesktop/DBus", "Hello", send.next_serial()).to_owned();
-    /// let m2 = OwnedMessage::method_call("/org/freedesktop/DBus".into(), "Hello".into(), m.serial());
-    /// assert_eq!(m, m2);
-    /// ```
-    pub fn method_call(path: &'a str, member: &'a str, serial: NonZeroU32) -> Self {
-        Self {
-            kind: MessageKind::MethodCall { path, member },
-            serial,
-            flags: Flags::EMPTY,
-            interface: None,
-            destination: None,
-            sender: None,
-            signature: Signature::empty(),
-            body: ReadBuf::empty(),
-        }
-    }
-
-    /// Convert this message into a [`MessageKind::MethodReturn`] message with
-    /// an empty body where the reply serial matches that of the current
-    /// message.
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
+    /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
     ///
-    /// The `send` argument is used to populate the next serial number.
-    pub fn method_return(&self, send: &mut SendBuf) -> Self {
-        Self {
-            kind: MessageKind::MethodReturn {
-                reply_serial: self.serial,
-            },
-            serial: send.next_serial(),
-            flags: Flags::EMPTY,
-            signature: Signature::empty(),
-            interface: None,
-            destination: self.sender,
-            sender: self.destination,
-            body: ReadBuf::empty(),
-        }
-    }
-
-    /// Convert this message into a [`MessageKind::Error`] message with
-    /// an empty body where the reply serial matches that of the current
-    /// message.
-    pub fn error(&self, send: &mut SendBuf, error_name: &'a str) -> Self {
-        Self {
-            kind: MessageKind::Error {
-                error_name,
-                reply_serial: self.serial,
-            },
-            serial: send.next_serial(),
-            flags: Flags::EMPTY,
-            signature: Signature::empty(),
-            interface: None,
-            destination: self.sender,
-            sender: self.destination,
-            body: ReadBuf::empty(),
-        }
-    }
-
-    /// Get the kind of the message.
+    /// let m2 = m.error("org.freedesktop.DBus.UnknownMethod", send.next_serial());
+    /// assert!(matches!(m2.kind(), MessageKind::Error { .. }));
+    /// ```
     pub fn kind(&self) -> MessageKind<'a> {
         self.kind
     }
 
     /// Modify the body and signature of the message to match that of the
     /// provided body buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroU32;
+    ///
+    /// use tokio_dbus::{BodyBuf, Message, MessageKind, SendBuf, Signature};
+    ///
+    /// let mut send = SendBuf::new();
+    /// let mut body = BodyBuf::new();
+    ///
+    /// body.write("Hello World!");
+    ///
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello")
+    ///     .with_body_buf(&body);
+    ///
+    /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
+    /// assert_eq!(m.signature(), Signature::STRING);
+    /// ```
     pub fn with_body_buf(self, body: &'a BodyBuf) -> Self {
         self.with_signature(body.signature()).with_body(body.read())
     }
 
     /// Get a buffer to the body of the message.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroU32;
+    ///
+    /// use tokio_dbus::{BodyBuf, Message, MessageKind, SendBuf, Signature};
+    ///
+    /// let mut send = SendBuf::new();
+    /// let mut body = BodyBuf::new();
+    ///
+    /// body.store(42u32);
+    /// body.write("Hello World!");
+    ///
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello")
+    ///     .with_body_buf(&body);
+    ///
+    /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
+    /// assert_eq!(m.signature(), Signature::new(b"us")?);
+    ///
+    /// let mut r = m.body();
+    /// assert_eq!(r.load::<u32>()?, 42);
+    /// assert_eq!(r.read::<str>()?, "Hello World!");
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
     pub fn body(&self) -> ReadBuf<'a> {
         self.body.clone()
     }
 
     /// Modify the body of the message.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroU32;
+    ///
+    /// use tokio_dbus::{BodyBuf, Message, MessageKind, SendBuf, Signature};
+    ///
+    /// let mut send = SendBuf::new();
+    /// let mut body = BodyBuf::new();
+    ///
+    /// body.store(42u32);
+    /// body.write("Hello World!");
+    ///
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello")
+    ///     .with_body(body.read())
+    ///     .with_signature(body.signature());
+    ///
+    /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
+    /// assert_eq!(m.signature(), Signature::new(b"us")?);
+    ///
+    /// let mut r = m.body();
+    /// assert_eq!(r.load::<u32>()?, 42);
+    /// assert_eq!(r.read::<str>()?, "Hello World!");
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
     pub fn with_body(self, body: ReadBuf<'a>) -> Self {
         Self { body, ..self }
     }

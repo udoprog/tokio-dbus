@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
                     body.write(error.to_string().as_str());
 
                     message
-                        .error(send, "se.tedro.JapaneseDictionary.Error")
+                        .error("se.tedro.JapaneseDictionary.Error", send.next_serial())
                         .with_body_buf(body)
                 }
             };
@@ -65,7 +65,7 @@ fn handle_method_call<'a>(
             "Ping" => {
                 let value = msg.body().load::<u32>()?;
                 body.store(value);
-                msg.method_return(send).with_body_buf(body)
+                msg.method_return(send.next_serial()).with_body_buf(body)
             }
             method => bail!("Unknown method: {method}"),
         },

@@ -19,7 +19,9 @@ async fn main() -> Result<()> {
         .with_interface(INTERFACE)
         .with_body_buf(body);
 
-    let serial = send.write_message(&m)?;
+    send.write_message(&m)?;
+
+    let serial = m.serial();
 
     let reply = loop {
         let message = c.process().await?;
