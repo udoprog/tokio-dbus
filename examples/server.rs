@@ -26,25 +26,22 @@ async fn main() -> Result<()> {
 
         dbg!(&message);
 
-        match message.kind() {
-            MessageKind::MethodCall { path, member } => {
-                let ret = match handle_method_call(path, member, &message, body) {
-                    Ok(m) => m,
-                    Err(error) => {
-                        // Clear the body in case handler buffered something
-                        // before erroring.
-                        body.clear();
-                        body.write(error.to_string().as_str());
+        if let MessageKind::MethodCall { path, member } = message.kind() {
+            let ret = match handle_method_call(path, member, &message, body) {
+                Ok(m) => m,
+                Err(error) => {
+                    // Clear the body in case handler buffered something
+                    // before erroring.
+                    body.clear();
+                    body.write(error.to_string().as_str());
 
-                        message
-                            .error("se.tedro.JapaneseDictionary.Error")
-                            .with_body_buf(body)
-                    }
-                };
+                    message
+                        .error("se.tedro.JapaneseDictionary.Error")
+                        .with_body_buf(body)
+                }
+            };
 
-                send.write_message(&ret)?;
-            }
-            _ => {}
+            send.write_message(&ret)?;
         }
     }
 }

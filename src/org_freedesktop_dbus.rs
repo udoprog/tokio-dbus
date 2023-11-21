@@ -1,13 +1,13 @@
 //! Types associated with the `org.freedesktop.DBus` interface.
 
 /// Well known destination name.
-pub const DESTINATION: &'static str = "org.freedesktop.DBus";
+pub const DESTINATION: &str = "org.freedesktop.DBus";
 
 /// Well known interface name.
-pub const INTERFACE: &'static str = "org.freedesktop.DBus";
+pub const INTERFACE: &str = "org.freedesktop.DBus";
 
 /// Well known D-Bus path.
-pub const PATH: &'static str = "/org/freedesktop/DBus";
+pub const PATH: &str = "/org/freedesktop/DBus";
 
 raw_set! {
     /// The flags to a [`RequestName`] call.

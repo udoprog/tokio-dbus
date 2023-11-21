@@ -337,6 +337,11 @@ impl BufMut for OwnedBuf {
     }
 
     #[inline]
+    fn is_empty(&self) -> bool {
+        OwnedBuf::is_empty(self)
+    }
+
+    #[inline]
     fn store<T>(&mut self, frame: T)
     where
         T: Frame,

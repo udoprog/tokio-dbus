@@ -44,6 +44,10 @@ pub trait BufMut: self::sealed::Sealed {
     #[doc(hidden)]
     fn len(&self) -> usize;
 
+    /// Test if the buffer is empty.
+    #[doc(hidden)]
+    fn is_empty(&self) -> bool;
+
     /// Store a [`Frame`] of type `T` in the buffer.
     ///
     /// This both allocates enough space for the frame and ensures that the
