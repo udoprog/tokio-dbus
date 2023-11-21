@@ -22,7 +22,7 @@ async fn main() -> Result<()> {
     loop {
         let message = c.process().await?;
         let (recv, send, body) = c.buffers();
-        let message = recv.message(&message)?;
+        let message = recv.read_message(&message)?;
 
         dbg!(&message);
 

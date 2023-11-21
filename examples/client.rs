@@ -23,7 +23,7 @@ async fn main() -> Result<()> {
 
     let reply = loop {
         let message = c.process().await?;
-        let message = c.message(&message)?;
+        let message = c.read_message(&message)?;
 
         match message.kind() {
             MessageKind::MethodReturn { reply_serial } if reply_serial == serial => {

@@ -27,8 +27,20 @@ impl RecvBuf {
         }
     }
 
-    /// Read a message out of the receive buffer.
-    pub fn message(&self, message_ref: &MessageRef) -> Result<Message<'_>> {
+    /// Read a [`MessageRef`] into a [`Message`].
+    ///
+    /// Note that if the [`MessageRef`] is outdated by calling process again,
+    /// the behavior of this function is not well-defined (but safe).
+    ///
+    /// # Errors
+    ///
+    /// Errors if the message reference is out of date, such as if another
+    /// message has been received.
+    pub fn read_message(&self, message_ref: &MessageRef) -> Result<Message<'_>> {
+        if NonZeroU32::new(message_ref.header.serial) != self.last_serial {
+            return Err(Error::new(ErrorKind::InvalidMessageRef));
+        }
+
         read_message(
             self.buf
                 .peek_buf(message_ref.total)

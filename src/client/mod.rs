@@ -97,10 +97,11 @@ impl Client {
     pub async fn process(&mut self) -> Result<MessageRef, Error> {
         loop {
             let message_ref = self.io().await?;
+            self.recv.last_serial = NonZeroU32::new(message_ref.header.serial);
 
             // Read once for internal processing. Avoid this once borrow checker
             // allows returning a reference here directly.
-            let message = self.recv.message(&message_ref)?;
+            let message = self.recv.read_message(&message_ref)?;
 
             if let ClientState::HelloSent(serial) = self.state {
                 match message.kind {
@@ -121,7 +122,6 @@ impl Client {
                 continue;
             }
 
-            self.recv.last_serial = NonZeroU32::new(message_ref.header.serial);
             return Ok(message_ref);
         }
     }
@@ -144,16 +144,17 @@ impl Client {
         self.send.write_message(message)
     }
 
-    /// Try to translate a [`MessageRef`] into a [`Message`].
+    /// Read a [`MessageRef`] into a [`Message`].
     ///
     /// Note that if the [`MessageRef`] is outdated by calling process again,
     /// the behavior of this function is not well-defined (but safe).
-    pub fn message(&self, message_ref: &MessageRef) -> Result<Message<'_>> {
-        if NonZeroU32::new(message_ref.header.serial) != self.recv.last_serial {
-            return Err(Error::new(ErrorKind::InvalidMessageRef));
-        }
-
-        self.recv.message(message_ref)
+    ///
+    /// # Errors
+    ///
+    /// Errors if the message reference is out of date, such as if another
+    /// message has been received.
+    pub fn read_message(&self, message_ref: &MessageRef) -> Result<Message<'_>> {
+        self.recv.read_message(message_ref)
     }
 
     /// Access the underlying buffers of the connection.
@@ -262,7 +263,7 @@ impl Client {
 
         loop {
             let message_ref = self.process().await?;
-            let message = self.recv.message(&message_ref)?;
+            let message = self.recv.read_message(&message_ref)?;
 
             match message.kind {
                 MessageKind::MethodReturn { reply_serial } if reply_serial == serial => {
