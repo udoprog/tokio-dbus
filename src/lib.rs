@@ -41,7 +41,7 @@ mod error;
 pub use self::buf::{BodyBuf, ReadBuf};
 pub mod buf;
 
-pub mod sasl;
+mod sasl;
 
 #[doc(inline)]
 pub use self::signature::{OwnedSignature, Signature, SignatureError};

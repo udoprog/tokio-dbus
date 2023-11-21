@@ -3,10 +3,10 @@ use std::num::NonZeroU32;
 use crate::protocol::{Flags, MessageType};
 use crate::{BodyBuf, MessageKind, OwnedMessage, ReadBuf, Signature};
 
-/// A D-Bus message.
+/// A borrowed D-Bus message.
 ///
-/// This is the borrowed variant, to convert to an [`OwnedMessage`], use
-/// [`Message::to_owned`].
+/// This is the borrowed variant of [`OwnedMessage`], to convert to an
+/// [`OwnedMessage`], use [`Message::to_owned`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Message<'a> {
     /// The type of the message.

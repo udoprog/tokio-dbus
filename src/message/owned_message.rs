@@ -3,9 +3,9 @@ use std::num::NonZeroU32;
 use crate::message::OwnedMessageKind;
 use crate::{BodyBuf, Endianness, Flags, Message, MessageKind, OwnedSignature, ReadBuf, Signature};
 
-/// A D-Bus message.
+/// An owned D-Bus message.
 ///
-/// This is the owned variant, to convert to a [`Message`], use
+/// This is the owned variant of a [`Message`], to convert to a [`Message`], use
 /// [`OwnedMessage::borrow`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OwnedMessage {
