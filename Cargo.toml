@@ -1,6 +1,6 @@
 [package]
 name = "tokio-dbus"
-version = "0.0.2"
+version = "0.0.3"
 rust-version = "1.65"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
