@@ -1,13 +1,13 @@
 use crate::buf::OwnedBuf;
 use crate::error::Result;
 
-use super::{Signature, SignatureError};
+use super::{Signature, SignatureErrorKind};
 
-use SignatureError::*;
+use SignatureErrorKind::*;
 
 macro_rules! test {
     ($input:expr, $expected:pat) => {{
-        let actual = Signature::new($input);
+        let actual = Signature::new($input).map_err(|e| e.kind);
 
         assert!(
             matches!(actual, $expected),

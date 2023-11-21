@@ -12,6 +12,7 @@
 //! * [examples/client.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/client.rs)
 //! * [examples/server.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/server.rs)
 
+#![deny(missing_docs)]
 #![allow(clippy::module_inception)]
 
 #[doc(inline)]
@@ -53,7 +54,7 @@ mod signature;
 pub use self::frame::Frame;
 mod frame;
 
-pub use self::message::{Message, MessageKind, OwnedMessage, OwnedMessageKind};
+pub use self::message::{Message, MessageKind, OwnedMessage};
 mod message;
 
 #[cfg(feature = "tokio")]

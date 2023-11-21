@@ -2,8 +2,9 @@ use std::fmt;
 use std::str::from_utf8_unchecked;
 
 use crate::buf::BufMut;
-use crate::error::{Error, Result};
+use crate::error::Result;
 use crate::protocol::Type;
+use crate::signature::SignatureErrorKind;
 use crate::stack::{Stack, StackValue};
 use crate::OwnedSignature;
 use crate::{Read, ReadBuf, Write};
@@ -273,7 +274,12 @@ impl Signature {
                 }
                 Type::UNIX_FD => 4,
                 Type::ARRAY => read.load::<u32>()? as usize,
-                b => return Err(Error::from(SignatureError::UnknownTypeCode(b.0))),
+                Type::OPEN_PAREN | Type::CLOSE_PAREN => {
+                    continue;
+                }
+                // NB: At this stage, the type signature has been validated, so
+                // we cannot encounter unknown sequences.
+                _ => unreachable!(),
             };
 
             read.advance(n)?;
@@ -446,8 +452,10 @@ impl StackValue for (Kind, u8) {
 }
 
 const fn validate(bytes: &[u8]) -> Result<(), SignatureError> {
+    use SignatureErrorKind::*;
+
     if bytes.len() > u8::MAX as usize {
-        return Err(SignatureError::SignatureTooLong);
+        return Err(SignatureError::new(SignatureTooLong));
     }
 
     let mut stack = Stack::<(Kind, u8), MAX_DEPTH>::new();
@@ -477,7 +485,7 @@ const fn validate(bytes: &[u8]) -> Result<(), SignatureError> {
             Type::UNIX_FD => true,
             Type::ARRAY => {
                 if !stack_try_push!(stack, (Kind::Array, 0)) || arrays == MAX_CONTAINER_DEPTH {
-                    return Err(SignatureError::ExceededMaximumArrayRecursion);
+                    return Err(SignatureError::new(ExceededMaximumArrayRecursion));
                 }
 
                 arrays += 1;
@@ -485,7 +493,7 @@ const fn validate(bytes: &[u8]) -> Result<(), SignatureError> {
             }
             Type::OPEN_PAREN => {
                 if !stack_try_push!(stack, (Kind::Struct, 0)) || structs == MAX_CONTAINER_DEPTH {
-                    return Err(SignatureError::ExceededMaximumStructRecursion);
+                    return Err(SignatureError::new(ExceededMaximumStructRecursion));
                 }
 
                 structs += 1;
@@ -495,15 +503,15 @@ const fn validate(bytes: &[u8]) -> Result<(), SignatureError> {
                 let n = match stack_pop!(stack, (Kind, u8)) {
                     Some((Kind::Struct, n)) => n,
                     Some((Kind::Array, _)) => {
-                        return Err(SignatureError::MissingArrayElementType);
+                        return Err(SignatureError::new(MissingArrayElementType));
                     }
                     _ => {
-                        return Err(SignatureError::StructEndedButNotStarted);
+                        return Err(SignatureError::new(StructEndedButNotStarted));
                     }
                 };
 
                 if n == 0 {
-                    return Err(SignatureError::StructHasNoFields);
+                    return Err(SignatureError::new(StructHasNoFields));
                 }
 
                 structs -= 1;
@@ -511,7 +519,7 @@ const fn validate(bytes: &[u8]) -> Result<(), SignatureError> {
             }
             Type::OPEN_BRACE => {
                 if !stack_try_push!(stack, (Kind::Dict, 0)) {
-                    return Err(SignatureError::ExceededMaximumDictRecursion);
+                    return Err(SignatureError::new(ExceededMaximumDictRecursion));
                 }
 
                 continue;
@@ -520,33 +528,33 @@ const fn validate(bytes: &[u8]) -> Result<(), SignatureError> {
                 let n = match stack_pop!(stack, (Kind, u8)) {
                     Some((Kind::Dict, n)) => n,
                     Some((Kind::Array, _)) => {
-                        return Err(SignatureError::MissingArrayElementType);
+                        return Err(SignatureError::new(MissingArrayElementType));
                     }
                     _ => {
-                        return Err(SignatureError::DictEndedButNotStarted);
+                        return Err(SignatureError::new(DictEndedButNotStarted));
                     }
                 };
 
                 match n {
                     0 => {
-                        return Err(SignatureError::DictEntryHasNoFields);
+                        return Err(SignatureError::new(DictEntryHasNoFields));
                     }
                     1 => {
-                        return Err(SignatureError::DictEntryHasOnlyOneField);
+                        return Err(SignatureError::new(DictEntryHasOnlyOneField));
                     }
                     2 => {}
                     _ => {
-                        return Err(SignatureError::DictEntryHasTooManyFields);
+                        return Err(SignatureError::new(DictEntryHasTooManyFields));
                     }
                 }
 
                 if !matches!(stack_peek!(stack), Some((Kind::Array, _))) {
-                    return Err(SignatureError::DictEntryNotInsideArray);
+                    return Err(SignatureError::new(DictEntryNotInsideArray));
                 }
 
                 false
             }
-            t => return Err(SignatureError::UnknownTypeCode(t.0)),
+            t => return Err(SignatureError::new(UnknownTypeCode(t.0))),
         };
 
         while let Some((Kind::Array, _)) = stack_peek!(stack) {
@@ -556,7 +564,7 @@ const fn validate(bytes: &[u8]) -> Result<(), SignatureError> {
 
         if let Some((Kind::Dict, 0)) = stack_peek!(stack) {
             if !is_basic {
-                return Err(SignatureError::DictKeyMustBeBasicType);
+                return Err(SignatureError::new(DictKeyMustBeBasicType));
             }
         }
 
@@ -567,13 +575,13 @@ const fn validate(bytes: &[u8]) -> Result<(), SignatureError> {
 
     match stack_pop!(stack, (Kind, u8)) {
         Some((Kind::Array, _)) => {
-            return Err(SignatureError::MissingArrayElementType);
+            return Err(SignatureError::new(MissingArrayElementType));
         }
         Some((Kind::Struct, _)) => {
-            return Err(SignatureError::StructStartedButNotEnded);
+            return Err(SignatureError::new(StructStartedButNotEnded));
         }
         Some((Kind::Dict, _)) => {
-            return Err(SignatureError::DictStartedButNotEnded);
+            return Err(SignatureError::new(DictStartedButNotEnded));
         }
         _ => {}
     }

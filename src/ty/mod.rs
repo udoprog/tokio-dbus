@@ -1,3 +1,29 @@
+//! Marker types used for writing type-checked D-Bus bodies.
+//!
+//! # Examples
+//!
+//! ```
+//! use tokio_dbus::{BodyBuf, Endianness};
+//! use tokio_dbus::ty;
+//!
+//! let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
+//! buf.store(10u8);
+//!
+//! buf.write_struct::<(u16, u32, ty::Array<u8>, ty::Str)>()
+//!     .store(10u16)
+//!     .store(10u32)
+//!     .write_array(|w| {
+//!         w.store(1u8);
+//!         w.store(2u8);
+//!         w.store(3u8);
+//!     })
+//!     .write("Hello World")
+//!     .finish();
+//!
+//! assert_eq!(buf.signature(), b"y(quays)");
+//! assert_eq!(buf.get(), &[10, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 3, 0, 0, 0, 1, 2, 3, 0, 11, 0, 0, 0, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 0]);
+//! ```
+
 use std::marker::PhantomData;
 
 use crate::{Frame, OwnedSignature, Signature};

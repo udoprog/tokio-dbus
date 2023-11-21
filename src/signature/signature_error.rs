@@ -7,8 +7,19 @@ use crate::protocol::Type;
 ///
 /// [`Signature`]: crate::Signature
 #[derive(Debug, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum SignatureError {
+pub struct SignatureError {
+    pub(super) kind: SignatureErrorKind,
+}
+
+impl SignatureError {
+    pub(crate) const fn new(kind: SignatureErrorKind) -> Self {
+        Self { kind }
+    }
+}
+
+#[allow(missing_docs)]
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum SignatureErrorKind {
     UnknownTypeCode(u8),
     SignatureTooLong,
     MissingArrayElementType,
@@ -29,53 +40,53 @@ pub enum SignatureError {
 
 impl fmt::Display for SignatureError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            SignatureError::UnknownTypeCode(code) => {
+        match self.kind {
+            SignatureErrorKind::UnknownTypeCode(code) => {
                 write!(f, "Unknown type code: {:?}", Type(code))
             }
-            SignatureError::SignatureTooLong => {
+            SignatureErrorKind::SignatureTooLong => {
                 write!(f, "Signature too long")
             }
-            SignatureError::MissingArrayElementType => {
+            SignatureErrorKind::MissingArrayElementType => {
                 write!(f, "Missing array element type")
             }
-            SignatureError::StructEndedButNotStarted => {
+            SignatureErrorKind::StructEndedButNotStarted => {
                 write!(f, "Struct ended but not started")
             }
-            SignatureError::DictEndedButNotStarted => {
+            SignatureErrorKind::DictEndedButNotStarted => {
                 write!(f, "Dict ended but not started")
             }
-            SignatureError::StructStartedButNotEnded => {
+            SignatureErrorKind::StructStartedButNotEnded => {
                 write!(f, "Struct started but not ended")
             }
-            SignatureError::DictStartedButNotEnded => {
+            SignatureErrorKind::DictStartedButNotEnded => {
                 write!(f, "Dict started but not ended")
             }
-            SignatureError::StructHasNoFields => {
+            SignatureErrorKind::StructHasNoFields => {
                 write!(f, "Struct has no fields")
             }
-            SignatureError::DictKeyMustBeBasicType => {
+            SignatureErrorKind::DictKeyMustBeBasicType => {
                 write!(f, "Dict key must be basic type")
             }
-            SignatureError::DictEntryHasNoFields => {
+            SignatureErrorKind::DictEntryHasNoFields => {
                 write!(f, "Dict entry has no fields")
             }
-            SignatureError::DictEntryHasOnlyOneField => {
+            SignatureErrorKind::DictEntryHasOnlyOneField => {
                 write!(f, "Dict entry has only one field")
             }
-            SignatureError::DictEntryNotInsideArray => {
+            SignatureErrorKind::DictEntryNotInsideArray => {
                 write!(f, "Dict entry not inside array")
             }
-            SignatureError::ExceededMaximumArrayRecursion => {
+            SignatureErrorKind::ExceededMaximumArrayRecursion => {
                 write!(f, "Exceeded maximum array recursion")
             }
-            SignatureError::ExceededMaximumStructRecursion => {
+            SignatureErrorKind::ExceededMaximumStructRecursion => {
                 write!(f, "Exceeded maximum struct recursion")
             }
-            SignatureError::ExceededMaximumDictRecursion => {
+            SignatureErrorKind::ExceededMaximumDictRecursion => {
                 write!(f, "Exceeded maximum dict recursion")
             }
-            SignatureError::DictEntryHasTooManyFields => {
+            SignatureErrorKind::DictEntryHasTooManyFields => {
                 write!(f, "Dict entry has too many fields")
             }
         }

@@ -1,27 +1,32 @@
 use std::num::NonZeroU32;
 
-use crate::OwnedMessageKind;
+use crate::message::OwnedMessageKind;
 
 /// The kind of a D-Bus message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum MessageKind<'a> {
+    /// Method call. This message type may prompt a reply.
     MethodCall {
         /// The path being called.
         path: &'a str,
         /// The member being called.
         member: &'a str,
     },
+    /// Method reply with returned data.
     MethodReturn {
         /// The serial this is a reply to.
         reply_serial: NonZeroU32,
     },
+    /// Error reply. If the first argument exists and is a string, it is an
+    /// error message.
     Error {
         /// The name of the error.
         error_name: &'a str,
         /// The serial this is a reply to.
         reply_serial: NonZeroU32,
     },
+    /// Signal emission.
     Signal {
         /// The member being signalled.
         member: &'a str,

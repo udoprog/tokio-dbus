@@ -5,23 +5,28 @@ use crate::MessageKind;
 /// The kind of a D-Bus message.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
-pub enum OwnedMessageKind {
+pub(crate) enum OwnedMessageKind {
+    /// Method call. This message type may prompt a reply.
     MethodCall {
         /// The path being called.
         path: Box<str>,
         /// The member being called.
         member: Box<str>,
     },
+    /// Method reply with returned data.
     MethodReturn {
         /// The serial this is a reply to.
         reply_serial: NonZeroU32,
     },
+    /// Error reply. If the first argument exists and is a string, it is an
+    /// error message.
     Error {
         /// The name of the error.
         error_name: Box<str>,
         /// The serial this is a reply to.
         reply_serial: NonZeroU32,
     },
+    /// Signal emission.
     Signal {
         /// The member being signalled.
         member: Box<str>,

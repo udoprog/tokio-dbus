@@ -1,9 +1,7 @@
 use std::num::NonZeroU32;
 
-use crate::{
-    BodyBuf, Endianness, Flags, Message, MessageKind, OwnedMessageKind, OwnedSignature, ReadBuf,
-    Signature,
-};
+use crate::message::OwnedMessageKind;
+use crate::{BodyBuf, Endianness, Flags, Message, MessageKind, OwnedSignature, ReadBuf, Signature};
 
 /// A D-Bus message.
 ///

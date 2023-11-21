@@ -20,7 +20,7 @@ impl SendBuf {
         }
     }
 
-    /// Get the next serial number for this send buffer.
+    /// Get the next serial for this send buffer.
     ///
     /// # Examples
     ///
