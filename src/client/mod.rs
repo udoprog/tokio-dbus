@@ -254,8 +254,8 @@ impl Client {
 
     /// Request the given well-known name.
     pub async fn request_name(&mut self, name: &str, flags: NameFlag) -> Result<NameReply> {
-        self.body.write(name);
-        self.body.store(flags);
+        self.body.write(name)?;
+        self.body.store(flags)?;
 
         let m = self
             .send

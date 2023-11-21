@@ -1,18 +1,24 @@
 use std::borrow::Borrow;
 use std::fmt;
+use std::mem::transmute;
+use std::mem::MaybeUninit;
 use std::ops::Deref;
+use std::slice::from_raw_parts;
 
-use crate::Signature;
+use super::{validate, Signature, SignatureError, MAX_SIGNATURE};
 
 /// A D-Bus signature.
 ///
 /// This is the owned variant which dereferences to [`Signature`].
-#[derive(Clone, PartialEq, Eq)]
-pub struct OwnedSignature(Vec<u8>);
+#[derive(Clone)]
+pub struct OwnedSignature {
+    data: [MaybeUninit<u8>; MAX_SIGNATURE],
+    init: usize,
+}
 
 impl OwnedSignature {
     /// An empty owned signature.
-    pub(crate) const EMPTY: Self = OwnedSignature::new();
+    pub(crate) const EMPTY: Self = OwnedSignature::empty();
 }
 
 impl OwnedSignature {
@@ -23,38 +29,94 @@ impl OwnedSignature {
     /// ```
     /// use tokio_dbus::OwnedSignature;
     ///
-    /// let sig = OwnedSignature::new();
+    /// let sig = OwnedSignature::empty();
     /// assert!(sig.is_empty());
     /// ```
-    pub const fn new() -> Self {
-        Self(Vec::new())
+    pub const fn empty() -> Self {
+        Self {
+            data: unsafe { MaybeUninit::uninit().assume_init() },
+            init: 0,
+        }
     }
 
-    /// Push a single byte onto the signature.
-    pub(crate) fn push(&mut self, byte: u8) {
-        self.0.push(byte);
+    /// Construct a new signature with validation inside of a constant context.
+    ///
+    /// This will panic in case the signature is invalid.
+    ///
+    /// ```compile_fail
+    /// use tokio_dbus::OwnedSignature;
+    ///
+    /// const BAD: OwnedSignature = OwnedSignature::new_const(b"(a)");
+    /// ```
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::OwnedSignature;
+    ///
+    /// const SIG: OwnedSignature = OwnedSignature::new_const(b"i(ai)");
+    /// ```
+    #[inline]
+    #[track_caller]
+    pub const fn new_const(signature: &[u8]) -> OwnedSignature {
+        if validate(signature).is_err() {
+            panic!("Invalid D-Bus signature")
+        };
+
+        // SAFETY: The byte slice is repr transparent over this type.
+        unsafe { Self::from_slice_const_unchecked(signature) }
     }
 
-    /// Clear the current signature.
-    pub(crate) fn clear(&mut self) {
-        self.0.clear();
+    /// Try to construct a new signature with validation.
+    #[inline]
+    pub fn new(signature: &[u8]) -> Result<Self, SignatureError> {
+        validate(signature)?;
+        // SAFETY: The byte slice is repr transparent over this type.
+        unsafe { Ok(Self::from_slice_unchecked(signature)) }
     }
 
-    /// Construct directly from a vector.
+    /// Construct an owned signature from a slice.
     ///
     /// # Safety
     ///
-    /// Caller must ensure that this is a valid signature.
-    pub(crate) unsafe fn from_vec(signature: Vec<u8>) -> Self {
-        Self(signature)
+    /// Caller must ensure that `bytes` is a valid signature.
+    const unsafe fn from_slice_const_unchecked(bytes: &[u8]) -> Self {
+        debug_assert!(bytes.len() <= MAX_SIGNATURE);
+        let mut data = [0; MAX_SIGNATURE];
+
+        let mut n = 0;
+
+        while n < bytes.len() {
+            data[n] = bytes[n];
+            n += 1;
+        }
+
+        Self {
+            data: transmute(data),
+            init: bytes.len(),
+        }
     }
 
-    /// Extend this signature with another.
-    pub(crate) fn extend_from_signature<S>(&mut self, other: S)
-    where
-        S: AsRef<Signature>,
-    {
-        self.0.extend_from_slice(other.as_ref().as_bytes());
+    /// Construct an owned signature from a slice.
+    ///
+    /// # Safety
+    ///
+    /// Caller must ensure that `bytes` is a valid signature.
+    pub(super) unsafe fn from_slice_unchecked(bytes: &[u8]) -> Self {
+        debug_assert!(bytes.len() <= MAX_SIGNATURE);
+        let mut this = Self::empty();
+        this.data
+            .as_mut_ptr()
+            .cast::<u8>()
+            .copy_from_nonoverlapping(bytes.as_ptr(), bytes.len());
+        this.init = bytes.len();
+        this
+    }
+
+    #[inline]
+    fn as_slice(&self) -> &[u8] {
+        // SAFETY: init is set to the initialized slice.
+        unsafe { from_raw_parts(self.data.as_ptr().cast(), self.init) }
     }
 }
 
@@ -73,7 +135,7 @@ impl Deref for OwnedSignature {
     fn deref(&self) -> &Self::Target {
         // SAFETY: Construction of OwnedSignature ensures that the signature is
         // valid.
-        unsafe { Signature::new_unchecked(&self.0) }
+        unsafe { Signature::new_unchecked(self.as_slice()) }
     }
 }
 
@@ -91,6 +153,26 @@ impl AsRef<Signature> for OwnedSignature {
     }
 }
 
+/// Equality check between [`OwnedSignature`] and [`OwnedSignature`].
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::{Signature, OwnedSignature};
+///
+/// assert_eq!(OwnedSignature::empty(), Signature::EMPTY.to_owned());
+/// assert_eq!(OwnedSignature::new(b"s")?, Signature::STRING.to_owned());
+/// # Ok::<_, tokio_dbus::Error>(())
+/// ```
+impl PartialEq<OwnedSignature> for OwnedSignature {
+    #[inline]
+    fn eq(&self, other: &OwnedSignature) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+
+impl Eq for OwnedSignature {}
+
 /// Equality check between [`Signature`] and [`OwnedSignature`].
 ///
 /// # Examples
@@ -98,13 +180,14 @@ impl AsRef<Signature> for OwnedSignature {
 /// ```
 /// use tokio_dbus::{Signature, OwnedSignature};
 ///
-/// assert_eq!(OwnedSignature::new(), *Signature::EMPTY);
-/// assert_eq!(Signature::STRING.to_owned(), *Signature::STRING);
+/// assert_eq!(OwnedSignature::empty(), *Signature::EMPTY);
+/// assert_eq!(OwnedSignature::new(b"s")?, *Signature::STRING);
+/// # Ok::<_, tokio_dbus::Error>(())
 /// ```
 impl PartialEq<Signature> for OwnedSignature {
     #[inline]
     fn eq(&self, other: &Signature) -> bool {
-        self.0 == other.as_bytes()
+        self.as_slice() == other.as_bytes()
     }
 }
 
@@ -115,12 +198,13 @@ impl PartialEq<Signature> for OwnedSignature {
 /// ```
 /// use tokio_dbus::{Signature, OwnedSignature};
 ///
-/// assert_eq!(OwnedSignature::new(), *Signature::EMPTY);
-/// assert_eq!(Signature::STRING.to_owned(), *Signature::STRING);
+/// assert_eq!(OwnedSignature::empty(), *Signature::EMPTY);
+/// assert_eq!(OwnedSignature::new(b"s")?, *Signature::STRING);
+/// # Ok::<_, tokio_dbus::Error>(())
 /// ```
 impl PartialEq<&Signature> for OwnedSignature {
     #[inline]
     fn eq(&self, other: &&Signature) -> bool {
-        self.0 == other.as_bytes()
+        self.as_slice() == other.as_bytes()
     }
 }

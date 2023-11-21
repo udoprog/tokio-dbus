@@ -11,7 +11,7 @@ async fn main() -> Result<()> {
 
     let (_, send, body) = c.buffers();
 
-    body.store(42u32);
+    body.store(42u32)?;
 
     let m = send
         .method_call(PATH, "Ping")

@@ -5,6 +5,7 @@ use crate::ty;
 use crate::{Frame, Write};
 
 /// Write a typed struct.
+#[must_use = "Must call `finish` after writing all related fields"]
 pub struct TypedStructWriter<'a, E> {
     inner: StructWriter<'a, OwnedBuf>,
     _marker: PhantomData<E>,
@@ -28,13 +29,14 @@ impl<'a, E> TypedStructWriter<'a, E> {
     ///
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
     ///
-    /// buf.write_struct::<(u16, u32)>()
+    /// buf.write_struct::<(u16, u32)>()?
     ///     .store(10u16)
     ///     .store(10u32)
     ///     .finish();
     ///
     /// assert_eq!(buf.signature(), b"(qu)");
     /// assert_eq!(buf.get(), &[10, 0, 0, 0, 10, 0, 0, 0]);
+    /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     #[inline]
     pub fn store(mut self, value: E::First) -> TypedStructWriter<'a, E::Remaining>
@@ -56,12 +58,13 @@ impl<'a, E> TypedStructWriter<'a, E> {
     ///
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
     ///
-    /// buf.write_struct::<(ty::Str,)>()
+    /// buf.write_struct::<(ty::Str,)>()?
     ///     .write("Hello World")
     ///     .finish();
     ///
     /// assert_eq!(buf.signature(), b"(s)");
     /// assert_eq!(buf.get(), &[11, 0, 0, 0, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 0]);
+    /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     #[inline]
     pub fn write(
@@ -87,7 +90,7 @@ impl<'a, E> TypedStructWriter<'a, E> {
     ///
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
     ///
-    /// buf.write_struct::<(ty::Array<u32>,)>()
+    /// buf.write_struct::<(ty::Array<u32>,)>()?
     ///     .write_array(|w| {
     ///         w.store(1);
     ///         w.store(2);
@@ -98,6 +101,7 @@ impl<'a, E> TypedStructWriter<'a, E> {
     ///
     /// assert_eq!(buf.signature(), b"(au)");
     /// assert_eq!(buf.get(), &[16, 0, 0, 0, 1, 0, 0, 0, 2, 0, 0, 0, 3, 0, 0, 0, 4, 0, 0, 0]);
+    /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     #[inline]
     pub fn write_array<W, T>(mut self, writer: W) -> TypedStructWriter<'a, E::Remaining>

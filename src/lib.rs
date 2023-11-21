@@ -22,9 +22,6 @@ pub mod protocol;
 
 pub mod org_freedesktop_dbus;
 
-#[macro_use]
-mod stack;
-
 #[doc(inline)]
 pub use self::write::Write;
 mod write;

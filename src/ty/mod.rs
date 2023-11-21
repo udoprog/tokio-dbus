@@ -9,7 +9,7 @@
 //! let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
 //! buf.store(10u8);
 //!
-//! buf.write_struct::<(u16, u32, ty::Array<u8>, ty::Str)>()
+//! buf.write_struct::<(u16, u32, ty::Array<u8>, ty::Str)>()?
 //!     .store(10u16)
 //!     .store(10u32)
 //!     .write_array(|w| {
@@ -22,11 +22,13 @@
 //!
 //! assert_eq!(buf.signature(), b"y(quays)");
 //! assert_eq!(buf.get(), &[10, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 3, 0, 0, 0, 1, 2, 3, 0, 11, 0, 0, 0, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 0]);
+//! # Ok::<_, tokio_dbus::Error>(())
 //! ```
 
 use std::marker::PhantomData;
 
-use crate::{Frame, OwnedSignature, Signature};
+use crate::signature::{SignatureBuilder, SignatureError, SignatureErrorKind};
+use crate::{Frame, Signature};
 
 /// A marker that is unsized.
 pub trait Unsized {
@@ -37,7 +39,7 @@ pub trait Unsized {
 /// The trait implementation for a type marker.
 pub trait Marker {
     /// Writing the signature.
-    fn write_signature(signature: &mut OwnedSignature);
+    fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError>;
 }
 
 impl<T> Marker for T
@@ -45,8 +47,12 @@ where
     T: Frame,
 {
     #[inline]
-    fn write_signature(signature: &mut OwnedSignature) {
-        signature.extend_from_signature(T::SIGNATURE);
+    fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError> {
+        if !signature.extend_from_signature(T::SIGNATURE) {
+            return Err(SignatureError::new(SignatureErrorKind::SignatureTooLong));
+        }
+
+        Ok(())
     }
 }
 
@@ -66,8 +72,12 @@ impl Unsized for Str {
 
 impl Marker for Str {
     #[inline]
-    fn write_signature(signature: &mut OwnedSignature) {
-        signature.extend_from_signature(Signature::STRING);
+    fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError> {
+        if !signature.extend_from_signature(Signature::STRING) {
+            return Err(SignatureError::new(SignatureErrorKind::SignatureTooLong));
+        }
+
+        Ok(())
     }
 }
 
@@ -83,8 +93,12 @@ impl Unsized for Sig {
 
 impl Marker for Sig {
     #[inline]
-    fn write_signature(signature: &mut OwnedSignature) {
-        signature.extend_from_signature(Signature::SIGNATURE);
+    fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError> {
+        if !signature.extend_from_signature(Signature::SIGNATURE) {
+            return Err(SignatureError::new(SignatureErrorKind::SignatureTooLong));
+        }
+
+        Ok(())
     }
 }
 
@@ -99,7 +113,7 @@ pub trait Fields {
     type Remaining;
 
     /// Write signature.
-    fn write_signature(signature: &mut OwnedSignature);
+    fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError>;
 }
 
 /// An array marker type.
@@ -109,9 +123,11 @@ impl<T> Marker for Array<T>
 where
     T: Marker,
 {
-    fn write_signature(signature: &mut OwnedSignature) {
-        signature.push(b'a');
-        T::write_signature(signature);
+    fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError> {
+        signature.open_array()?;
+        T::write_signature(signature)?;
+        signature.close_array();
+        Ok(())
     }
 }
 
@@ -120,7 +136,9 @@ impl Fields for () {
     type Remaining = ();
 
     #[inline]
-    fn write_signature(_: &mut OwnedSignature) {}
+    fn write_signature(_: &mut SignatureBuilder) -> Result<(), SignatureError> {
+        Ok(())
+    }
 }
 
 macro_rules! struct_fields {
@@ -134,11 +152,12 @@ macro_rules! struct_fields {
             type Remaining = ($($rest,)*);
 
             #[inline]
-            fn write_signature(signature: &mut OwnedSignature) {
-                signature.push(b'(');
-                <$first>::write_signature(signature);
-                $(<$rest>::write_signature(signature);)*
-                signature.push(b')');
+            fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError> {
+                signature.open_struct()?;
+                <$first>::write_signature(signature)?;
+                $(<$rest>::write_signature(signature)?;)*
+                signature.close_struct()?;
+                Ok(())
             }
         }
     }

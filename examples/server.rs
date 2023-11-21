@@ -33,7 +33,7 @@ async fn main() -> Result<()> {
                     // Clear the body in case handler buffered something
                     // before erroring.
                     body.clear();
-                    body.write(error.to_string().as_str());
+                    body.write(error.to_string().as_str())?;
 
                     message
                         .error("se.tedro.JapaneseDictionary.Error", send.next_serial())
@@ -64,7 +64,7 @@ fn handle_method_call<'a>(
         INTERFACE => match member {
             "Ping" => {
                 let value = msg.body().load::<u32>()?;
-                body.store(value);
+                body.store(value)?;
                 msg.method_return(send.next_serial()).with_body_buf(body)
             }
             method => bail!("Unknown method: {method}"),

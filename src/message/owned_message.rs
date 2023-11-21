@@ -124,7 +124,7 @@ impl OwnedMessage {
             interface: None,
             destination: None,
             sender: None,
-            signature: OwnedSignature::new(),
+            signature: OwnedSignature::empty(),
             body: Box::from([]),
             endianness: Endianness::NATIVE,
         }
@@ -161,7 +161,7 @@ impl OwnedMessage {
             },
             serial,
             flags: Flags::EMPTY,
-            signature: OwnedSignature::new(),
+            signature: OwnedSignature::empty(),
             interface: None,
             destination: self.sender,
             sender: self.destination,

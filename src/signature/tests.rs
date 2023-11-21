@@ -1,7 +1,7 @@
 use crate::buf::OwnedBuf;
 use crate::error::Result;
 
-use super::{Signature, SignatureErrorKind};
+use super::{Signature, SignatureErrorKind, MAX_SIGNATURE};
 
 use SignatureErrorKind::*;
 
@@ -62,7 +62,7 @@ fn signature_tests() {
     test!(b"{is}", Err(DictEntryNotInsideArray));
     test!(b"a{isi}", Err(DictEntryHasTooManyFields));
     test!(&[b'i'; 255], Ok(..));
-    test!(&[b'i'; 256], Err(SignatureTooLong));
+    test!(&[b'i'; MAX_SIGNATURE], Err(SignatureTooLong));
     test! {
         b"((((((((((((((((((((((((((((((((ii))))))))))))))))))))))))))))))))",
         Ok(..)
