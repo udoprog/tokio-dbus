@@ -76,15 +76,37 @@ impl<'a> Message<'a> {
     /// Convert this message into a [`MessageKind::MessageReturn`] message with
     /// an empty body where the reply serial matches that of the current
     /// message.
-    pub fn message_return(&self) -> Self {
+    pub fn method_return(&self) -> Self {
         Self {
             kind: MessageKind::MethodReturn {
                 reply_serial: self.serial,
             },
             serial: DEFAULT_SERIAL,
+            flags: Flags::EMPTY,
             signature: Signature::empty(),
+            interface: None,
+            destination: self.sender,
+            sender: self.destination,
             body: ReadBuf::empty(),
-            ..*self
+        }
+    }
+
+    /// Convert this message into a [`MessageKind::Error`] message with
+    /// an empty body where the reply serial matches that of the current
+    /// message.
+    pub fn error(&self, error_name: &'a str) -> Self {
+        Self {
+            kind: MessageKind::Error {
+                error_name,
+                reply_serial: self.serial,
+            },
+            serial: DEFAULT_SERIAL,
+            flags: Flags::EMPTY,
+            signature: Signature::empty(),
+            interface: None,
+            destination: self.sender,
+            sender: self.destination,
+            body: ReadBuf::empty(),
         }
     }
 

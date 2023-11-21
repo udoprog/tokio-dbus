@@ -265,6 +265,22 @@ impl<'a> ReadBuf<'a> {
         self.read += padding;
     }
 
+    /// Load a slice.
+    pub(crate) fn load_slice(&mut self, len: usize) -> Result<&'a [u8]> {
+        if self.read + len > self.written {
+            return Err(Error::from(io::Error::from(io::ErrorKind::UnexpectedEof)));
+        }
+
+        // SAFETY: We just checked that the slice is available just above.
+        let slice = unsafe {
+            let ptr = self.data.as_ptr().add(self.read);
+            from_raw_parts(ptr, len)
+        };
+
+        self.read += len;
+        Ok(slice)
+    }
+
     /// Load a slice ending with a NUL byte, excluding the null byte.
     pub(crate) fn load_slice_nul(&mut self, len: usize) -> Result<&'a [u8]> {
         if self.read + len + 1 > self.written {

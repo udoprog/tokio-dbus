@@ -161,8 +161,8 @@ impl Client {
     /// The [`RecvBuf`] is used to translate [`MessageRef`] as returned by
     /// [`process()`] into [`Message`] instances and [`SendBuf`] is used to
     /// queue messages to be sent.
-    pub fn buffers(&mut self) -> (&RecvBuf, &mut SendBuf) {
-        (&self.recv, &mut self.send)
+    pub fn buffers(&mut self) -> (&RecvBuf, &mut SendBuf, &mut BodyBuf) {
+        (&self.recv, &mut self.send, &mut self.body)
     }
 
     /// Construct a new asynchronous D-Bus client.

@@ -2,8 +2,6 @@ use tokio_dbus::{BodyBuf, Client, Message, Result};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut _body = BodyBuf::new();
-
     let mut c = Client::session_bus().await?;
 
     let m = c

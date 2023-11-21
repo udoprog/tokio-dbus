@@ -8,6 +8,7 @@ mod sealed {
 
     impl Sealed for Signature {}
     impl Sealed for SaslRequest<'_> {}
+    impl Sealed for [u8] {}
     impl Sealed for str {}
 }
 
@@ -22,16 +23,44 @@ pub trait Write: self::sealed::Sealed {
         O: BufMut;
 }
 
+/// Write a byte array to the buffer.
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::{BodyBuf, Signature};;
+///
+/// let mut buf = BodyBuf::new();
+/// buf.write(b"foo");
+///
+/// assert_eq!(buf.get(), Signature::new(b"ay")?);
+/// assert_eq!(buf.get(), &[3, 0, 0, 0, 102, 111, 111, 0])
+/// # Ok::<_, tokio_dbus::Error>(())
+/// ```
+impl Write for [u8] {
+    const SIGNATURE: &'static Signature = Signature::new_const(b"ay");
+
+    #[inline]
+    fn write_to<O: ?Sized>(&self, buf: &mut O)
+    where
+        O: BufMut,
+    {
+        buf.store(self.len() as u32);
+        buf.extend_from_slice(self);
+    }
+}
+
 /// Write a length-prefixed string to the buffer.
 ///
 /// # Examples
 ///
 /// ```
-/// use tokio_dbus::BodyBuf;
+/// use tokio_dbus::{BodyBuf, Signature};;
 ///
 /// let mut buf = BodyBuf::new();
 /// buf.write("foo");
 ///
+/// assert_eq!(buf.get(), Signature::STRING);
 /// assert_eq!(buf.get(), &[3, 0, 0, 0, 102, 111, 111, 0])
 /// ```
 impl Write for str {
