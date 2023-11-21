@@ -41,6 +41,28 @@ impl BodyBuf {
         Self::with_endianness(Endianness::NATIVE)
     }
 
+    /// Clear the buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{BodyBuf, Signature};
+    ///
+    /// let mut body = BodyBuf::new();
+    ///
+    /// body.store(10u16);
+    /// body.store(10u32);
+    ///
+    /// assert_eq!(body.signature(), Signature::new(b"qu")?);
+    /// body.clear();
+    /// assert_eq!(body.signature(), Signature::empty());
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    pub fn clear(&mut self) {
+        self.signature.clear();
+        self.buf.clear();
+    }
+
     /// Construct a new buffer with the specified endianness.
     ///
     /// # Examples

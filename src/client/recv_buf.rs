@@ -12,6 +12,9 @@ pub struct RecvBuf {
     /// The amount the receive buffer needs to be advanced before processing can
     /// continue.
     pub(super) advance: Option<NonZeroUsize>,
+    /// The last serial observed. This is used to determine whether a
+    /// [`MessageRef`] is valid or not.
+    pub(super) last_serial: Option<NonZeroU32>,
 }
 
 impl RecvBuf {
@@ -20,6 +23,7 @@ impl RecvBuf {
         Self {
             buf: OwnedBuf::new(),
             advance: None,
+            last_serial: None,
         }
     }
 
@@ -150,7 +154,7 @@ pub(crate) fn read_message(
 
     Ok(Message {
         kind,
-        serial: Some(serial),
+        serial,
         flags: header.flags,
         interface,
         destination,

@@ -1,10 +1,5 @@
 //! Low level details for the D-Bus protocol implementation.
 
-use std::fmt;
-use std::ops::{BitAnd, BitOr, BitXor};
-
-use crate::{Frame, Signature};
-
 /// A protocol header.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -17,8 +12,8 @@ pub(crate) struct Header {
     pub(crate) serial: u32,
 }
 
-unsafe impl Frame for Header {
-    const SIGNATURE: &'static Signature = Signature::new_const(b"yyyyuu");
+unsafe impl crate::Frame for Header {
+    const SIGNATURE: &'static crate::Signature = crate::Signature::new_const(b"yyyyuu");
 
     fn adjust(&mut self, endianness: Endianness) {
         self.body_length.adjust(endianness);
@@ -49,8 +44,17 @@ macro_rules! raw_enum {
             )*
         }
 
-        impl fmt::Debug for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        unsafe impl $crate::Frame for $name {
+            const SIGNATURE: &'static $crate::Signature = <$repr as $crate::Frame>::SIGNATURE;
+
+            #[inline]
+            fn adjust(&mut self, endianness: $crate::Endianness) {
+                self.0.adjust(endianness);
+            }
+        }
+
+        impl ::core::fmt::Debug for $name {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 match *self {
                     $(Self::$variant => f.write_str(stringify!($variant)),)*
                     b => write!(f, "INVALID({:02x})", b.0),
@@ -83,22 +87,31 @@ macro_rules! raw_set {
             )*
         }
 
-        impl fmt::Debug for $name {
-            fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        unsafe impl $crate::Frame for $name {
+            const SIGNATURE: &'static $crate::Signature = <$repr as $crate::Frame>::SIGNATURE;
+
+            #[inline]
+            fn adjust(&mut self, endianness: $crate::Endianness) {
+                self.0.adjust(endianness);
+            }
+        }
+
+        impl ::core::fmt::Debug for $name {
+            fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                 struct Raw(&'static str);
 
-                impl fmt::Debug for Raw {
+                impl ::core::fmt::Debug for Raw {
                     #[inline]
-                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                         write!(f, "{}", self.0)
                     }
                 }
 
                 struct Bits($repr);
 
-                impl fmt::Debug for Bits {
+                impl ::core::fmt::Debug for Bits {
                     #[inline]
-                    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                    fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
                         write!(f, "{:b}", self.0)
                     }
                 }
@@ -119,6 +132,33 @@ macro_rules! raw_set {
                 }
 
                 f.finish()
+            }
+        }
+
+        impl ::core::ops::BitOr<$name> for $name {
+            type Output = Self;
+
+            #[inline]
+            fn bitor(self, rhs: $name) -> Self::Output {
+                Self(self.0 | rhs.0)
+            }
+        }
+
+        impl ::core::ops::BitAnd<$name> for $name {
+            type Output = bool;
+
+            #[inline]
+            fn bitand(self, rhs: $name) -> Self::Output {
+                self.0 & rhs.0 != 0
+            }
+        }
+
+        impl ::core::ops::BitXor<$name> for $name {
+            type Output = Self;
+
+            #[inline]
+            fn bitxor(self, rhs: $name) -> Self::Output {
+                Self(self.0 ^ rhs.0)
             }
         }
     }
@@ -226,33 +266,6 @@ raw_set! {
     }
 }
 
-impl BitOr<Flags> for Flags {
-    type Output = Self;
-
-    #[inline]
-    fn bitor(self, rhs: Flags) -> Self::Output {
-        Self(self.0 | rhs.0)
-    }
-}
-
-impl BitAnd<Flags> for Flags {
-    type Output = bool;
-
-    #[inline]
-    fn bitand(self, rhs: Flags) -> Self::Output {
-        self.0 & rhs.0 != 0
-    }
-}
-
-impl BitXor<Flags> for Flags {
-    type Output = Self;
-
-    #[inline]
-    fn bitxor(self, rhs: Flags) -> Self::Output {
-        Self(self.0 ^ rhs.0)
-    }
-}
-
 raw_enum! {
     #[repr(u8)]
     pub(crate) enum Variant {
@@ -305,15 +318,6 @@ raw_enum! {
         /// of the message itself is transferred or after the last byte of the
         /// message itself. This header field is controlled by the message sender.
         UNIX_FDS = 9,
-    }
-}
-
-unsafe impl Frame for Variant {
-    const SIGNATURE: &'static Signature = Signature::BYTE;
-
-    #[inline]
-    fn adjust(&mut self, _: Endianness) {
-        // NB: single byte so no adjustment needed.
     }
 }
 

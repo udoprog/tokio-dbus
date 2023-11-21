@@ -3,6 +3,9 @@ use std::num::NonZeroU32;
 use crate::protocol::{Flags, MessageType};
 use crate::{BodyBuf, MessageKind, OwnedMessage, ReadBuf, Signature};
 
+/// Default serial value.
+pub(crate) const DEFAULT_SERIAL: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(1) };
+
 /// A D-Bus message.
 ///
 /// This is the borrowed variant, to convert to an [`OwnedMessage`], use
@@ -12,7 +15,7 @@ pub struct Message<'a> {
     /// The type of the message.
     pub(crate) kind: MessageKind<'a>,
     /// Serial of the emssage.
-    pub(crate) serial: Option<NonZeroU32>,
+    pub(crate) serial: NonZeroU32,
     /// Flags in the message.
     pub(crate) flags: Flags,
     /// The interface of the message.
@@ -57,16 +60,31 @@ impl<'a> Message<'a> {
     }
 
     /// Construct a method call.
-    pub fn method_call(path: &'a str, member: &'a str) -> Self {
+    pub(crate) fn method_call(path: &'a str, member: &'a str, serial: NonZeroU32) -> Self {
         Self {
             kind: MessageKind::MethodCall { path, member },
-            serial: None,
+            serial,
             flags: Flags::EMPTY,
             interface: None,
             destination: None,
             sender: None,
             signature: Signature::empty(),
             body: ReadBuf::empty(),
+        }
+    }
+
+    /// Convert this message into a [`MessageKind::MessageReturn`] message with
+    /// an empty body where the reply serial matches that of the current
+    /// message.
+    pub fn message_return(&self) -> Self {
+        Self {
+            kind: MessageKind::MethodReturn {
+                reply_serial: self.serial,
+            },
+            serial: DEFAULT_SERIAL,
+            signature: Signature::empty(),
+            body: ReadBuf::empty(),
+            ..*self
         }
     }
 
@@ -106,7 +124,7 @@ impl<'a> Message<'a> {
     /// let m2 = m.with_serial(NonZeroU32::new(1).unwrap());
     /// assert_eq!(m2.serial(), NonZeroU32::new(1));
     /// ```
-    pub fn serial(&self) -> Option<NonZeroU32> {
+    pub fn serial(&self) -> NonZeroU32 {
         self.serial
     }
 
@@ -126,10 +144,7 @@ impl<'a> Message<'a> {
     /// assert_eq!(m2.serial(), NonZeroU32::new(1));
     /// ```
     pub fn with_serial(self, serial: NonZeroU32) -> Self {
-        Self {
-            serial: Some(serial),
-            ..self
-        }
+        Self { serial, ..self }
     }
 
     /// Get the flags of the message.

@@ -35,6 +35,11 @@ impl OwnedSignature {
         self.0.push(byte);
     }
 
+    /// Clear the current signature.
+    pub(crate) fn clear(&mut self) {
+        self.0.clear();
+    }
+
     /// Construct directly from a vector.
     ///
     /// # Safety

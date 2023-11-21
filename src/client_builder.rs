@@ -1,7 +1,6 @@
-use crate::client::{ClientState, RecvBuf, SendBuf, ORG_FREEDESKTOP_DBUS};
 use crate::error::Result;
 use crate::sasl::{Auth, SaslRequest, SaslResponse};
-use crate::{Client, Connection, Message};
+use crate::{Client, Connection};
 
 enum BusKind {
     Session,
@@ -82,7 +81,7 @@ impl ClientBuilder {
     }
 
     /// Construct and connect a [`Client`] with the current configuration.
-    pub async fn connect(&self, send: &mut SendBuf, recv: &mut RecvBuf) -> Result<Client> {
+    pub async fn connect(&self) -> Result<Client> {
         let c = match self.bus {
             BusKind::Session => Connection::session_bus()?,
             BusKind::System => Connection::system_bus()?,
@@ -102,7 +101,7 @@ impl ClientBuilder {
         let mut c = Client::new(c)?;
 
         if let Some(auth) = auth {
-            let sasl = c.sasl_request(send, recv, &SaslRequest::Auth(auth)).await?;
+            let sasl = c.sasl_request(&SaslRequest::Auth(auth)).await?;
 
             match sasl {
                 SaslResponse::Ok(..) => {}
@@ -110,13 +109,8 @@ impl ClientBuilder {
         }
 
         // Transition to message mode.
-        c.sasl_begin(send).await?;
-
-        let m = Message::method_call("/org/freedesktop/DBus", "Hello")
-            .with_destination(ORG_FREEDESKTOP_DBUS);
-
-        let serial = send.write_message(&m)?;
-        c.set_state(ClientState::HelloSent(serial));
+        c.sasl_begin().await?;
+        c.hello()?;
         Ok(c)
     }
 }

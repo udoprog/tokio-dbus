@@ -218,10 +218,15 @@ impl OwnedBuf {
         self.read += n;
 
         if self.read == self.written {
-            self.read = 0;
-            self.written = 0;
-            self.base = 0;
+            self.clear();
         }
+    }
+
+    /// Clear the current buffer.
+    pub(crate) fn clear(&mut self) {
+        self.read = 0;
+        self.written = 0;
+        self.base = 0;
     }
 
     /// Get remaining slice of the buffer that can be written.

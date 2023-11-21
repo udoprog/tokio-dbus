@@ -2,13 +2,14 @@ use std::num::NonZeroU32;
 
 use crate::buf::OwnedBuf;
 use crate::error::{Error, ErrorKind, Result};
+use crate::message::DEFAULT_SERIAL;
 use crate::protocol;
 use crate::{Message, MessageKind, Signature};
 
 /// Buffer used for sending messages through D-Bus.
 pub struct SendBuf {
     pub(super) buf: OwnedBuf,
-    serial: u32,
+    serial: NonZeroU32,
 }
 
 impl SendBuf {
@@ -16,8 +17,25 @@ impl SendBuf {
     pub fn new() -> Self {
         Self {
             buf: OwnedBuf::new(),
-            serial: 0,
+            serial: DEFAULT_SERIAL,
         }
+    }
+
+    fn next_serial(&mut self) -> NonZeroU32 {
+        loop {
+            let Some(serial) = NonZeroU32::new(self.serial.get().wrapping_add(1)) else {
+                self.serial = DEFAULT_SERIAL;
+                continue;
+            };
+
+            self.serial = serial;
+            break serial;
+        }
+    }
+
+    /// Generate a method call.
+    pub fn method_call<'a>(&mut self, path: &'a str, member: &'a str) -> Message<'a> {
+        Message::method_call(path, member, self.next_serial())
     }
 
     /// Write a `message` to the internal buffer and return the serial number
@@ -29,19 +47,13 @@ impl SendBuf {
     /// To subsequently send the message you can use [`send_buf()`].
     ///
     /// [`send_buf()`]: Self::send_buf
-    pub fn write_message(&mut self, message: &Message) -> Result<NonZeroU32> {
+    pub fn write_message(&mut self, message: &Message<'_>) -> Result<NonZeroU32> {
         self.buf.update_alignment_base();
 
-        let serial = if let Some(serial) = message.serial {
-            serial.get()
+        let serial = if message.serial == DEFAULT_SERIAL {
+            self.next_serial()
         } else {
-            self.serial += 1;
-
-            if self.serial == 0 {
-                self.serial = 1;
-            }
-
-            self.serial
+            message.serial
         };
 
         let body = message.body();
@@ -56,11 +68,8 @@ impl SendBuf {
             flags: message.flags,
             version: 1,
             body_length,
-            serial,
+            serial: serial.get(),
         });
-
-        // SAFETY: We've ensured just above that it's non-zero.
-        let serial = unsafe { NonZeroU32::new_unchecked(self.serial) };
 
         let mut array = self.buf.write_array();
 

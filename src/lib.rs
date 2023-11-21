@@ -4,6 +4,13 @@
 
 #![allow(clippy::module_inception)]
 
+#[doc(inline)]
+pub use self::protocol::{Endianness, Flags};
+#[macro_use]
+pub mod protocol;
+
+pub mod org_freedesktop_dbus;
+
 #[macro_use]
 mod stack;
 
@@ -22,10 +29,6 @@ mod connection;
 #[doc(inline)]
 pub use self::error::{Error, Result};
 mod error;
-
-#[doc(inline)]
-pub use self::protocol::{Endianness, Flags};
-pub mod protocol;
 
 pub use self::buf::{BodyBuf, ReadBuf};
 pub mod buf;

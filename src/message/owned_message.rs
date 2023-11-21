@@ -11,7 +11,7 @@ pub struct OwnedMessage {
     /// The type of the message.
     pub(super) kind: OwnedMessageKind,
     /// Serial of the emssage.
-    pub(super) serial: Option<NonZeroU32>,
+    pub(super) serial: NonZeroU32,
     /// Flags in the message.
     pub(super) flags: Flags,
     /// The interface of the message.
@@ -44,10 +44,10 @@ impl OwnedMessage {
     }
 
     /// Construct a method call.
-    pub fn method_call(path: Box<str>, member: Box<str>) -> Self {
+    pub fn method_call(path: Box<str>, member: Box<str>, serial: NonZeroU32) -> Self {
         Self {
             kind: OwnedMessageKind::MethodCall { path, member },
-            serial: None,
+            serial,
             flags: Flags::EMPTY,
             interface: None,
             destination: None,

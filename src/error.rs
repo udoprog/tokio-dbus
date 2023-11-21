@@ -89,6 +89,12 @@ impl fmt::Display for Error {
             ErrorKind::BodyTooLong(length) => {
                 write!(f, "Body of length {length} is too long (max is 134217728)")
             }
+            ErrorKind::InvalidMessageRef => {
+                write!(f, "Invalid message reference")
+            }
+            ErrorKind::ResponseError(error_name, message) => {
+                write!(f, "Response error: {error_name}: {message}")
+            }
         }
     }
 }
@@ -126,4 +132,6 @@ pub(crate) enum ErrorKind {
     NotNullTerminated,
     BodyTooLong(u32),
     ArrayTooLong(u32),
+    InvalidMessageRef,
+    ResponseError(Box<str>, Box<str>),
 }
