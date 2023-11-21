@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
                     body.write(error.to_string().as_str())?;
 
                     message
-                        .error("se.tedro.JapaneseDictionary.Error", send.next_serial())
+                        .error("se.tedro.DBusExample.Error", send.next_serial())
                         .with_body_buf(body)
                 }
             };
