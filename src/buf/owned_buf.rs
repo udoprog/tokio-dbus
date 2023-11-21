@@ -57,12 +57,12 @@ impl OwnedBuf {
     }
 
     /// Write an array into the buffer.
-    pub(crate) fn write_array(&mut self) -> ArrayWriter<'_, Self> {
+    pub(super) fn write_array(&mut self) -> ArrayWriter<'_, Self> {
         ArrayWriter::new(self)
     }
 
     /// Write a struct into the buffer.
-    pub(crate) fn write_struct(&mut self) -> StructWriter<'_, Self> {
+    pub(super) fn write_struct(&mut self) -> StructWriter<'_, Self> {
         StructWriter::new(self)
     }
 

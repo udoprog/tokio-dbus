@@ -22,7 +22,7 @@ where
 
     /// Store a value in the struct.
     #[inline]
-    pub fn store<T>(&mut self, value: T)
+    pub(super) fn store<T>(&mut self, value: T)
     where
         T: Frame,
     {
@@ -31,7 +31,7 @@ where
 
     /// Write a field in the struct.
     #[inline]
-    pub fn write<T>(&mut self, value: &T)
+    pub(super) fn write<T>(&mut self, value: &T)
     where
         T: ?Sized + Write,
     {
@@ -40,7 +40,7 @@ where
 
     /// Extend the current struct with the given arguments as fields.
     #[inline]
-    pub fn extend<T>(&mut self, value: T)
+    pub(super) fn extend<T>(&mut self, value: T)
     where
         T: Arguments,
     {
@@ -49,13 +49,13 @@ where
 
     /// Write an array in the struct.
     #[inline]
-    pub fn write_array(&mut self) -> ArrayWriter<'_, O> {
+    pub(super) fn write_array(&mut self) -> ArrayWriter<'_, O> {
         ArrayWriter::new(self.buf)
     }
 
     /// Write an struct in the struct.
     #[inline]
-    pub fn write_struct(&mut self) -> StructWriter<'_, O> {
+    pub(super) fn write_struct(&mut self) -> StructWriter<'_, O> {
         StructWriter::new(self.buf)
     }
 }

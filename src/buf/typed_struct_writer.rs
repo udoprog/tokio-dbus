@@ -5,6 +5,10 @@ use crate::{ty, Arguments};
 use crate::{Frame, Write};
 
 /// Write a typed struct.
+///
+/// See [`BodyBuf::write_struct`].
+///
+/// [`BodyBuf::write_struct`]: crate::BodyBuf::write_struct
 #[must_use = "Must call `finish` after writing all related fields"]
 pub struct TypedStructWriter<'a, E> {
     inner: StructWriter<'a, OwnedBuf>,
@@ -140,6 +144,10 @@ impl<'a, E> TypedStructWriter<'a, E> {
     }
 
     /// Store a value and return the builder for the next value to store.
+    ///
+    /// See [`BodyBuf::write_struct`].
+    ///
+    /// [`BodyBuf::write_struct`]: crate::BodyBuf::write_struct
     #[inline]
     pub fn write_struct<W>(mut self, writer: W) -> TypedStructWriter<'a, E::Remaining>
     where
@@ -155,5 +163,9 @@ impl<'a, E> TypedStructWriter<'a, E> {
 
 impl TypedStructWriter<'_, ()> {
     /// Finish writing the struct.
+    ///
+    /// See [`BodyBuf::write_struct`].
+    ///
+    /// [`BodyBuf::write_struct`]: crate::BodyBuf::write_struct
     pub fn finish(self) {}
 }

@@ -3,9 +3,12 @@ use std::mem::ManuallyDrop;
 use crate::buf::{Alloc, BufMut, StructWriter};
 use crate::{Frame, Write};
 
-/// Write an array into a [`BufMut`] where `E` is the type being written.
+/// Write an array into a [`BufMut`].
+///
+/// Note that this does not enforce that the elements being written have a
+/// uniform type.
 #[must_use = "Arrays must be finalized using ArrayWriter::finish"]
-pub struct ArrayWriter<'a, O: ?Sized>
+pub(super) struct ArrayWriter<'a, O: ?Sized>
 where
     O: BufMut,
 {
@@ -25,13 +28,13 @@ where
     }
 
     /// Finish writing the array.
-    pub(crate) fn finish(self) {
+    pub(super) fn finish(self) {
         ManuallyDrop::new(self).finalize();
     }
 
     /// Store a [`Frame`] value into the array.
     #[inline]
-    pub(crate) fn store<T>(&mut self, value: T)
+    pub(super) fn store<T>(&mut self, value: T)
     where
         T: Frame,
     {
@@ -40,7 +43,7 @@ where
 
     /// Write a value into the array.
     #[inline]
-    pub(crate) fn write<T>(&mut self, value: &T)
+    pub(super) fn write<T>(&mut self, value: &T)
     where
         T: ?Sized + Write,
     {
@@ -49,19 +52,19 @@ where
 
     /// Push an array inside of the array.
     #[inline]
-    pub(crate) fn write_array(&mut self) -> ArrayWriter<'_, O> {
+    pub(super) fn write_array(&mut self) -> ArrayWriter<'_, O> {
         ArrayWriter::new(self.buf)
     }
 
     /// Push an array inside of the array.
     #[inline]
-    pub(crate) fn write_struct(&mut self) -> StructWriter<'_, O> {
+    pub(super) fn write_struct(&mut self) -> StructWriter<'_, O> {
         StructWriter::new(self.buf)
     }
 
     /// Write the array as a slice.
     #[inline]
-    pub(crate) fn write_slice(self, data: &[u8]) {
+    pub(super) fn write_slice(self, data: &[u8]) {
         let mut this = ManuallyDrop::new(self);
         this.buf.extend_from_slice(data);
         this.finalize();
