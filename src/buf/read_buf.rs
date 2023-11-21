@@ -183,13 +183,93 @@ impl<'a> ReadBuf<'a> {
         ReadBuf::new(data, len, self.endianness)
     }
 
-    /// Read an array.
+    /// Read an array from the buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{ty, BodyBuf, Endianness};
+    ///
+    /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
+    /// let mut array = buf.write_array::<u32>()?;
+    /// array.store(10u32);
+    /// array.store(20u32);
+    /// array.store(30u32);
+    /// array.finish();
+    ///
+    /// let mut array = buf.write_array::<ty::Array<ty::Str>>()?;
+    /// let mut inner = array.write_array();
+    /// inner.write("foo");
+    /// inner.write("bar");
+    /// inner.write("baz");
+    /// inner.finish();
+    /// array.finish();
+    ///
+    /// assert_eq!(buf.signature(), b"auaas");
+    ///
+    /// let mut buf = buf.read();
+    /// let mut array = buf.read_array()?;
+    /// assert_eq!(array.load::<u32>()?, Some(10));
+    /// assert_eq!(array.load::<u32>()?, Some(20));
+    /// assert_eq!(array.load::<u32>()?, Some(30));
+    /// assert_eq!(array.load::<u32>()?, None);
+    ///
+    /// let mut array = buf.read_array()?;
+    ///
+    /// let Some(mut inner) = array.read_array()? else {
+    ///     panic!("Missing inner array");
+    /// };
+    ///
+    /// assert_eq!(inner.read::<str>()?, Some("foo"));
+    /// assert_eq!(inner.read::<str>()?, Some("bar"));
+    /// assert_eq!(inner.read::<str>()?, Some("baz"));
+    /// assert_eq!(inner.read::<str>()?, None);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
     pub fn read_array(&mut self) -> Result<ArrayReader<'a>> {
         ArrayReader::new(self)
     }
 
-    /// Read the contents of a struct.
-    pub fn read_struct(&mut self) -> StructReader<'_, 'a> {
+    /// Read a struct from the buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{ty, BodyBuf, Endianness, Signature};
+    ///
+    /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
+    /// buf.store(10u8);
+    ///
+    /// buf.write_struct::<(u16, u32, ty::Array<u8>, ty::Str)>()?
+    ///     .store(20u16)
+    ///     .store(30u32)
+    ///     .write_array(|w| {
+    ///         w.store(1u8);
+    ///         w.store(2u8);
+    ///         w.store(3u8);
+    ///     })
+    ///     .write("Hello World")
+    ///     .finish();
+    ///
+    /// assert_eq!(buf.signature(), Signature::new(b"y(quays)")?);
+    ///
+    /// let mut buf = buf.read();
+    /// assert_eq!(buf.load::<u8>()?, 10u8);
+    ///
+    /// let mut st = buf.read_struct()?;
+    /// assert_eq!(st.load::<u16>()?, 20u16);
+    /// assert_eq!(st.load::<u32>()?, 30u32);
+    ///
+    /// let mut array = st.read_array()?;
+    /// assert_eq!(array.load::<u8>()?, Some(1));
+    /// assert_eq!(array.load::<u8>()?, Some(2));
+    /// assert_eq!(array.load::<u8>()?, Some(3));
+    /// assert_eq!(array.load::<u8>()?, None);
+    ///
+    /// assert_eq!(st.read::<str>()?, "Hello World");
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    pub fn read_struct(&mut self) -> Result<StructReader<'_, 'a>> {
         StructReader::new(self)
     }
 
@@ -257,16 +337,15 @@ impl<'a> ReadBuf<'a> {
     }
 
     /// Align the read side of the buffer.
-    pub(crate) fn align<T>(&mut self) {
+    pub(crate) fn align<T>(&mut self) -> Result<()> {
         let padding = padding_to::<T>(self.read);
 
-        assert!(
-            self.read + padding <= self.written,
-            "{} + {padding} overflows buffer",
-            self.read
-        );
+        if self.read + padding > self.written {
+            return Err(Error::from(io::Error::from(io::ErrorKind::UnexpectedEof)));
+        }
 
         self.read += padding;
+        Ok(())
     }
 
     /// Load a slice.

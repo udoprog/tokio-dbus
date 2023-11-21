@@ -3,7 +3,7 @@ use std::mem::ManuallyDrop;
 use crate::buf::{Alloc, BufMut, StructWriter};
 use crate::{Frame, Write};
 
-/// Write an array into a [`Buf`] where `E` is the type being written.
+/// Write an array into a [`BufMut`] where `E` is the type being written.
 #[must_use = "Arrays must be finalized using ArrayWriter::finish"]
 pub struct ArrayWriter<'a, O: ?Sized>
 where

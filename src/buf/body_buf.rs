@@ -3,7 +3,7 @@ use crate::error::Result;
 use crate::signature::{SignatureBuilder, SignatureError, SignatureErrorKind};
 use crate::{ty, Endianness, Frame, ReadBuf, Signature, Write};
 
-use crate::arguments::{Arguments, Extend};
+use crate::arguments::{Arguments, ExtendBuf};
 
 /// A buffer that can be used to write a body.
 ///
@@ -380,7 +380,7 @@ impl Default for BodyBuf {
     }
 }
 
-impl Extend for BodyBuf {
+impl ExtendBuf for BodyBuf {
     #[inline]
     fn write<T>(&mut self, value: &T) -> Result<()>
     where

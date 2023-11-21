@@ -38,7 +38,7 @@ where
         value.write_to(self.buf);
     }
 
-    /// Extend the current struct with the given arguments.
+    /// Extend the current struct with the given arguments as fields.
     #[inline]
     pub fn extend<T>(&mut self, value: T)
     where

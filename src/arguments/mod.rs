@@ -1,4 +1,4 @@
-pub use self::extend::Extend;
+pub use self::extend::ExtendBuf;
 mod extend;
 
 pub use self::arguments::Arguments;

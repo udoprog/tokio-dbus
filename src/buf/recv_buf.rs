@@ -98,7 +98,7 @@ pub(crate) fn read_message(
 
     while !header_slice.is_empty() {
         // NB: Since these are structs, they're aligned to a 8-byte boundary.
-        header_slice.align::<u64>();
+        header_slice.align::<u64>()?;
 
         let variant = header_slice.load::<proto::Variant>()?;
         let sig = header_slice.read::<Signature>()?;
@@ -179,7 +179,7 @@ pub(crate) fn read_message(
         _ => return Err(Error::new(ErrorKind::InvalidProtocol)),
     };
 
-    buf.align::<u64>();
+    buf.align::<u64>()?;
 
     let body = buf.read_until(header.body_length as usize);
 

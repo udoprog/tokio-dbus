@@ -39,7 +39,7 @@ mod error;
 
 #[doc(inline)]
 pub use self::buf::{BodyBuf, ReadBuf, RecvBuf, SendBuf};
-mod buf;
+pub mod buf;
 
 mod sasl;
 
@@ -68,5 +68,5 @@ mod object_path;
 
 pub mod ty;
 
-pub use self::arguments::{Arguments, Extend};
+pub use self::arguments::{Arguments, ExtendBuf};
 mod arguments;

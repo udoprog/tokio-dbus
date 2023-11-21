@@ -2,7 +2,7 @@ use crate::buf::BufMut;
 use crate::error::Result;
 use crate::{ObjectPath, Signature};
 
-use super::Extend;
+use super::ExtendBuf;
 
 mod sealed {
     pub trait Sealed {}
@@ -10,15 +10,15 @@ mod sealed {
 
 /// Types which can be conveniently used as arguments when extending buffers.
 ///
-/// See [`BodyBuf::extend`].
+/// See for example [`BodyBuf::extend`].
 ///
-/// [`BodyBuf::extend`]: BodyBuf::extend
+/// [`BodyBuf::extend`]: crate::BodyBuf::extend
 pub trait Arguments: self::sealed::Sealed {
     /// Write `self` into `buf`.
     #[doc(hidden)]
     fn extend_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
     where
-        O: Extend;
+        O: ExtendBuf;
 
     #[doc(hidden)]
     fn buf_to<O: ?Sized>(&self, buf: &mut O)
@@ -35,7 +35,7 @@ macro_rules! impl_store {
                 #[inline]
                 fn extend_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
                 where
-                    O: Extend
+                    O: ExtendBuf
                 {
                     buf.store(*self)
                 }
@@ -61,7 +61,7 @@ macro_rules! impl_write {
                 #[inline]
                 fn extend_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
                 where
-                    O: Extend
+                    O: ExtendBuf
                 {
                     buf.write(self)
                 }
@@ -90,7 +90,7 @@ where
     #[inline]
     fn extend_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
     where
-        O: Extend,
+        O: ExtendBuf,
     {
         (**self).extend_to(buf)
     }
@@ -113,7 +113,7 @@ macro_rules! impl_tuple {
             #[allow(non_snake_case)]
             fn extend_to<_O: ?Sized>(&self, buf: &mut _O) -> Result<()>
             where
-                _O: Extend
+                _O: ExtendBuf
             {
                 let ($($ty,)*) = self;
                 $(<$ty as Arguments>::extend_to($ty, buf)?;)*

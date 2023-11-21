@@ -7,12 +7,13 @@ mod sealed {
     impl Sealed for BodyBuf {}
 }
 
-/// Trait governing types which can be extended with [`Collection`].
+/// Trait governing types which can be extended with [`Arguments`].
 ///
-/// Like [`BodyBuf::extend`].
+/// This can be used in conjunction with methods such as [`BodyBuf::extend`].
 ///
 /// [`BodyBuf::extend`]: crate::BodyBuf::extend
-pub trait Extend: self::sealed::Sealed {
+/// [`Arguments`]: crate::Arguments
+pub trait ExtendBuf: self::sealed::Sealed {
     /// Write a [`Write`] of type `T` in the buffer.
     #[doc(hidden)]
     fn write<T>(&mut self, value: &T) -> Result<()>

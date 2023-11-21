@@ -12,20 +12,20 @@ mod typed_struct_writer;
 pub use self::read_buf::ReadBuf;
 mod read_buf;
 
-use self::array_writer::ArrayWriter;
+pub use self::array_writer::ArrayWriter;
 mod array_writer;
 
 pub use self::array_reader::ArrayReader;
 mod array_reader;
 
-pub use self::struct_writer::StructWriter;
+pub(crate) use self::struct_writer::StructWriter;
 mod struct_writer;
-
-pub(crate) use self::owned_buf::OwnedBuf;
-mod owned_buf;
 
 pub use self::struct_reader::StructReader;
 mod struct_reader;
+
+pub(crate) use self::owned_buf::OwnedBuf;
+mod owned_buf;
 
 pub use self::body_buf::BodyBuf;
 mod body_buf;
