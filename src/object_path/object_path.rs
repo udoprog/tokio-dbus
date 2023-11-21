@@ -1,9 +1,10 @@
 use std::fmt;
 use std::str::from_utf8_unchecked;
 
-use crate::{buf::BufMut, OwnedObjectPath, Read, ReadBuf, Result, Signature, Write};
+use crate::buf::BufMut;
+use crate::{OwnedObjectPath, Read, ReadBuf, Result, Signature, Write};
 
-use super::{validate, ObjectPathError};
+use super::{validate, Iter, ObjectPathError};
 
 /// A validated object path.
 ///
@@ -49,13 +50,57 @@ impl ObjectPath {
     }
 
     /// Construct a new validated object path.
-    pub fn new(path: &[u8]) -> Result<&Self, ObjectPathError> {
+    pub fn new<P>(path: &P) -> Result<&Self, ObjectPathError>
+    where
+        P: ?Sized + AsRef<[u8]>,
+    {
+        let path = path.as_ref();
+
         if !validate(path) {
             return Err(ObjectPathError);
         }
 
         // SAFETY: The byte slice is repr transparent over this type.
         unsafe { Ok(Self::new_unchecked(path)) }
+    }
+
+    /// Construct an iterator over the object path.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::ObjectPath;
+    ///
+    /// let mut it = ObjectPath::new_const(b"/").iter();
+    /// assert!(it.next().is_none());
+    ///
+    /// let mut it = ObjectPath::new_const(b"/foo").iter();
+    /// assert_eq!(it.next(), Some("foo"));
+    /// assert!(it.next().is_none());
+    ///
+    /// let mut it = ObjectPath::new_const(b"/foo/bar").iter();
+    /// assert_eq!(it.next_back(), Some("bar"));
+    /// assert_eq!(it.next(), Some("foo"));
+    /// assert!(it.next().is_none());
+    /// ```
+    pub fn iter(&self) -> Iter<'_> {
+        Iter::new(&self.0)
+    }
+
+    /// Test if one part starts with another.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::ObjectPath;
+    ///
+    /// const FOO: &ObjectPath = ObjectPath::new_const(b"/foo");
+    /// const FOO_BAR: &ObjectPath = ObjectPath::new_const(b"/foo/bar");
+    ///
+    /// assert!(FOO_BAR.starts_with(FOO));
+    /// ```
+    pub fn starts_with(&self, other: &ObjectPath) -> bool {
+        self.0.starts_with(&other.0)
     }
 
     /// Construct a new unchecked object path.
@@ -89,6 +134,20 @@ impl fmt::Debug for ObjectPath {
     }
 }
 
+impl AsRef<ObjectPath> for ObjectPath {
+    #[inline]
+    fn as_ref(&self) -> &ObjectPath {
+        self
+    }
+}
+
+impl AsRef<[u8]> for ObjectPath {
+    #[inline]
+    fn as_ref(&self) -> &[u8] {
+        &self.0
+    }
+}
+
 impl ToOwned for ObjectPath {
     type Owned = OwnedObjectPath;
 
@@ -114,6 +173,33 @@ impl Clone for Box<ObjectPath> {
     #[inline]
     fn clone(&self) -> Self {
         Box::<ObjectPath>::from(&**self)
+    }
+}
+
+/// The [`IntoIterator`] implementation for [`ObjectPath`].
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::ObjectPath;
+///
+/// const PATH: &ObjectPath = ObjectPath::new_const(b"/foo/bar");
+///
+/// let mut values = Vec::new();
+///
+/// for s in PATH {
+///     values.push(s);
+/// }
+///
+/// assert_eq!(values, ["foo", "bar"]);
+/// ```
+impl<'a> IntoIterator for &'a ObjectPath {
+    type Item = &'a str;
+    type IntoIter = Iter<'a>;
+
+    #[inline]
+    fn into_iter(self) -> Self::IntoIter {
+        self.iter()
     }
 }
 

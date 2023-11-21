@@ -55,3 +55,10 @@ impl Borrow<ObjectPath> for OwnedObjectPath {
         self
     }
 }
+
+impl AsRef<ObjectPath> for OwnedObjectPath {
+    #[inline]
+    fn as_ref(&self) -> &ObjectPath {
+        self
+    }
+}

@@ -10,5 +10,8 @@ mod object_path;
 pub use self::owned_object_path::OwnedObjectPath;
 mod owned_object_path;
 
+pub use self::iter::Iter;
+mod iter;
+
 #[cfg(test)]
 mod tests;

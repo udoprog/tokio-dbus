@@ -303,8 +303,6 @@ impl Signature {
         for &b in self.0.iter() {
             let t = Type(b);
 
-            dbg!(stack.peek(), arrays, t);
-
             let step = match t {
                 Type::BYTE => Step::Fixed(1),
                 Type::BOOLEAN => Step::Fixed(1),

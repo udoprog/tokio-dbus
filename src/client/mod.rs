@@ -65,33 +65,13 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// use tokio_dbus::{Client, Connection, Message, MessageKind, ObjectPath, Result, SendBuf, RecvBuf};
+    /// use tokio_dbus::{Client, Message};
     ///
-    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
-    ///
-    /// # #[tokio::main] async fn main() -> Result<()> {
+    /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
     /// let mut c = Client::session_bus().await?;
     ///
-    /// let m = c.method_call(PATH, "Hello")
-    ///     .with_destination("org.freedesktop.DBus");
-    ///
-    /// let serial = m.serial();
-    ///
-    /// c.write_message(&m)?;
-    ///
     /// let message = c.process().await?;
-    /// let message = c.read_message(&message)?;
-    ///
-    /// assert_eq!(
-    ///     message.kind(),
-    ///     MessageKind::MethodReturn {
-    ///         reply_serial: serial
-    ///     }
-    /// );
-    ///
-    /// let mut body = message.body();
-    /// let name = body.read::<str>()?;
-    /// dbg!(message, body.len(), name);
+    /// let message: Message<'_> = c.read_message(&message)?;
     /// # Ok(()) }    
     /// ```
     pub async fn process(&mut self) -> Result<MessageRef, Error> {

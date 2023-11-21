@@ -102,6 +102,7 @@ impl OwnedSignature {
     /// # Safety
     ///
     /// Caller must ensure that `bytes` is a valid signature.
+    #[inline]
     pub(super) unsafe fn from_slice_unchecked(bytes: &[u8]) -> Self {
         debug_assert!(bytes.len() <= MAX_SIGNATURE);
         let mut this = Self::empty();
