@@ -162,6 +162,7 @@ impl Client {
     /// [`process()`] into [`Message`] instances and [`SendBuf`] is used to
     /// queue messages to be sent.
     pub fn buffers(&mut self) -> (&RecvBuf, &mut SendBuf, &mut BodyBuf) {
+        self.body.clear();
         (&self.recv, &mut self.send, &mut self.body)
     }
 
@@ -273,6 +274,7 @@ impl Client {
                     reply_serial,
                 } if reply_serial == serial => {
                     let message = message.body().read::<str>()?;
+
                     return Err(Error::new(ErrorKind::ResponseError(
                         error_name.into(),
                         message.into(),
