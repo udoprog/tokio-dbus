@@ -1,9 +1,9 @@
 use anyhow::{bail, Result};
-use tokio_dbus::{Client, MessageKind};
+use tokio_dbus::{Client, MessageKind, ObjectPath};
 
 const NAME: &str = "se.tedro.DBusExample";
 const INTERFACE: &str = "se.tedro.DBusExample.Pingable";
-const PATH: &str = "/se/tedro/DBusExample";
+const PATH: &ObjectPath = ObjectPath::new_const(b"/se/tedro/DBusExample");
 
 #[tokio::main]
 async fn main() -> Result<()> {

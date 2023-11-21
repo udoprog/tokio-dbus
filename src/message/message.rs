@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 use crate::protocol::{Flags, MessageType};
-use crate::{BodyBuf, MessageKind, OwnedMessage, ReadBuf, Signature};
+use crate::{BodyBuf, MessageKind, ObjectPath, OwnedMessage, ReadBuf, Signature};
 
 /// A borrowed D-Bus message.
 ///
@@ -35,15 +35,17 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, SendBuf};
+    /// use tokio_dbus::{Message, ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
-    /// let m2 = Message::method_call("/org/freedesktop/DBus", "Hello", m.serial());
+    /// let m = send.method_call(PATH, "Hello");
+    /// let m2 = Message::method_call(PATH, "Hello", m.serial());
     /// assert_eq!(m, m2);
     /// ```
-    pub fn method_call(path: &'a str, member: &'a str, serial: NonZeroU32) -> Self {
+    pub fn method_call(path: &'a ObjectPath, member: &'a str, serial: NonZeroU32) -> Self {
         Self {
             kind: MessageKind::MethodCall { path, member },
             serial,
@@ -67,11 +69,13 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, MessageKind, SendBuf};
+    /// use tokio_dbus::{Message, MessageKind, ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello")
+    /// let m = send.method_call(PATH, "Hello")
     ///     .with_sender("se.tedro.DBusExample")
     ///     .with_destination("org.freedesktop.DBus");
     ///
@@ -103,7 +107,9 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, SendBuf};
+    /// use tokio_dbus::{Message, ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
@@ -133,11 +139,13 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, MessageKind, SendBuf};
+    /// use tokio_dbus::{Message, MessageKind, ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello")
+    /// let m = send.method_call(PATH, "Hello")
     ///     .with_sender("se.tedro.DBusExample")
     ///     .with_destination("org.freedesktop.DBus");
     ///
@@ -170,12 +178,14 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, OwnedMessage, SendBuf};
+    /// use tokio_dbus::{Message, OwnedMessage, ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello").to_owned();
-    /// let m2 = OwnedMessage::method_call("/org/freedesktop/DBus".into(), "Hello".into(), m.serial());
+    /// let m = send.method_call(PATH, "Hello").to_owned();
+    /// let m2 = OwnedMessage::method_call(PATH.into(), "Hello".into(), m.serial());
     /// assert_eq!(m, m2);
     /// ```
     #[inline]
@@ -200,11 +210,13 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, MessageKind, SendBuf};
+    /// use tokio_dbus::{Message, MessageKind, ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
+    /// let m = send.method_call(PATH, "Hello");
     /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
     ///
     /// let m2 = m.error("org.freedesktop.DBus.UnknownMethod", send.next_serial());
@@ -222,14 +234,16 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{BodyBuf, Message, MessageKind, SendBuf, Signature};
+    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf, Signature};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     /// let mut body = BodyBuf::new();
     ///
     /// body.write("Hello World!");
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello")
+    /// let m = send.method_call(PATH, "Hello")
     ///     .with_body_buf(&body);
     ///
     /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
@@ -246,7 +260,9 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{BodyBuf, Message, MessageKind, SendBuf, Signature};
+    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf, Signature};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     /// let mut body = BodyBuf::new();
@@ -254,7 +270,7 @@ impl<'a> Message<'a> {
     /// body.store(42u32);
     /// body.write("Hello World!");
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello")
+    /// let m = send.method_call(PATH, "Hello")
     ///     .with_body_buf(&body);
     ///
     /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
@@ -276,7 +292,9 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{BodyBuf, Message, MessageKind, SendBuf, Signature};
+    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf, Signature};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     /// let mut body = BodyBuf::new();
@@ -284,7 +302,7 @@ impl<'a> Message<'a> {
     /// body.store(42u32);
     /// body.write("Hello World!");
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello")
+    /// let m = send.method_call(PATH, "Hello")
     ///     .with_body(body.read())
     ///     .with_signature(body.signature());
     ///
@@ -307,11 +325,13 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, SendBuf};
+    /// use tokio_dbus::{Message, ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
+    /// let m = send.method_call(PATH, "Hello");
     /// assert_eq!(m.serial().get(), 1);
     ///
     /// let m2 = m.with_serial(NonZeroU32::new(1000).unwrap());
@@ -328,11 +348,13 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, SendBuf};
+    /// use tokio_dbus::{Message, ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
+    /// let m = send.method_call(PATH, "Hello");
     /// assert_eq!(m.serial().get(), 1);
     ///
     /// let m2 = m.with_serial(NonZeroU32::new(1000).unwrap());
@@ -349,11 +371,13 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Flags, Message, SendBuf};
+    /// use tokio_dbus::{Flags, Message, ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
+    /// let m = send.method_call(PATH, "Hello");
     /// assert_eq!(m.flags(), Flags::default());
     ///
     /// let m2 = m.with_flags(Flags::NO_REPLY_EXPECTED);
@@ -370,11 +394,13 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Flags, Message, SendBuf};
+    /// use tokio_dbus::{Flags, Message, ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
+    /// let m = send.method_call(PATH, "Hello");
     /// assert_eq!(m.flags(), Flags::default());
     ///
     /// let m2 = m.with_flags(Flags::NO_REPLY_EXPECTED);
@@ -391,11 +417,13 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, SendBuf};
+    /// use tokio_dbus::{Message, ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
+    /// let m = send.method_call(PATH, "Hello");
     /// assert_eq!(m.interface(), None);
     ///
     /// let m2 = m.with_interface("org.freedesktop.DBus");
@@ -412,11 +440,13 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, SendBuf};
+    /// use tokio_dbus::{Message, ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
+    /// let m = send.method_call(PATH, "Hello");
     /// assert_eq!(m.interface(), None);
     ///
     /// let m2 = m.with_interface("org.freedesktop.DBus");
@@ -436,11 +466,13 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, SendBuf};
+    /// use tokio_dbus::{Message, ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
+    /// let m = send.method_call(PATH, "Hello");
     /// assert_eq!(m.destination(), None);
     ///
     /// let m2 = m.with_destination(":1.131");
@@ -457,11 +489,13 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, SendBuf};
+    /// use tokio_dbus::{Message, ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
+    /// let m = send.method_call(PATH, "Hello");
     /// assert_eq!(m.destination(), None);
     ///
     /// let m2 = m.with_destination(":1.131");
@@ -481,11 +515,13 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, SendBuf};
+    /// use tokio_dbus::{Message, ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
+    /// let m = send.method_call(PATH, "Hello");
     /// assert_eq!(m.destination(), None);
     ///
     /// let m2 = m.with_sender(":1.131");
@@ -502,11 +538,13 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, SendBuf};
+    /// use tokio_dbus::{Message, ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
+    /// let m = send.method_call(PATH, "Hello");
     /// assert_eq!(m.destination(), None);
     ///
     /// let m2 = m.with_sender(":1.131");
@@ -526,11 +564,13 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, SendBuf, Signature};
+    /// use tokio_dbus::{Message, ObjectPath, SendBuf, Signature};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
+    /// let m = send.method_call(PATH, "Hello");
     /// assert_eq!(m.signature(), Signature::EMPTY);
     ///
     /// let m2 = m.with_signature(Signature::STRING);
@@ -547,11 +587,13 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, Signature, SendBuf};
+    /// use tokio_dbus::{Message, ObjectPath, Signature, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
+    /// let m = send.method_call(PATH, "Hello");
     /// assert_eq!(m.signature(), Signature::EMPTY);
     ///
     /// let m2 = m.with_signature(Signature::STRING);

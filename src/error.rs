@@ -4,6 +4,7 @@ use std::io;
 use std::str::Utf8Error;
 
 use crate::connection::ConnectionState;
+use crate::ObjectPathError;
 use crate::SignatureError;
 
 /// Result alias using an [`Error`] as the error type by default.
@@ -32,6 +33,13 @@ impl From<SignatureError> for Error {
     #[inline]
     fn from(error: SignatureError) -> Self {
         Self::new(ErrorKind::Signature(error))
+    }
+}
+
+impl From<ObjectPathError> for Error {
+    #[inline]
+    fn from(error: ObjectPathError) -> Self {
+        Self::new(ErrorKind::ObjectPath(error))
     }
 }
 
@@ -65,6 +73,7 @@ impl fmt::Display for Error {
         match &self.kind {
             ErrorKind::Io(error) => error.fmt(f),
             ErrorKind::Signature(error) => error.fmt(f),
+            ErrorKind::ObjectPath(error) => error.fmt(f),
             ErrorKind::Utf8Error(error) => error.fmt(f),
             ErrorKind::WouldBlock => write!(f, "Would block"),
             ErrorKind::BufferUnderflow => write!(f, "Buffer underflow"),
@@ -104,6 +113,7 @@ impl error::Error for Error {
         match &self.kind {
             ErrorKind::Io(error) => Some(error),
             ErrorKind::Signature(error) => Some(error),
+            ErrorKind::ObjectPath(error) => Some(error),
             ErrorKind::Utf8Error(error) => Some(error),
             _ => None,
         }
@@ -114,6 +124,7 @@ impl error::Error for Error {
 pub(crate) enum ErrorKind {
     Io(io::Error),
     Signature(SignatureError),
+    ObjectPath(ObjectPathError),
     Utf8Error(Utf8Error),
     WouldBlock,
     BufferUnderflow,

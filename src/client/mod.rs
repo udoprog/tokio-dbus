@@ -14,7 +14,7 @@ use crate::connection::{sasl_recv, MessageRef};
 use crate::error::{ErrorKind, Result};
 use crate::org_freedesktop_dbus::{self, NameFlag, NameReply};
 use crate::sasl::{SaslRequest, SaslResponse};
-use crate::{BodyBuf, ClientBuilder, Connection, Error, Message, MessageKind};
+use crate::{BodyBuf, ClientBuilder, Connection, Error, Message, MessageKind, ObjectPath};
 
 /// The high level state of a client.
 pub(crate) enum ClientState {
@@ -65,13 +65,14 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// use tokio_dbus::sasl::{Auth, SaslRequest, SaslResponse};
-    /// use tokio_dbus::{Client, SendBuf, RecvBuf, Connection, Message, MessageKind, Result};
+    /// use tokio_dbus::{Client, Connection, Message, MessageKind, ObjectPath, Result, SendBuf, RecvBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// # #[tokio::main] async fn main() -> Result<()> {
     /// let mut c = Client::session_bus().await?;
     ///
-    /// let m = c.method_call("/org/freedesktop/DBus", "Hello")
+    /// let m = c.method_call(PATH, "Hello")
     ///     .with_destination("org.freedesktop.DBus");
     ///
     /// let serial = m.serial();
@@ -126,7 +127,7 @@ impl Client {
     }
 
     /// Construct a new [`Message`] corresponding to a method call.
-    pub fn method_call<'a>(&mut self, path: &'a str, member: &'a str) -> Message<'a> {
+    pub fn method_call<'a>(&mut self, path: &'a ObjectPath, member: &'a str) -> Message<'a> {
         self.send.method_call(path, member)
     }
 

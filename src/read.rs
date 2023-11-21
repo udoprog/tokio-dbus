@@ -3,11 +3,12 @@ use std::str::from_utf8;
 use crate::{Error, ReadBuf};
 
 mod sealed {
-    use crate::Signature;
+    use crate::{ObjectPath, Signature};
 
     pub trait Sealed {}
     impl Sealed for [u8] {}
     impl Sealed for str {}
+    impl Sealed for ObjectPath {}
     impl Sealed for Signature {}
 }
 

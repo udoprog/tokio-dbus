@@ -3,7 +3,7 @@ use std::num::NonZeroU32;
 use crate::buf::OwnedBuf;
 use crate::error::{Error, ErrorKind, Result};
 use crate::protocol;
-use crate::{Message, MessageKind, Signature};
+use crate::{Message, MessageKind, ObjectPath, Signature};
 
 /// Buffer used for sending messages through D-Bus.
 pub struct SendBuf {
@@ -50,15 +50,17 @@ impl SendBuf {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, OwnedMessage, SendBuf};
+    /// use tokio_dbus::{Message, OwnedMessage, ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.method_call("/org/freedesktop/DBus", "Hello").to_owned();
-    /// let m2 = OwnedMessage::method_call("/org/freedesktop/DBus".into(), "Hello".into(), m.serial());
+    /// let m = send.method_call(PATH, "Hello").to_owned();
+    /// let m2 = OwnedMessage::method_call(PATH.into(), "Hello".into(), m.serial());
     /// assert_eq!(m, m2);
     /// ```
-    pub fn method_call<'a>(&mut self, path: &'a str, member: &'a str) -> Message<'a> {
+    pub fn method_call<'a>(&mut self, path: &'a ObjectPath, member: &'a str) -> Message<'a> {
         Message::method_call(path, member, self.next_serial())
     }
 

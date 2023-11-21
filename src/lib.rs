@@ -65,4 +65,7 @@ mod lossy_str;
 
 mod utils;
 
+pub use self::object_path::{ObjectPath, ObjectPathError, OwnedObjectPath};
+mod object_path;
+
 pub mod ty;

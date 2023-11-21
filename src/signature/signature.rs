@@ -27,15 +27,59 @@ pub struct Signature([u8]);
 
 impl Signature {
     /// The empty signature.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{BodyBuf, Signature};
+    ///
+    /// let body = BodyBuf::new();
+    /// assert_eq!(body.signature(), Signature::EMPTY);
+    /// ```
     pub const EMPTY: &'static Signature = Signature::new_const(b"");
 
-    /// A signature.
+    /// The signature of a [`Signature`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{BodyBuf, Signature};
+    ///
+    /// let mut body = BodyBuf::new();
+    /// body.write(Signature::new(b"g")?);
+    ///
+    /// assert_eq!(body.signature(), Signature::SIGNATURE);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
     pub const SIGNATURE: &'static Signature = Signature::new_const(b"g");
 
-    /// A object path.
+    /// The signature of an object path.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{BodyBuf, Signature, ObjectPath};
+    ///
+    /// let mut body = BodyBuf::new();
+    /// body.write(ObjectPath::new(b"/org/freedesktop/DBus")?);
+    ///
+    /// assert_eq!(body.signature(), Signature::OBJECT_PATH);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
     pub const OBJECT_PATH: &'static Signature = Signature::new_const(b"o");
 
-    /// A string.
+    /// The signature of a nul-terminated string.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{BodyBuf, Signature};
+    ///
+    /// let mut body = BodyBuf::new();
+    /// body.write("Hello World!");
+    ///
+    /// assert_eq!(body.signature(), Signature::STRING);
+    /// ```
     pub const STRING: &'static Signature = Signature::new_const(b"s");
 
     /// A single byte.
@@ -344,7 +388,7 @@ impl Signature {
 impl fmt::Debug for Signature {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Signature").field(&self.as_str()).finish()
+        self.as_str().fmt(f)
     }
 }
 

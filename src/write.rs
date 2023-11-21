@@ -2,7 +2,7 @@ use crate::{buf::BufMut, Signature};
 
 mod sealed {
     use crate::sasl::SaslRequest;
-    use crate::Signature;
+    use crate::{ObjectPath, Signature};
 
     pub trait Sealed {}
 
@@ -10,6 +10,7 @@ mod sealed {
     impl Sealed for SaslRequest<'_> {}
     impl Sealed for [u8] {}
     impl Sealed for str {}
+    impl Sealed for ObjectPath {}
 }
 
 /// An element that can be serialized to a buffer.

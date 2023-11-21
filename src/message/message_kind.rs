@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-use crate::message::OwnedMessageKind;
+use crate::{message::OwnedMessageKind, ObjectPath};
 
 /// The kind of a D-Bus message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -9,7 +9,7 @@ pub enum MessageKind<'a> {
     /// Method call. This message type may prompt a reply.
     MethodCall {
         /// The path being called.
-        path: &'a str,
+        path: &'a ObjectPath,
         /// The member being called.
         member: &'a str,
     },

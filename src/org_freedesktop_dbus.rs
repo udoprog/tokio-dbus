@@ -1,5 +1,7 @@
 //! Types associated with the `org.freedesktop.DBus` interface.
 
+use crate::ObjectPath;
+
 /// Well known destination name.
 pub const DESTINATION: &str = "org.freedesktop.DBus";
 
@@ -7,7 +9,7 @@ pub const DESTINATION: &str = "org.freedesktop.DBus";
 pub const INTERFACE: &str = "org.freedesktop.DBus";
 
 /// Well known D-Bus path.
-pub const PATH: &str = "/org/freedesktop/DBus";
+pub const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
 
 raw_set! {
     /// The flags to a `RequestName` call.

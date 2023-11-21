@@ -1,10 +1,10 @@
 use anyhow::{bail, Context, Result};
 use tokio_dbus::org_freedesktop_dbus::{NameFlag, NameReply};
-use tokio_dbus::{BodyBuf, Client, Message, MessageKind, SendBuf};
+use tokio_dbus::{BodyBuf, Client, Message, MessageKind, ObjectPath, SendBuf};
 
 const NAME: &str = "se.tedro.DBusExample";
 const INTERFACE: &str = "se.tedro.DBusExample.Pingable";
-const PATH: &str = "/se/tedro/DBusExample";
+const PATH: &ObjectPath = ObjectPath::new_const(b"/se/tedro/DBusExample");
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -48,7 +48,7 @@ async fn main() -> Result<()> {
 
 /// Handle a method call.
 fn handle_method_call<'a>(
-    path: &'a str,
+    path: &'a ObjectPath,
     member: &'a str,
     msg: &Message<'a>,
     send: &mut SendBuf,
@@ -56,7 +56,7 @@ fn handle_method_call<'a>(
 ) -> Result<Message<'a>> {
     let interface = msg.interface().context("Missing interface")?;
 
-    let PATH = path else {
+    if path != PATH {
         bail!("Bad path: {}", path);
     };
 

@@ -3,7 +3,7 @@ use std::num::{NonZeroU32, NonZeroUsize};
 use crate::buf::{OwnedBuf, ReadBuf};
 use crate::connection::MessageRef;
 use crate::error::{Error, ErrorKind, Result};
-use crate::protocol;
+use crate::{protocol, ObjectPath};
 use crate::{Message, MessageKind, Signature};
 
 /// Buffer used for receiving messages through D-Bus.
@@ -86,7 +86,7 @@ pub(crate) fn read_message(
 
         match (variant, sig.as_bytes()) {
             (protocol::Variant::PATH, b"o") => {
-                path = Some(header_slice.read::<str>()?);
+                path = Some(header_slice.read::<ObjectPath>()?);
             }
             (protocol::Variant::INTERFACE, b"s") => {
                 interface = Some(header_slice.read::<str>()?);
