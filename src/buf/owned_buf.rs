@@ -315,6 +315,11 @@ impl OwnedBuf {
     }
 }
 
+// SAFETY: [`OwnedBuf`] is `Send` because it owns data of type `u8`.
+unsafe impl Send for OwnedBuf {}
+// SAFETY: [`OwnedBuf`] is `Send` because it owns data of type `u8`.
+unsafe impl Sync for OwnedBuf {}
+
 impl Default for OwnedBuf {
     #[inline]
     fn default() -> Self {

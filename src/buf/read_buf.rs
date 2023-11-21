@@ -386,6 +386,11 @@ impl<'a> ReadBuf<'a> {
     }
 }
 
+// SAFETY: ReadBuf is equivalent to `&[u8]`.
+unsafe impl Send for ReadBuf<'_> {}
+// SAFETY: ReadBuf is equivalent to `&[u8]`.
+unsafe impl Sync for ReadBuf<'_> {}
+
 impl Clone for ReadBuf<'_> {
     #[inline]
     fn clone(&self) -> Self {
