@@ -1,7 +1,7 @@
 use std::error;
 use std::fmt;
 
-use crate::protocol::Type;
+use crate::proto::Type;
 
 /// Detailed errors raised when validation of a [`Signature`] fails.
 ///

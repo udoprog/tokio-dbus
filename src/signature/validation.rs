@@ -1,4 +1,4 @@
-use crate::protocol::Type;
+use crate::proto::Type;
 use crate::signature::stack::{Stack, StackValue};
 
 use super::{SignatureError, SignatureErrorKind, MAX_CONTAINER_DEPTH, MAX_DEPTH};

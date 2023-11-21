@@ -13,12 +13,18 @@ mod sealed {
     impl Sealed for ObjectPath {}
 }
 
-/// An element that can be serialized to a buffer.
+/// A type who's reference can be written directly to a buffer.
+///
+/// These types are written using methods such as [`BodyBuf::write`].
+///
+/// [`BodyBuf::write`]: crate::BodyBuf::write
 pub trait Write: self::sealed::Sealed {
     /// The signature of the type.
+    #[doc(hidden)]
     const SIGNATURE: &'static Signature;
 
     /// Write `self` into `buf`.
+    #[doc(hidden)]
     fn write_to<O: ?Sized>(&self, buf: &mut O)
     where
         O: BufMut;

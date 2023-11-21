@@ -1,6 +1,6 @@
 use anyhow::{bail, Context, Result};
 use tokio_dbus::org_freedesktop_dbus::{NameFlag, NameReply};
-use tokio_dbus::{BodyBuf, Client, Message, MessageKind, ObjectPath, SendBuf};
+use tokio_dbus::{BodyBuf, Connection, Message, MessageKind, ObjectPath, SendBuf};
 
 const NAME: &str = "se.tedro.DBusExample";
 const INTERFACE: &str = "se.tedro.DBusExample.Pingable";
@@ -8,7 +8,7 @@ const PATH: &ObjectPath = ObjectPath::new_const(b"/se/tedro/DBusExample");
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut c = Client::session_bus().await?;
+    let mut c = Connection::session_bus().await?;
 
     let reply = c.request_name(NAME, NameFlag::DO_NOT_QUEUE).await?;
 

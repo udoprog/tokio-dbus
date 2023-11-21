@@ -12,6 +12,8 @@ pub(crate) struct Header {
     pub(crate) serial: u32,
 }
 
+impl crate::frame::sealed::Sealed for Header {}
+
 unsafe impl crate::Frame for Header {
     const SIGNATURE: &'static crate::Signature = crate::Signature::new_const(b"yyyyuu");
 
@@ -42,6 +44,9 @@ macro_rules! raw_enum {
                 $(#[$($variant_meta)*])*
                 $vis const $variant: Self = Self($value);
             )*
+        }
+
+        impl $crate::frame::sealed::Sealed for $name {
         }
 
         unsafe impl $crate::Frame for $name {
@@ -85,6 +90,9 @@ macro_rules! raw_set {
                 $(#[$($variant_meta)*])*
                 $vis const $variant: Self = Self($value);
             )*
+        }
+
+        impl $crate::frame::sealed::Sealed for $name {
         }
 
         unsafe impl $crate::Frame for $name {
@@ -206,7 +214,8 @@ raw_set! {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::protocol::Flags;
+    /// use tokio_dbus::Flags;
+    ///
     /// let flags = Flags::EMPTY;
     /// assert!(!(flags & Flags::NO_REPLY_EXPECTED));
     ///

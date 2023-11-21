@@ -1,37 +1,32 @@
-pub use self::send_buf::SendBuf;
-mod send_buf;
-
-pub use self::recv_buf::RecvBuf;
-mod recv_buf;
-
 use std::io;
-use std::num::{NonZeroU32, NonZeroUsize};
+use std::num::NonZeroU32;
 
 use tokio::io::unix::AsyncFd;
 use tokio::io::{Interest, Ready};
 
-use crate::connection::{sasl_recv, MessageRef};
 use crate::error::{ErrorKind, Result};
 use crate::org_freedesktop_dbus::{self, NameFlag, NameReply};
 use crate::sasl::{SaslRequest, SaslResponse};
-use crate::{BodyBuf, ClientBuilder, Connection, Error, Message, MessageKind, ObjectPath};
+use crate::{BodyBuf, Error, Message, MessageKind, ObjectPath, RecvBuf, SendBuf};
+
+use super::{sasl_recv, ConnectionBuilder, MessageRef, Transport};
 
 /// The high level state of a client.
-pub(crate) enum ClientState {
+pub(crate) enum ConnectionState {
     /// Just initialized.
     Init,
     /// Sent the Hello() message and is awaiting response.
     HelloSent(NonZeroU32),
-    /// Client is in a normal idle state.
+    /// Connection is in a normal idle state.
     Idle,
 }
 
 /// An asynchronous D-Bus client.
-pub struct Client {
+pub struct Connection {
     /// Poller for the underlying file descriptor.
-    connection: AsyncFd<Connection>,
+    transport: AsyncFd<Transport>,
     /// Hello serial.
-    state: ClientState,
+    state: ConnectionState,
     /// Receive buffer.
     recv: RecvBuf,
     /// Send buffer.
@@ -42,19 +37,33 @@ pub struct Client {
     name: Option<Box<str>>,
 }
 
-impl Client {
+impl Connection {
+    /// Construct a new asynchronous D-Bus client.
+    pub(crate) fn new(transport: Transport) -> io::Result<Self> {
+        transport.set_nonblocking(true)?;
+
+        Ok(Self {
+            transport: AsyncFd::new(transport)?,
+            state: ConnectionState::Init,
+            recv: RecvBuf::new(),
+            send: SendBuf::new(),
+            body: BodyBuf::new(),
+            name: None,
+        })
+    }
+
     /// Shorthand for connecting the client to the system bus using the default
     /// configuration.
     #[inline]
     pub async fn session_bus() -> Result<Self> {
-        ClientBuilder::new().session_bus().connect().await
+        ConnectionBuilder::new().session_bus().connect().await
     }
 
     /// Shorthand for connecting the client to the system bus using the default
     /// configuration.
     #[inline]
     pub async fn system_bus() -> Result<Self> {
-        ClientBuilder::new().system_bus().connect().await
+        ConnectionBuilder::new().system_bus().connect().await
     }
 
     /// Process the current connection.
@@ -65,10 +74,10 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// use tokio_dbus::{Client, Message};
+    /// use tokio_dbus::{Connection, Message};
     ///
     /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
-    /// let mut c = Client::session_bus().await?;
+    /// let mut c = Connection::session_bus().await?;
     ///
     /// let message = c.process().await?;
     /// let message: Message<'_> = c.read_message(&message)?;
@@ -80,17 +89,15 @@ impl Client {
                 continue;
             };
 
-            self.recv.last_serial = NonZeroU32::new(message_ref.header.serial);
-
             // Read once for internal processing. Avoid this once borrow checker
             // allows returning a reference here directly.
             let message = self.recv.read_message(&message_ref)?;
 
-            if let ClientState::HelloSent(serial) = self.state {
+            if let ConnectionState::HelloSent(serial) = self.state {
                 match message.kind {
                     MessageKind::MethodReturn { reply_serial } if reply_serial == serial => {
                         self.name = Some(message.body().read::<str>()?.into());
-                        self.state = ClientState::Idle;
+                        self.state = ConnectionState::Idle;
                         continue;
                     }
                     _ => {}
@@ -114,10 +121,10 @@ impl Client {
     /// # Examples
     ///
     /// ```no_run
-    /// use tokio_dbus::Client;
+    /// use tokio_dbus::Connection;
     ///
     /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
-    /// let mut c = Client::session_bus().await?;
+    /// let mut c = Connection::session_bus().await?;
     /// c.flush().await?;
     /// # Ok(()) }
     /// ```
@@ -174,29 +181,15 @@ impl Client {
         (&self.recv, &mut self.send, &mut self.body)
     }
 
-    /// Construct a new asynchronous D-Bus client.
-    pub(crate) fn new(connection: Connection) -> io::Result<Self> {
-        connection.set_nonblocking(true)?;
-
-        Ok(Self {
-            connection: AsyncFd::new(connection)?,
-            state: ClientState::Init,
-            recv: RecvBuf::new(),
-            send: SendBuf::new(),
-            body: BodyBuf::new(),
-            name: None,
-        })
-    }
-
     /// Send a SASL message and receive a response.
     pub(crate) async fn sasl_request(
         &mut self,
         sasl: &SaslRequest<'_>,
     ) -> Result<SaslResponse<'_>> {
         loop {
-            let mut guard = self.connection.writable_mut().await?;
+            let mut guard = self.transport.writable_mut().await?;
 
-            match guard.get_inner_mut().sasl_send(&mut self.send.buf, sasl) {
+            match guard.get_inner_mut().sasl_send(self.send.buf_mut(), sasl) {
                 Err(e) if e.would_block() => {
                     guard.clear_ready();
                     continue;
@@ -207,16 +200,16 @@ impl Client {
         }
 
         loop {
-            let mut guard = self.connection.readable_mut().await?;
+            let mut guard = self.transport.readable_mut().await?;
 
-            match guard.get_inner_mut().sasl_recv(&mut self.recv.buf) {
+            match guard.get_inner_mut().sasl_recv(self.recv.buf_mut()) {
                 Err(e) if e.would_block() => {
                     guard.clear_ready();
                     continue;
                 }
                 Err(e) => return Err(e),
                 Ok(len) => {
-                    return sasl_recv(self.recv.buf.read_until(len).get());
+                    return sasl_recv(self.recv.buf_mut().read_until(len).get());
                 }
             }
         }
@@ -228,9 +221,9 @@ impl Client {
     /// to transition into the binary D-Bus protocol.
     pub(crate) async fn sasl_begin(&mut self) -> Result<()> {
         loop {
-            let mut guard = self.connection.writable_mut().await?;
+            let mut guard = self.transport.writable_mut().await?;
 
-            match guard.get_inner_mut().sasl_begin(&mut self.send.buf) {
+            match guard.get_inner_mut().sasl_begin(self.send.buf_mut()) {
                 Err(e) if e.would_block() => {
                     guard.clear_ready();
                     continue;
@@ -249,7 +242,7 @@ impl Client {
             .with_destination(org_freedesktop_dbus::DESTINATION);
 
         self.send.write_message(&m)?;
-        self.state = ClientState::HelloSent(m.serial());
+        self.state = ConnectionState::HelloSent(m.serial());
         Ok(())
     }
 
@@ -298,32 +291,25 @@ impl Client {
 
     async fn io(&mut self, flush: bool) -> Result<Option<MessageRef>, Error> {
         loop {
-            if let Some(advance) = self.recv.advance.take() {
-                self.recv.buf.advance(advance.get());
-                self.recv.buf.update_alignment_base();
-                self.recv.last_serial = None;
-            }
-
             let interest = if !flush {
                 let mut interest = Interest::READABLE;
 
-                if !self.send.buf.is_empty() {
+                if !self.send.buf().is_empty() {
                     interest |= Interest::WRITABLE;
                 }
 
                 interest
-            } else if self.send.buf.is_empty() {
+            } else if self.send.buf().is_empty() {
                 Interest::WRITABLE
             } else {
                 return Ok(None);
             };
 
-            let mut guard = self.connection.ready_mut(interest).await?;
+            let mut guard = self.transport.ready_mut(interest).await?;
 
             if guard.ready().is_readable() {
-                match guard.get_inner_mut().recv_message(&mut self.recv.buf) {
+                match guard.get_inner_mut().recv_message(&mut self.recv) {
                     Ok(message_ref) => {
-                        self.recv.advance = NonZeroUsize::new(message_ref.total);
                         return Ok(Some(message_ref));
                     }
                     Err(e) if e.would_block() => {
@@ -335,7 +321,7 @@ impl Client {
             }
 
             if guard.ready().is_writable() {
-                match guard.get_inner().send_buf(&mut self.send.buf) {
+                match guard.get_inner().send_buf(self.send.buf_mut()) {
                     Ok(()) => {}
                     Err(e) if e.would_block() => {
                         guard.clear_ready_matching(Ready::WRITABLE);

@@ -2,12 +2,12 @@ use std::num::NonZeroU32;
 
 use crate::buf::OwnedBuf;
 use crate::error::{Error, ErrorKind, Result};
-use crate::protocol;
+use crate::proto;
 use crate::{Message, MessageKind, ObjectPath, Signature};
 
 /// Buffer used for sending messages through D-Bus.
 pub struct SendBuf {
-    pub(super) buf: OwnedBuf,
+    buf: OwnedBuf,
     serial: u32,
 }
 
@@ -18,6 +18,16 @@ impl SendBuf {
             buf: OwnedBuf::new(),
             serial: 0,
         }
+    }
+
+    /// Access the underlying buffer.
+    pub(crate) fn buf(&mut self) -> &OwnedBuf {
+        &self.buf
+    }
+
+    /// Access the underlying buffer mutably.
+    pub(crate) fn buf_mut(&mut self) -> &mut OwnedBuf {
+        &mut self.buf
     }
 
     /// Get the next serial for this send buffer.
@@ -93,7 +103,7 @@ impl SendBuf {
             return Err(Error::new(ErrorKind::BodyTooLong(u32::MAX)));
         };
 
-        self.buf.store(protocol::Header {
+        self.buf.store(proto::Header {
             endianness: self.buf.endianness(),
             message_type: message.message_type(),
             flags: message.flags,
@@ -107,18 +117,18 @@ impl SendBuf {
         match message.kind {
             MessageKind::MethodCall { path, member } => {
                 let mut st = array.write_struct();
-                st.store(protocol::Variant::PATH);
+                st.store(proto::Variant::PATH);
                 st.write(Signature::OBJECT_PATH);
                 st.write(path);
 
                 let mut st = array.write_struct();
-                st.store(protocol::Variant::MEMBER);
+                st.store(proto::Variant::MEMBER);
                 st.write(Signature::STRING);
                 st.write(member);
             }
             MessageKind::MethodReturn { reply_serial } => {
                 let mut st = array.write_struct();
-                st.store(protocol::Variant::REPLY_SERIAL);
+                st.store(proto::Variant::REPLY_SERIAL);
                 st.write(Signature::UINT32);
                 st.store(reply_serial.get());
             }
@@ -127,18 +137,18 @@ impl SendBuf {
                 reply_serial,
             } => {
                 let mut st = array.write_struct();
-                st.store(protocol::Variant::ERROR_NAME);
+                st.store(proto::Variant::ERROR_NAME);
                 st.write(Signature::STRING);
                 st.write(error_name);
 
                 let mut st = array.write_struct();
-                st.store(protocol::Variant::REPLY_SERIAL);
+                st.store(proto::Variant::REPLY_SERIAL);
                 st.write(Signature::UINT32);
                 st.store(reply_serial.get());
             }
             MessageKind::Signal { member } => {
                 let mut st = array.write_struct();
-                st.store(protocol::Variant::MEMBER);
+                st.store(proto::Variant::MEMBER);
                 st.write(Signature::STRING);
                 st.write(member);
             }
@@ -146,28 +156,28 @@ impl SendBuf {
 
         if let Some(interface) = message.interface {
             let mut st = array.write_struct();
-            st.store(protocol::Variant::INTERFACE);
+            st.store(proto::Variant::INTERFACE);
             st.write(Signature::STRING);
             st.write(interface);
         }
 
         if let Some(destination) = message.destination {
             let mut st = array.write_struct();
-            st.store(protocol::Variant::DESTINATION);
+            st.store(proto::Variant::DESTINATION);
             st.write(Signature::STRING);
             st.write(destination);
         }
 
         if let Some(sender) = message.sender {
             let mut st = array.write_struct();
-            st.store(protocol::Variant::SENDER);
+            st.store(proto::Variant::SENDER);
             st.write(Signature::STRING);
             st.write(sender);
         }
 
         if !message.signature.is_empty() {
             let mut st = array.write_struct();
-            st.store(protocol::Variant::SIGNATURE);
+            st.store(proto::Variant::SIGNATURE);
             st.write(Signature::SIGNATURE);
             st.write(message.signature);
         }

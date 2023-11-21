@@ -1,7 +1,7 @@
 use crate::buf::OwnedBuf;
 use crate::error::Result;
-use crate::protocol::Header;
-use crate::protocol::{Endianness, Flags, MessageType, Variant};
+use crate::proto::Header;
+use crate::proto::{Endianness, Flags, MessageType, Variant};
 use crate::Signature;
 
 #[rustfmt::skip]

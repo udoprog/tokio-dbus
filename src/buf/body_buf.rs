@@ -186,7 +186,31 @@ impl BodyBuf {
     /// Store a [`Frame`] of type `T` in the buffer and add its signature.
     ///
     /// This both allocates enough space for the frame and ensures that the
-    /// buffer is aligned per the requirements of the frame.
+    /// buffer is aligned per the requirements of the frame.    /// Write a type to the buffer and update the buffer's signature to indicate
+    /// that the type `T` is stored.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroU32;
+    ///
+    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf, Signature};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
+    ///
+    /// let mut send = SendBuf::new();
+    /// let mut body = BodyBuf::new();
+    ///
+    /// body.store(10f64);
+    /// body.store(20u32);
+    ///
+    /// let m = send.method_call(PATH, "Hello")
+    ///     .with_body_buf(&body);
+    ///
+    /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
+    /// assert_eq!(m.signature(), Signature::new(b"du")?);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
     pub fn store<T>(&mut self, frame: T) -> Result<()>
     where
         T: Frame,
@@ -199,7 +223,30 @@ impl BodyBuf {
         Ok(())
     }
 
-    /// Write a type which can be serialized.
+    /// Write a type `T` to the buffer and and its signature.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroU32;
+    ///
+    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf, Signature};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
+    ///
+    /// let mut send = SendBuf::new();
+    /// let mut body = BodyBuf::new();
+    ///
+    /// body.write("Hello World!");
+    /// body.write(PATH);
+    ///
+    /// let m = send.method_call(PATH, "Hello")
+    ///     .with_body_buf(&body);
+    ///
+    /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
+    /// assert_eq!(m.signature(), Signature::new(b"so")?);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
     pub fn write<T>(&mut self, value: &T) -> Result<()>
     where
         T: ?Sized + Write,

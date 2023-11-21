@@ -12,9 +12,10 @@ mod sealed {
     impl Sealed for Signature {}
 }
 
-/// An element that can be deserialize from a buffer.
+/// A type who's reference can be read directly from a buffer.
 pub trait Read: self::sealed::Sealed {
     /// Read the type from the given buffer.
+    #[doc(hidden)]
     fn read_from<'de>(buf: &mut ReadBuf<'de>) -> Result<&'de Self, Error>;
 }
 

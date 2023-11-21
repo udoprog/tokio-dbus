@@ -9,34 +9,18 @@ use std::os::fd::RawFd;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::net::UnixStream;
 
-use crate::buf::OwnedBuf;
-use crate::buf::MAX_ARRAY_LENGTH;
-use crate::buf::{padding_to, MAX_BODY_LENGTH};
+use crate::buf::{padding_to, OwnedBuf, MAX_ARRAY_LENGTH, MAX_BODY_LENGTH};
 use crate::error::{Error, ErrorKind, Result};
-use crate::protocol;
+use crate::proto;
 use crate::sasl::Auth;
 use crate::sasl::{Guid, SaslRequest, SaslResponse};
-use crate::Frame;
+use crate::{Frame, RecvBuf};
+
+use super::MessageRef;
 
 const ENV_SESSION_BUS: &str = "DBUS_SESSION_BUS_ADDRESS";
 const ENV_SYSTEM_BUS: &str = "DBUS_SYSTEM_BUS_ADDRESS";
 const DEFAULT_SYSTEM_BUS: &str = "unix:path=/var/run/dbus/system_bus_socket";
-
-/// An owned reference to a message in a [`RecvBuf`].
-///
-/// To convert into a [`Message`], use [`Client::read_message`] or
-/// [`RecvBuf::read_message`].
-///
-/// [`Message`]: crate::Message
-/// [`Client::read_message`]: crate::Client::read_message
-/// [`RecvBuf::read_message`]: crate::RecvBuf::read_message
-/// [`RecvBuf`]: crate::RecvBuf
-#[derive(Debug)]
-pub struct MessageRef {
-    pub(super) header: protocol::Header,
-    pub(super) headers: usize,
-    pub(super) total: usize,
-}
 
 #[derive(Debug, Clone, Copy)]
 pub(crate) enum SaslState {
@@ -60,34 +44,34 @@ impl fmt::Display for SaslState {
 
 /// The state of the connection.
 #[derive(Debug, Clone, Copy)]
-pub(crate) enum ConnectionState {
+pub(crate) enum TransportState {
     // Newly opened socket in the SASL state.
     Sasl(SaslState),
     // Connection is open and idle.
     Idle,
     /// Body is being received.
-    RecvBody(protocol::Header, usize, usize),
+    RecvBody(proto::Header, usize, usize),
 }
 
-impl fmt::Display for ConnectionState {
+impl fmt::Display for TransportState {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ConnectionState::Sasl(state) => write!(f, "sasl ({state})"),
-            ConnectionState::Idle => write!(f, "idle"),
-            ConnectionState::RecvBody(..) => write!(f, "recv-body"),
+            TransportState::Sasl(state) => write!(f, "sasl ({state})"),
+            TransportState::Idle => write!(f, "idle"),
+            TransportState::RecvBody(..) => write!(f, "recv-body"),
         }
     }
 }
 
 /// A connection to a d-bus session.
-pub struct Connection {
+pub struct Transport {
     // Stream of the connection.
     stream: UnixStream,
     // The state of the connection.
-    state: ConnectionState,
+    state: TransportState,
 }
 
-impl Connection {
+impl Transport {
     /// Construct a new connection to the session bus.
     ///
     /// This uses the `DBUS_SESSION_BUS_ADDRESS` environment variable to
@@ -140,7 +124,7 @@ impl Connection {
     pub(crate) fn from_std(stream: UnixStream) -> Self {
         Self {
             stream,
-            state: ConnectionState::Sasl(SaslState::Init),
+            state: TransportState::Sasl(SaslState::Init),
         }
     }
 
@@ -152,7 +136,7 @@ impl Connection {
     ) -> Result<()> {
         loop {
             match &mut self.state {
-                ConnectionState::Sasl(sasl) => match sasl {
+                TransportState::Sasl(sasl) => match sasl {
                     SaslState::Init => {
                         buf.extend_from_slice(b"\0");
                         *sasl = SaslState::Idle;
@@ -184,7 +168,7 @@ impl Connection {
     /// Receive a sasl response.
     pub(crate) fn sasl_recv(&mut self, buf: &mut OwnedBuf) -> Result<usize> {
         match self.state {
-            ConnectionState::Sasl(SaslState::Idle) => {
+            TransportState::Sasl(SaslState::Idle) => {
                 let value = recv_line(&mut &self.stream, buf)?;
                 Ok(value)
             }
@@ -199,7 +183,7 @@ impl Connection {
     pub(crate) fn sasl_begin(&mut self, buf: &mut OwnedBuf) -> Result<()> {
         loop {
             match &mut self.state {
-                ConnectionState::Sasl(sasl) => match sasl {
+                TransportState::Sasl(sasl) => match sasl {
                     SaslState::Init => {
                         buf.extend_from_slice(b"\0");
                         *sasl = SaslState::Idle;
@@ -210,7 +194,7 @@ impl Connection {
                     }
                     SaslState::Send => {
                         send_buf(&mut &self.stream, buf)?;
-                        self.state = ConnectionState::Idle;
+                        self.state = TransportState::Idle;
                         return Ok(());
                     }
                 },
@@ -226,16 +210,22 @@ impl Connection {
     }
 
     /// Receive a message.
-    pub(crate) fn recv_message(&mut self, buf: &mut OwnedBuf) -> Result<MessageRef> {
+    pub(crate) fn recv_message(&mut self, recv: &mut RecvBuf) -> Result<MessageRef> {
         loop {
             match self.state {
-                ConnectionState::Idle => {
-                    self.recv_buf(buf, size_of::<protocol::Header>() + size_of::<u32>())?;
+                TransportState::Idle => {
+                    recv.advance();
 
-                    let mut read_buf =
-                        buf.read_until(size_of::<protocol::Header>() + size_of::<u32>());
+                    self.recv_buf(
+                        recv.buf_mut(),
+                        size_of::<proto::Header>() + size_of::<u32>(),
+                    )?;
 
-                    let mut header = read_buf.load::<protocol::Header>()?;
+                    let mut read_buf = recv
+                        .buf_mut()
+                        .read_until(size_of::<proto::Header>() + size_of::<u32>());
+
+                    let mut header = read_buf.load::<proto::Header>()?;
                     let mut headers = read_buf.load::<u32>()?;
 
                     header.adjust(header.endianness);
@@ -259,11 +249,13 @@ impl Connection {
 
                     // Padding used in the header.
                     let total = headers + padding_to::<u64>(headers) + body_length;
-                    self.state = ConnectionState::RecvBody(header, headers, total);
+                    self.state = TransportState::RecvBody(header, headers, total);
                 }
-                ConnectionState::RecvBody(header, headers, total) => {
-                    self.recv_buf(buf, total)?;
-                    self.state = ConnectionState::Idle;
+                TransportState::RecvBody(header, headers, total) => {
+                    self.recv_buf(recv.buf_mut(), total)?;
+                    self.state = TransportState::Idle;
+
+                    recv.set_last_message(total, header.serial);
 
                     return Ok(MessageRef {
                         header,
@@ -288,14 +280,14 @@ impl Connection {
     }
 }
 
-impl Read for Connection {
+impl Read for Transport {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.stream.read(buf)
     }
 }
 
-impl Write for Connection {
+impl Write for Transport {
     #[inline]
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
         self.stream.write(buf)
@@ -377,7 +369,7 @@ fn parse_address_bytes(bytes: &[u8]) -> Result<Address<'_>> {
     }
 }
 
-impl AsRawFd for Connection {
+impl AsRawFd for Transport {
     #[inline]
     fn as_raw_fd(&self) -> RawFd {
         self.stream.as_raw_fd()

@@ -3,18 +3,18 @@ use std::num::{NonZeroU32, NonZeroUsize};
 use crate::buf::{OwnedBuf, ReadBuf};
 use crate::connection::MessageRef;
 use crate::error::{Error, ErrorKind, Result};
-use crate::{protocol, ObjectPath};
+use crate::{proto, ObjectPath};
 use crate::{Message, MessageKind, Signature};
 
 /// Buffer used for receiving messages through D-Bus.
 pub struct RecvBuf {
-    pub(super) buf: OwnedBuf,
+    buf: OwnedBuf,
     /// The amount the receive buffer needs to be advanced before processing can
     /// continue.
-    pub(super) advance: Option<NonZeroUsize>,
+    advance: Option<NonZeroUsize>,
     /// The last serial observed. This is used to determine whether a
     /// [`MessageRef`] is valid or not.
-    pub(super) last_serial: Option<NonZeroU32>,
+    last_serial: Option<NonZeroU32>,
 }
 
 impl RecvBuf {
@@ -24,6 +24,25 @@ impl RecvBuf {
             buf: OwnedBuf::new(),
             advance: None,
             last_serial: None,
+        }
+    }
+
+    /// Access the underlying buffer mutably.
+    pub(crate) fn buf_mut(&mut self) -> &mut OwnedBuf {
+        &mut self.buf
+    }
+
+    /// Set last serial.
+    pub(crate) fn set_last_message(&mut self, total: usize, serial: u32) {
+        self.advance = NonZeroUsize::new(total);
+        self.last_serial = NonZeroU32::new(serial);
+    }
+
+    pub(crate) fn advance(&mut self) {
+        if let Some(advance) = self.advance.take() {
+            self.buf.advance(advance.get());
+            self.buf.update_alignment_base();
+            self.last_serial = None;
         }
     }
 
@@ -61,7 +80,7 @@ impl Default for RecvBuf {
 /// Read a message out of the buffer.
 pub(crate) fn read_message(
     mut buf: ReadBuf<'_>,
-    header: protocol::Header,
+    header: proto::Header,
     headers: usize,
 ) -> Result<Message<'_>> {
     let serial = NonZeroU32::new(header.serial).ok_or(ErrorKind::ZeroSerial)?;
@@ -81,34 +100,34 @@ pub(crate) fn read_message(
         // NB: Since these are structs, they're aligned to a 8-byte boundary.
         header_slice.align::<u64>();
 
-        let variant = header_slice.load::<protocol::Variant>()?;
+        let variant = header_slice.load::<proto::Variant>()?;
         let sig = header_slice.read::<Signature>()?;
 
         match (variant, sig.as_bytes()) {
-            (protocol::Variant::PATH, b"o") => {
+            (proto::Variant::PATH, b"o") => {
                 path = Some(header_slice.read::<ObjectPath>()?);
             }
-            (protocol::Variant::INTERFACE, b"s") => {
+            (proto::Variant::INTERFACE, b"s") => {
                 interface = Some(header_slice.read::<str>()?);
             }
-            (protocol::Variant::MEMBER, b"s") => {
+            (proto::Variant::MEMBER, b"s") => {
                 member = Some(header_slice.read::<str>()?);
             }
-            (protocol::Variant::ERROR_NAME, b"s") => {
+            (proto::Variant::ERROR_NAME, b"s") => {
                 error_name = Some(header_slice.read::<str>()?);
             }
-            (protocol::Variant::REPLY_SERIAL, b"u") => {
+            (proto::Variant::REPLY_SERIAL, b"u") => {
                 let number = header_slice.load::<u32>()?;
                 let number = NonZeroU32::new(number).ok_or(ErrorKind::ZeroReplySerial)?;
                 reply_serial = Some(number);
             }
-            (protocol::Variant::DESTINATION, b"s") => {
+            (proto::Variant::DESTINATION, b"s") => {
                 destination = Some(header_slice.read::<str>()?);
             }
-            (protocol::Variant::SIGNATURE, b"g") => {
+            (proto::Variant::SIGNATURE, b"g") => {
                 signature = header_slice.read::<Signature>()?;
             }
-            (protocol::Variant::SENDER, b"s") => {
+            (proto::Variant::SENDER, b"s") => {
                 sender = Some(header_slice.read::<str>()?);
             }
             (_, _) => {
@@ -118,7 +137,7 @@ pub(crate) fn read_message(
     }
 
     let kind = match header.message_type {
-        protocol::MessageType::METHOD_CALL => {
+        proto::MessageType::METHOD_CALL => {
             let Some(path) = path else {
                 return Err(Error::new(ErrorKind::MissingPath));
             };
@@ -129,14 +148,14 @@ pub(crate) fn read_message(
 
             MessageKind::MethodCall { path, member }
         }
-        protocol::MessageType::METHOD_RETURN => {
+        proto::MessageType::METHOD_RETURN => {
             let Some(reply_serial) = reply_serial else {
                 return Err(Error::new(ErrorKind::MissingReplySerial));
             };
 
             MessageKind::MethodReturn { reply_serial }
         }
-        protocol::MessageType::ERROR => {
+        proto::MessageType::ERROR => {
             let Some(error_name) = error_name else {
                 return Err(Error::new(ErrorKind::MissingErrorName));
             };
@@ -150,7 +169,7 @@ pub(crate) fn read_message(
                 reply_serial,
             }
         }
-        protocol::MessageType::SIGNAL => {
+        proto::MessageType::SIGNAL => {
             let Some(member) = member else {
                 return Err(Error::new(ErrorKind::MissingMember));
             };

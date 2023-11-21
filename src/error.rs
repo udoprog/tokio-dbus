@@ -3,7 +3,7 @@ use std::fmt;
 use std::io;
 use std::str::Utf8Error;
 
-use crate::connection::ConnectionState;
+use crate::connection::TransportState;
 use crate::ObjectPathError;
 use crate::SignatureError;
 
@@ -132,7 +132,7 @@ pub(crate) enum ErrorKind {
     InvalidAddress,
     InvalidSasl,
     InvalidSaslResponse,
-    InvalidState(ConnectionState),
+    InvalidState(TransportState),
     InvalidProtocol,
     MissingPath,
     MissingMember,

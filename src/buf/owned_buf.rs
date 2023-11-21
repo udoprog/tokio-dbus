@@ -6,7 +6,7 @@ use std::slice::{from_raw_parts, from_raw_parts_mut};
 use crate::buf::{
     max_size_for_align, padding_to, Alloc, ArrayWriter, BufMut, ReadBuf, StructWriter,
 };
-use crate::protocol::Endianness;
+use crate::proto::Endianness;
 use crate::{Frame, Write};
 
 /// The alignment of the buffer.
@@ -159,7 +159,7 @@ impl OwnedBuf {
         }
     }
 
-    /// Write a type which can be serialized.
+    /// Write a type to the buffer.
     pub(crate) fn write<T>(&mut self, value: &T)
     where
         T: ?Sized + Write,

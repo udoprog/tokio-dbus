@@ -16,9 +16,9 @@
 #![allow(clippy::module_inception)]
 
 #[doc(inline)]
-pub use self::protocol::{Endianness, Flags};
+pub use self::proto::{Endianness, Flags};
 #[macro_use]
-pub mod protocol;
+mod proto;
 
 pub mod org_freedesktop_dbus;
 
@@ -31,15 +31,12 @@ pub use self::read::Read;
 mod read;
 
 #[doc(inline)]
-pub use self::connection::{Connection, MessageRef};
-mod connection;
-
-#[doc(inline)]
 pub use self::error::{Error, Result};
 mod error;
 
-pub use self::buf::{BodyBuf, ReadBuf};
-pub mod buf;
+#[doc(inline)]
+pub use self::buf::{BodyBuf, ReadBuf, RecvBuf, SendBuf};
+mod buf;
 
 mod sasl;
 
@@ -51,15 +48,13 @@ mod signature;
 pub use self::frame::Frame;
 mod frame;
 
+#[doc(inline)]
 pub use self::message::{Message, MessageKind, OwnedMessage};
 mod message;
 
 #[cfg(feature = "tokio")]
-pub use self::client::{Client, RecvBuf, SendBuf};
-mod client;
-
-pub use self::client_builder::ClientBuilder;
-mod client_builder;
+pub use self::connection::{Connection, ConnectionBuilder, MessageRef};
+mod connection;
 
 mod lossy_str;
 

@@ -64,7 +64,7 @@ impl OwnedMessage {
         }
     }
 
-    /// Convert this message into a [`MessageKind::MessageReturn`] message with
+    /// Convert this message into a [`MessageKind::MethodReturn`] message with
     /// an empty body where the reply serial matches that of the current
     /// message.
     ///

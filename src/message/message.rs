@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-use crate::protocol::{Flags, MessageType};
+use crate::proto::{Flags, MessageType};
 use crate::{BodyBuf, MessageKind, ObjectPath, OwnedMessage, ReadBuf, Signature};
 
 /// A borrowed D-Bus message.
@@ -58,7 +58,7 @@ impl<'a> Message<'a> {
         }
     }
 
-    /// Convert this message into a [`MessageKind::MessageReturn`] message with
+    /// Convert this message into a [`MessageKind::MethodReturn`] message with
     /// an empty body where the reply serial matches that of the current
     /// message.
     ///
@@ -603,7 +603,7 @@ impl<'a> Message<'a> {
         Self { signature, ..self }
     }
 
-    pub(crate) fn message_type(&self) -> crate::protocol::MessageType {
+    pub(crate) fn message_type(&self) -> crate::proto::MessageType {
         match self.kind {
             MessageKind::MethodCall { .. } => MessageType::METHOD_CALL,
             MessageKind::MethodReturn { .. } => MessageType::METHOD_RETURN,

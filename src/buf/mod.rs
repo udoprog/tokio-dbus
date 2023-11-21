@@ -33,6 +33,12 @@ mod body_buf;
 pub use self::buf_mut::{Alloc, BufMut};
 mod buf_mut;
 
+pub use self::send_buf::SendBuf;
+mod send_buf;
+
+pub use self::recv_buf::RecvBuf;
+mod recv_buf;
+
 /// The maximum length of an array in bytes.
 pub(crate) const MAX_ARRAY_LENGTH: u32 = 1u32 << 26;
 /// The maximum length of a body in bytes.

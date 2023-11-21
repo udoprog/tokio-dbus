@@ -3,7 +3,7 @@ use std::str::from_utf8_unchecked;
 
 use crate::buf::BufMut;
 use crate::error::Result;
-use crate::protocol::Type;
+use crate::proto::Type;
 use crate::OwnedSignature;
 use crate::{Read, ReadBuf, Write};
 

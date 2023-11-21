@@ -1,5 +1,5 @@
 use anyhow::{bail, Result};
-use tokio_dbus::{Client, MessageKind, ObjectPath};
+use tokio_dbus::{Connection, MessageKind, ObjectPath};
 
 const NAME: &str = "se.tedro.DBusExample";
 const INTERFACE: &str = "se.tedro.DBusExample.Pingable";
@@ -7,7 +7,7 @@ const PATH: &ObjectPath = ObjectPath::new_const(b"/se/tedro/DBusExample");
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let mut c = Client::session_bus().await?;
+    let mut c = Connection::session_bus().await?;
 
     let (_, send, body) = c.buffers();
 
@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
                 error_name,
                 reply_serial,
             } if reply_serial == serial => {
-                bail!("Error: {}: {}", error_name, message.body().read::<str>()?)
+                bail!("{}: {}", error_name, message.body().read::<str>()?)
             }
             _ => {}
         }
