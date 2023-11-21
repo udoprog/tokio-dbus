@@ -1,4 +1,5 @@
-use std::{mem::replace, str::from_utf8_unchecked};
+use std::mem::take;
+use std::str::from_utf8_unchecked;
 
 /// An iterator over an [`ObjectPath`].
 ///
@@ -28,7 +29,7 @@ impl<'a> Iterator for Iter<'a> {
                 self.data = &tail[1..];
                 head
             }
-            None => replace(&mut self.data, &[]),
+            None => take(&mut self.data),
         };
 
         Some(unsafe { from_utf8_unchecked(data) })
@@ -48,7 +49,7 @@ impl<'a> DoubleEndedIterator for Iter<'a> {
                 self.data = head;
                 &tail[1..]
             }
-            None => replace(&mut self.data, &[]),
+            None => take(&mut self.data),
         };
 
         Some(unsafe { from_utf8_unchecked(data) })
