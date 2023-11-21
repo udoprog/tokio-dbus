@@ -76,7 +76,10 @@ impl Client {
     /// ```
     pub async fn process(&mut self) -> Result<MessageRef, Error> {
         loop {
-            let message_ref = self.io().await?;
+            let Some(message_ref) = self.io(false).await? else {
+                continue;
+            };
+
             self.recv.last_serial = NonZeroU32::new(message_ref.header.serial);
 
             // Read once for internal processing. Avoid this once borrow checker
@@ -104,6 +107,23 @@ impl Client {
 
             return Ok(message_ref);
         }
+    }
+
+    /// Flush all outgoing messages and return when the send buffer is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use tokio_dbus::Client;
+    ///
+    /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
+    /// let mut c = Client::session_bus().await?;
+    /// c.flush().await?;
+    /// # Ok(()) }
+    /// ```
+    pub async fn flush(&mut self) -> Result<(), Error> {
+        while self.io(true).await?.is_some() {}
+        Ok(())
     }
 
     /// Construct a new [`Message`] corresponding to a method call.
@@ -276,18 +296,27 @@ impl Client {
         }
     }
 
-    async fn io(&mut self) -> Result<MessageRef, Error> {
+    async fn io(&mut self, flush: bool) -> Result<Option<MessageRef>, Error> {
         loop {
             if let Some(advance) = self.recv.advance.take() {
                 self.recv.buf.advance(advance.get());
                 self.recv.buf.update_alignment_base();
+                self.recv.last_serial = None;
             }
 
-            let mut interest = Interest::READABLE;
+            let interest = if !flush {
+                let mut interest = Interest::READABLE;
 
-            if !self.send.buf.is_empty() {
-                interest |= Interest::WRITABLE;
-            }
+                if !self.send.buf.is_empty() {
+                    interest |= Interest::WRITABLE;
+                }
+
+                interest
+            } else if self.send.buf.is_empty() {
+                Interest::WRITABLE
+            } else {
+                return Ok(None);
+            };
 
             let mut guard = self.connection.ready_mut(interest).await?;
 
@@ -295,7 +324,7 @@ impl Client {
                 match guard.get_inner_mut().recv_message(&mut self.recv.buf) {
                     Ok(message_ref) => {
                         self.recv.advance = NonZeroUsize::new(message_ref.total);
-                        return Ok(message_ref);
+                        return Ok(Some(message_ref));
                     }
                     Err(e) if e.would_block() => {
                         guard.clear_ready_matching(Ready::READABLE);
