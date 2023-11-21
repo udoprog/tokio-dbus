@@ -67,17 +67,4 @@ macro_rules! struct_fields {
     }
 }
 
-macro_rules! repeat {
-    ($macro:path) => {
-        $macro!(A);
-        $macro!(A, B);
-        $macro!(A, B, C);
-        $macro!(A, B, C, D);
-        $macro!(A, B, C, D, E);
-        $macro!(A, B, C, D, E, F);
-        $macro!(A, B, C, D, E, F, G);
-        $macro!(A, B, C, D, E, F, G, H);
-    };
-}
-
 repeat!(struct_fields);

@@ -15,6 +15,9 @@
 #![deny(missing_docs)]
 #![allow(clippy::module_inception)]
 
+#[macro_use]
+mod macros;
+
 #[doc(inline)]
 pub use self::proto::{Endianness, Flags};
 #[macro_use]
