@@ -162,10 +162,10 @@ impl<'a> ReadBuf<'a> {
     /// use tokio_dbus::{Result, ReadBuf};
     ///
     /// fn read(buf: &mut ReadBuf<'_>) -> Result<()> {
-    ///     let mut read_buf = buf.read_buf(6);
+    ///     let mut read_buf = buf.read_until(6);
     ///     assert_eq!(read_buf.load::<u32>()?, 4);
     ///
-    ///     let mut read_buf2 = read_buf.read_buf(2);
+    ///     let mut read_buf2 = read_buf.read_until(2);
     ///     assert_eq!(read_buf2.load::<u8>()?, 1);
     ///     assert_eq!(read_buf2.load::<u8>()?, 2);
     ///
@@ -176,7 +176,7 @@ impl<'a> ReadBuf<'a> {
     ///     Ok(())
     /// }
     /// ```
-    pub fn read_buf(&mut self, len: usize) -> ReadBuf<'a> {
+    pub fn read_until(&mut self, len: usize) -> ReadBuf<'a> {
         assert!(len <= self.len());
         let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
         self.read += len;
@@ -244,6 +244,10 @@ impl<'a> ReadBuf<'a> {
 
     /// Advance the read cursor by `n`.
     pub(crate) fn advance(&mut self, n: usize) -> Result<()> {
+        if n == 0 {
+            return Ok(());
+        }
+
         if self.read + n > self.written {
             return Err(Error::new(ErrorKind::BufferUnderflow));
         }

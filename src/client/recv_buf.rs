@@ -75,7 +75,7 @@ pub(crate) fn read_message(
     let mut signature = Signature::empty();
     let mut sender = None;
 
-    let mut header_slice = buf.read_buf(headers);
+    let mut header_slice = buf.read_until(headers);
 
     while !header_slice.is_empty() {
         // NB: Since these are structs, they're aligned to a 8-byte boundary.
@@ -162,7 +162,7 @@ pub(crate) fn read_message(
 
     buf.align::<u64>();
 
-    let body = buf.read_buf(header.body_length as usize);
+    let body = buf.read_until(header.body_length as usize);
 
     Ok(Message {
         kind,

@@ -144,7 +144,7 @@ fn test_read_buf() -> Result<()> {
     buf.store(4u32);
     buf.extend_from_slice_nul(b"\x01\x02\x03\x04");
 
-    let mut read_buf = buf.read_buf(6);
+    let mut read_buf = buf.read_until(6);
 
     assert_eq!(read_buf.load::<u32>()?, 4);
     assert_eq!(read_buf.load::<u8>()?, 1);
@@ -159,7 +159,7 @@ fn test_read_buf_load() -> Result<()> {
     buf.store(7u32);
     buf.extend_from_slice_nul(b"foo bar");
 
-    let mut read_buf = buf.read_buf(6);
+    let mut read_buf = buf.read_until(6);
 
     assert_eq!(read_buf.load::<u32>()?, 7u32);
     assert_eq!(read_buf.load::<u8>()?, b'f');
@@ -174,7 +174,7 @@ fn test_read_buf_read() -> Result<()> {
     buf.store(4u32);
     buf.extend_from_slice_nul(b"\x01\x02\x03\x04");
 
-    let mut read_buf = buf.read_buf(6);
+    let mut read_buf = buf.read_until(6);
 
     assert_eq!(read_buf.load::<u32>()?, 4);
     assert_eq!(read_buf.load::<u8>()?, 1);
@@ -182,7 +182,7 @@ fn test_read_buf_read() -> Result<()> {
     assert!(read_buf.load::<u8>().is_err());
     assert!(read_buf.is_empty());
 
-    let _ = buf.read_buf(3);
+    let _ = buf.read_until(3);
     assert!(buf.is_empty());
     Ok(())
 }
@@ -193,10 +193,10 @@ fn test_nested_read_buf() -> Result<()> {
     buf.store(4u32);
     buf.extend_from_slice_nul(b"\x01\x02\x03\x04");
 
-    let mut read_buf = buf.read_buf(6);
+    let mut read_buf = buf.read_until(6);
     assert_eq!(read_buf.load::<u32>()?, 4);
 
-    let mut read_buf2 = read_buf.read_buf(2);
+    let mut read_buf2 = read_buf.read_until(2);
     assert_eq!(read_buf2.load::<u8>()?, 1);
     assert_eq!(read_buf2.load::<u8>()?, 2);
 

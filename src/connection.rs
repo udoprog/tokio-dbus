@@ -233,7 +233,7 @@ impl Connection {
                     self.recv_buf(buf, size_of::<protocol::Header>() + size_of::<u32>())?;
 
                     let mut read_buf =
-                        buf.read_buf(size_of::<protocol::Header>() + size_of::<u32>());
+                        buf.read_until(size_of::<protocol::Header>() + size_of::<u32>());
 
                     let mut header = read_buf.load::<protocol::Header>()?;
                     let mut headers = read_buf.load::<u32>()?;

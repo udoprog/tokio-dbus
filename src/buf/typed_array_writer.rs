@@ -61,3 +61,11 @@ impl<'a, E> TypedArrayWriter<'a, ty::Array<E>> {
         TypedArrayWriter::new(self.inner.write_array())
     }
 }
+
+impl<'a> TypedArrayWriter<'a, ty::Array<u8>> {
+    /// Write a byte array inside of the array.
+    #[inline]
+    pub fn write_slice(&mut self, bytes: &[u8]) {
+        self.inner.write_array().write_slice(bytes);
+    }
+}

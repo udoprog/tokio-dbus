@@ -5,7 +5,7 @@ use super::{SignatureError, SignatureErrorKind, MAX_CONTAINER_DEPTH, MAX_DEPTH};
 
 #[derive(Default, Debug, Clone, Copy)]
 #[repr(u8)]
-enum Kind {
+pub(super) enum Kind {
     #[default]
     None,
     Array,
@@ -15,6 +15,10 @@ enum Kind {
 
 impl StackValue for (Kind, u8) {
     const DEFAULT: Self = (Kind::None, 0);
+}
+
+impl StackValue for Kind {
+    const DEFAULT: Self = Kind::None;
 }
 
 pub(super) const fn validate(bytes: &[u8]) -> Result<(), SignatureError> {

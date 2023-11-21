@@ -2,6 +2,10 @@ pub(crate) trait StackValue: Copy {
     const DEFAULT: Self;
 }
 
+impl StackValue for bool {
+    const DEFAULT: Self = false;
+}
+
 pub(crate) struct Stack<T, const N: usize> {
     pub(crate) data: [T; N],
     pub(crate) len: usize,
@@ -27,7 +31,7 @@ macro_rules! stack_pop {
             let new_len = $stack.len - 1;
             $stack.len = new_len;
             let value = $stack.data[new_len];
-            $stack.data[new_len] = <$ty>::DEFAULT;
+            $stack.data[new_len] = <$ty as $crate::signature::stack::StackValue>::DEFAULT;
             Some(value)
         }
     };
@@ -47,7 +51,7 @@ impl<T, const N: usize> Stack<T, N>
 where
     T: StackValue,
 {
-    pub const fn new() -> Self {
+    pub(super) const fn new() -> Self {
         Self {
             data: [T::DEFAULT; N],
             len: 0,
@@ -55,7 +59,22 @@ where
     }
 
     #[inline]
-    pub(crate) const fn capacity(&self) -> usize {
+    pub(super) const fn capacity(&self) -> usize {
         N
+    }
+
+    #[inline]
+    pub(super) fn try_push(&mut self, value: T) -> bool {
+        stack_try_push!(self, value)
+    }
+
+    #[inline]
+    pub(super) fn pop(&mut self) -> Option<T> {
+        stack_pop!(self, T)
+    }
+
+    #[inline]
+    pub(super) fn peek(&mut self) -> Option<&T> {
+        stack_peek!(self)
     }
 }

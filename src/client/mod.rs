@@ -215,7 +215,7 @@ impl Client {
                 }
                 Err(e) => return Err(e),
                 Ok(len) => {
-                    return sasl_recv(self.recv.buf.read_buf(len).get());
+                    return sasl_recv(self.recv.buf.read_until(len).get());
                 }
             }
         }

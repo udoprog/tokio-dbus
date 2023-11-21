@@ -17,7 +17,7 @@ impl<'de> ArrayReader<'de> {
         }
 
         Ok(Self {
-            buf: buf.read_buf(bytes as usize),
+            buf: buf.read_until(bytes as usize),
         })
     }
 

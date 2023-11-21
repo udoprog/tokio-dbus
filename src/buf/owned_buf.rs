@@ -82,10 +82,19 @@ impl OwnedBuf {
     /// This panics if `len` is larger than [`len()`].
     ///
     /// [`len()`]: Self::len
-    pub(crate) fn read_buf(&mut self, len: usize) -> ReadBuf<'_> {
+    pub(crate) fn read_until(&mut self, len: usize) -> ReadBuf<'_> {
         assert!(len <= self.len());
         let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
         self.advance(len);
+        ReadBuf::new(data, len, self.endianness)
+    }
+
+    /// Read the entire buffer and make accessible through [`ReadBuf`].
+    #[cfg(test)]
+    pub(crate) fn read(&mut self) -> ReadBuf<'_> {
+        let len = self.len();
+        let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
+        self.clear();
         ReadBuf::new(data, len, self.endianness)
     }
 
