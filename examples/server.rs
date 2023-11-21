@@ -64,7 +64,7 @@ fn handle_method_call<'a>(
         INTERFACE => match member {
             "Ping" => {
                 let value = msg.body().load::<u32>()?;
-                body.store(value)?;
+                body.extend(value)?;
                 msg.method_return(send.next_serial()).with_body_buf(body)
             }
             method => bail!("Unknown method: {method}"),

@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::Frame;
+use crate::{Frame, Write};
 
 mod sealed {
     use crate::buf::{BodyBuf, OwnedBuf};
@@ -47,6 +47,12 @@ pub trait BufMut: self::sealed::Sealed {
     /// Test if the buffer is empty.
     #[doc(hidden)]
     fn is_empty(&self) -> bool;
+
+    /// Write a [`Write`] of type `T` in the buffer.
+    #[doc(hidden)]
+    fn write<T>(&mut self, value: &T)
+    where
+        T: ?Sized + Write;
 
     /// Store a [`Frame`] of type `T` in the buffer.
     ///

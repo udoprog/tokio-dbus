@@ -351,6 +351,14 @@ impl BufMut for OwnedBuf {
     }
 
     #[inline]
+    fn write<T>(&mut self, value: &T)
+    where
+        T: ?Sized + Write,
+    {
+        OwnedBuf::write(self, value)
+    }
+
+    #[inline]
     fn store<T>(&mut self, frame: T)
     where
         T: Frame,

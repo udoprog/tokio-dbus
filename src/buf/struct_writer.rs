@@ -1,4 +1,4 @@
-use crate::{Frame, Write};
+use crate::{Arguments, Frame, Write};
 
 use crate::buf::{ArrayWriter, BufMut};
 
@@ -36,6 +36,15 @@ where
         T: ?Sized + Write,
     {
         value.write_to(self.buf);
+    }
+
+    /// Extend the current struct with the given arguments.
+    #[inline]
+    pub fn extend<T>(&mut self, value: T)
+    where
+        T: Arguments,
+    {
+        value.buf_to(self.buf)
     }
 
     /// Write an array in the struct.

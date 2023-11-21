@@ -3,6 +3,8 @@ use crate::error::Result;
 use crate::signature::{SignatureBuilder, SignatureError, SignatureErrorKind};
 use crate::{ty, Endianness, Frame, ReadBuf, Signature, Write};
 
+use crate::arguments::{Arguments, Extend};
+
 /// A buffer that can be used to write a body.
 ///
 /// # Examples
@@ -259,6 +261,40 @@ impl BodyBuf {
         Ok(())
     }
 
+    /// Extend the body with multiple arguments.
+    ///
+    /// This can be a more convenient variant compared with subsequent calls to
+    /// type-dependent calls to [`BodyBuf::store`] or [`BodyBuf::write`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroU32;
+    ///
+    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf, Signature};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
+    ///
+    /// let mut send = SendBuf::new();
+    /// let mut body = BodyBuf::new();
+    ///
+    /// body.extend(("Hello World!", PATH, 10u32));
+    ///
+    /// let m = send.method_call(PATH, "Hello")
+    ///     .with_body_buf(&body);
+    ///
+    /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
+    /// assert_eq!(m.signature(), Signature::new(b"sou")?);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    #[inline]
+    pub fn extend<T>(&mut self, value: T) -> Result<()>
+    where
+        T: Arguments,
+    {
+        value.extend_to(self)
+    }
+
     /// Write an array into the buffer.
     ///
     /// # Examples
@@ -341,5 +377,23 @@ impl Default for BodyBuf {
     #[inline]
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl Extend for BodyBuf {
+    #[inline]
+    fn write<T>(&mut self, value: &T) -> Result<()>
+    where
+        T: ?Sized + Write,
+    {
+        BodyBuf::write(self, value)
+    }
+
+    #[inline]
+    fn store<T>(&mut self, frame: T) -> Result<()>
+    where
+        T: Frame,
+    {
+        BodyBuf::store(self, frame)
     }
 }

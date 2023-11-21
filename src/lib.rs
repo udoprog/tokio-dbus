@@ -67,3 +67,6 @@ pub use self::object_path::{ObjectPath, ObjectPathError, OwnedObjectPath};
 mod object_path;
 
 pub mod ty;
+
+pub use self::arguments::{Arguments, Extend};
+mod arguments;

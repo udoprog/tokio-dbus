@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::buf::{OwnedBuf, StructWriter, TypedArrayWriter};
-use crate::ty;
+use crate::{ty, Arguments};
 use crate::{Frame, Write};
 
 /// Write a typed struct.
@@ -78,6 +78,30 @@ impl<'a, E> TypedStructWriter<'a, E> {
     {
         self.inner.write(value);
         TypedStructWriter::new(self.inner)
+    }
+
+    /// Store a value and return the builder for the next value to store.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{BodyBuf, Endianness};
+    /// use tokio_dbus::ty;
+    ///
+    /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
+    ///
+    /// buf.write_struct::<(u8, u32)>()?.fields((42u8, 42u32));
+    ///
+    /// assert_eq!(buf.signature(), b"(yu)");
+    /// assert_eq!(buf.get(), &[42, 0, 0, 0, 42, 0, 0, 0]);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    #[inline]
+    pub fn fields(mut self, arguments: E)
+    where
+        E: Arguments,
+    {
+        self.inner.extend(arguments);
     }
 
     /// Store a value and return the builder for the next value to store.
