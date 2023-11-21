@@ -1,6 +1,6 @@
 use crate::{Error, Read, ReadBuf};
 
-/// Write an struct into a [`Buf`].
+/// Read a struct from a buffer.
 pub struct StructReader<'a, 'de> {
     buf: &'a mut ReadBuf<'de>,
 }

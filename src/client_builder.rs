@@ -49,12 +49,10 @@ impl ClientBuilder {
     /// # Examples
     ///
     /// ```no_run
-    /// use tokio_dbus::{ClientBuilder, SendBuf, RecvBuf};
+    /// use tokio_dbus::ClientBuilder;
     ///
     /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
-    /// let mut send = SendBuf::new();
-    /// let mut recv = RecvBuf::new();
-    /// let c = ClientBuilder::new().session_bus().connect(&mut send, &mut recv).await?;
+    /// let c = ClientBuilder::new().session_bus().connect().await?;
     /// # Ok(()) }
     /// ```
     pub fn session_bus(&mut self) -> &mut Self {
@@ -67,12 +65,10 @@ impl ClientBuilder {
     /// # Examples
     ///
     /// ```no_run
-    /// use tokio_dbus::{ClientBuilder, SendBuf, RecvBuf};
+    /// use tokio_dbus::ClientBuilder;
     ///
     /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
-    /// let mut send = SendBuf::new();
-    /// let mut recv = RecvBuf::new();
-    /// let c = ClientBuilder::new().system_bus().connect(&mut send, &mut recv).await?;
+    /// let c = ClientBuilder::new().system_bus().connect().await?;
     /// # Ok(()) }
     /// ```
     pub fn system_bus(&mut self) -> &mut Self {

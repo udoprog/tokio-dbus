@@ -22,12 +22,20 @@ const ENV_SESSION_BUS: &str = "DBUS_SESSION_BUS_ADDRESS";
 const ENV_SYSTEM_BUS: &str = "DBUS_SYSTEM_BUS_ADDRESS";
 const DEFAULT_SYSTEM_BUS: &str = "unix:path=/var/run/dbus/system_bus_socket";
 
-/// The parameters of a message.
+/// An owned reference to a message in a [`RecvBuf`].
+///
+/// To convert into a [`Message`], use [`Client::read_message`] or
+/// [`RecvBuf::read_message`].
+///
+/// [`Message`]: crate::Message
+/// [`Client::read_message`]: crate::Client::read_message
+/// [`RecvBuf::read_message`]: crate::RecvBuf::read_message
+/// [`RecvBuf`]: crate::RecvBuf
 #[derive(Debug)]
 pub struct MessageRef {
-    pub(crate) header: protocol::Header,
-    pub(crate) headers: usize,
-    pub(crate) total: usize,
+    pub(super) header: protocol::Header,
+    pub(super) headers: usize,
+    pub(super) total: usize,
 }
 
 #[derive(Debug, Clone, Copy)]

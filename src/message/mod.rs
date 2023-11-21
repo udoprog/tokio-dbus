@@ -8,5 +8,4 @@ pub use self::message_kind::MessageKind;
 mod message_kind;
 
 pub use self::message::Message;
-pub(crate) use self::message::DEFAULT_SERIAL;
 mod message;

@@ -44,6 +44,20 @@ impl OwnedMessage {
     }
 
     /// Construct a method call.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroU32;
+    ///
+    /// use tokio_dbus::{Message, OwnedMessage, SendBuf};
+    ///
+    /// let mut send = SendBuf::new();
+    ///
+    /// let m = Message::method_call("/org/freedesktop/DBus", "Hello", send.next_serial()).to_owned();
+    /// let m2 = OwnedMessage::method_call("/org/freedesktop/DBus".into(), "Hello".into(), m.serial());
+    /// assert_eq!(m, m2);
+    /// ```
     pub fn method_call(path: Box<str>, member: Box<str>, serial: NonZeroU32) -> Self {
         Self {
             kind: OwnedMessageKind::MethodCall { path, member },
@@ -56,6 +70,48 @@ impl OwnedMessage {
             body: Box::from([]),
             endianness: Endianness::NATIVE,
         }
+    }
+
+    /// Get the serial of the message.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroU32;
+    ///
+    /// use tokio_dbus::{Message, SendBuf};
+    ///
+    /// let mut send = SendBuf::new();
+    ///
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello").to_owned();
+    /// assert_eq!(m.serial().get(), 1);
+    ///
+    /// let m2 = m.with_serial(NonZeroU32::new(1000).unwrap());
+    /// assert_eq!(m2.serial().get(), 1000);
+    /// ```
+    pub fn serial(&self) -> NonZeroU32 {
+        self.serial
+    }
+
+    /// Modify the serial of the message.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroU32;
+    ///
+    /// use tokio_dbus::{Message, SendBuf};
+    ///
+    /// let mut send = SendBuf::new();
+    ///
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello").to_owned();
+    /// assert_eq!(m.serial().get(), 1);
+    ///
+    /// let m2 = m.with_serial(NonZeroU32::new(1000).unwrap());
+    /// assert_eq!(m2.serial().get(), 1000);
+    /// ```
+    pub fn with_serial(self, serial: NonZeroU32) -> Self {
+        Self { serial, ..self }
     }
 }
 

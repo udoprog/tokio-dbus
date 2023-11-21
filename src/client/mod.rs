@@ -69,18 +69,17 @@ impl Client {
     /// use tokio_dbus::{Client, SendBuf, RecvBuf, Connection, Message, MessageKind, Result};
     ///
     /// # #[tokio::main] async fn main() -> Result<()> {
-    /// let mut send = SendBuf::new();
-    /// let mut recv = RecvBuf::new();
+    /// let mut c = Client::session_bus().await?;
     ///
-    /// let mut c = Client::session_bus(&mut send, &mut recv).await?;
-    ///
-    /// let m = Message::method_call("/org/freedesktop/DBus", "Hello")
+    /// let m = c.method_call("/org/freedesktop/DBus", "Hello")
     ///     .with_destination("org.freedesktop.DBus");
     ///
-    /// let serial = send.write_message(&m)?;
+    /// let serial = m.serial();
     ///
-    /// let message = c.process(&mut send, &mut recv).await?;
-    /// let message = recv.message(&message)?;
+    /// c.write_message(&m)?;
+    ///
+    /// let message = c.process().await?;
+    /// let message = c.read_message(&message)?;
     ///
     /// assert_eq!(
     ///     message.kind(),
@@ -131,16 +130,15 @@ impl Client {
         self.send.method_call(path, member)
     }
 
-    /// Write a message to the send buffer of the underlying connection.
-    ///
-    /// This returns the serial associated with the buffered message, which can
-    /// be either associated with the message itself through
-    /// [`Message:with_serial`], or will be generated.
+    /// Write a message to the send buffer.
     ///
     /// This can be used to queue messages to be sent during the next call to
     /// [`process()`]. To both receive and send in parallel, see the
     /// [`buffers()`] method.
-    pub fn write_message(&mut self, message: &Message<'_>) -> Result<NonZeroU32> {
+    ///
+    /// [`process()`]: Self::process
+    /// [`buffers()`]: Self::buffers
+    pub fn write_message(&mut self, message: &Message<'_>) -> Result<()> {
         self.send.write_message(message)
     }
 
@@ -159,9 +157,17 @@ impl Client {
 
     /// Access the underlying buffers of the connection.
     ///
+    /// This is usually needed to solve lifetime issues, such as holding onto a
+    /// message constructed from a [`MessageRef`] while buffering a response.
+    ///
     /// The [`RecvBuf`] is used to translate [`MessageRef`] as returned by
     /// [`process()`] into [`Message`] instances and [`SendBuf`] is used to
     /// queue messages to be sent.
+    ///
+    /// The returned [`BodyBuf`] is the internal buffer that the client uses to
+    /// construct message bodies. It is empty when it's returned.
+    ///
+    /// [`process()`]: Self::process
     pub fn buffers(&mut self) -> (&RecvBuf, &mut SendBuf, &mut BodyBuf) {
         self.body.clear();
         (&self.recv, &mut self.send, &mut self.body)
@@ -241,8 +247,8 @@ impl Client {
             .method_call(org_freedesktop_dbus::PATH, "Hello")
             .with_destination(org_freedesktop_dbus::DESTINATION);
 
-        let serial = self.send.write_message(&m)?;
-        self.state = ClientState::HelloSent(serial);
+        self.send.write_message(&m)?;
+        self.state = ClientState::HelloSent(m.serial());
         Ok(())
     }
 
@@ -257,7 +263,8 @@ impl Client {
             .with_destination(org_freedesktop_dbus::DESTINATION)
             .with_body_buf(&self.body);
 
-        let serial = self.send.write_message(&m)?;
+        self.send.write_message(&m)?;
+        let serial = m.serial();
 
         self.body.clear();
 

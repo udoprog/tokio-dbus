@@ -31,10 +31,10 @@ pub trait Write: self::sealed::Sealed {
 /// use tokio_dbus::{BodyBuf, Signature};;
 ///
 /// let mut buf = BodyBuf::new();
-/// buf.write(b"foo");
+/// buf.write(&b"foo"[..]);
 ///
-/// assert_eq!(buf.get(), Signature::new(b"ay")?);
-/// assert_eq!(buf.get(), &[3, 0, 0, 0, 102, 111, 111, 0])
+/// assert_eq!(buf.signature(), Signature::new(b"ay")?);
+/// assert_eq!(buf.get(), &[3, 0, 0, 0, 102, 111, 111]);
 /// # Ok::<_, tokio_dbus::Error>(())
 /// ```
 impl Write for [u8] {
@@ -60,7 +60,7 @@ impl Write for [u8] {
 /// let mut buf = BodyBuf::new();
 /// buf.write("foo");
 ///
-/// assert_eq!(buf.get(), Signature::STRING);
+/// assert_eq!(buf.signature(), Signature::STRING);
 /// assert_eq!(buf.get(), &[3, 0, 0, 0, 102, 111, 111, 0])
 /// ```
 impl Write for str {

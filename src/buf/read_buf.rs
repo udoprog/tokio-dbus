@@ -10,7 +10,7 @@ use crate::{Endianness, Error, Frame, Read};
 
 use super::{padding_to, ArrayReader, StructReader};
 
-/// A read-only view into an [`OwnedBuf`].
+/// A read-only view into a buffer.
 ///
 /// # Examples
 ///

@@ -10,17 +10,17 @@ pub const INTERFACE: &str = "org.freedesktop.DBus";
 pub const PATH: &str = "/org/freedesktop/DBus";
 
 raw_set! {
-    /// The flags to a [`RequestName`] call.
+    /// The flags to a `RequestName` call.
     #[repr(u32)]
     pub enum NameFlag {
         /// If an application A specifies this flag and succeeds in becoming the
-        /// owner of the name, and another application B later calls RequestName
-        /// with the `REPLACE_EXISTING` flag, then application A will lose
-        /// ownership and receive a `org.freedesktop.DBus.NameLost` signal, and
-        /// application B will become the new owner. If `ALLOW_REPLACEMENT` is
-        /// not specified by application A, or `REPLACE_EXISTING` is not
-        /// specified by application B, then application B will not replace
-        /// application A as the owner.
+        /// owner of the name, and another application B later calls
+        /// `RequestName` with the `REPLACE_EXISTING` flag, then application A
+        /// will lose ownership and receive a `org.freedesktop.DBus.NameLost`
+        /// signal, and application B will become the new owner. If
+        /// `ALLOW_REPLACEMENT` is not specified by application A, or
+        /// `REPLACE_EXISTING` is not specified by application B, then
+        /// application B will not replace application A as the owner.
         ALLOW_REPLACEMENT = 1,
         /// Try to replace the current owner if there is one. If this flag is
         /// not set the application will only become the owner of the name if
@@ -41,7 +41,7 @@ raw_set! {
 }
 
 raw_enum! {
-    /// The reply to a [`RequestName`] call.
+    /// The reply to a `RequestName` call.
     #[repr(u32)]
     pub enum NameReply {
         /// The caller is now the primary owner of the name, replacing any

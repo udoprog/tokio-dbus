@@ -1,6 +1,6 @@
 use anyhow::{bail, Context, Result};
 use tokio_dbus::org_freedesktop_dbus::{NameFlag, NameReply};
-use tokio_dbus::{BodyBuf, Client, Message, MessageKind};
+use tokio_dbus::{BodyBuf, Client, Message, MessageKind, SendBuf};
 
 const NAME: &str = "se.tedro.DBusExample";
 const INTERFACE: &str = "se.tedro.DBusExample.Pingable";
@@ -27,7 +27,7 @@ async fn main() -> Result<()> {
         dbg!(&message);
 
         if let MessageKind::MethodCall { path, member } = message.kind() {
-            let ret = match handle_method_call(path, member, &message, body) {
+            let ret = match handle_method_call(path, member, &message, send, body) {
                 Ok(m) => m,
                 Err(error) => {
                     // Clear the body in case handler buffered something
@@ -36,7 +36,7 @@ async fn main() -> Result<()> {
                     body.write(error.to_string().as_str());
 
                     message
-                        .error("se.tedro.JapaneseDictionary.Error")
+                        .error(send, "se.tedro.JapaneseDictionary.Error")
                         .with_body_buf(body)
                 }
             };
@@ -51,6 +51,7 @@ fn handle_method_call<'a>(
     path: &'a str,
     member: &'a str,
     msg: &Message<'a>,
+    send: &mut SendBuf,
     body: &'a mut BodyBuf,
 ) -> Result<Message<'a>> {
     let interface = msg.interface().context("Missing interface")?;
@@ -64,7 +65,7 @@ fn handle_method_call<'a>(
             "Ping" => {
                 let value = msg.body().load::<u32>()?;
                 body.store(value);
-                msg.method_return().with_body_buf(body)
+                msg.method_return(send).with_body_buf(body)
             }
             method => bail!("Unknown method: {method}"),
         },

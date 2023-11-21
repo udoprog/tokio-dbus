@@ -2,14 +2,13 @@ use std::num::NonZeroU32;
 
 use crate::buf::OwnedBuf;
 use crate::error::{Error, ErrorKind, Result};
-use crate::message::DEFAULT_SERIAL;
 use crate::protocol;
 use crate::{Message, MessageKind, Signature};
 
 /// Buffer used for sending messages through D-Bus.
 pub struct SendBuf {
     pub(super) buf: OwnedBuf,
-    serial: NonZeroU32,
+    serial: u32,
 }
 
 impl SendBuf {
@@ -17,18 +16,29 @@ impl SendBuf {
     pub fn new() -> Self {
         Self {
             buf: OwnedBuf::new(),
-            serial: DEFAULT_SERIAL,
+            serial: 0,
         }
     }
 
-    fn next_serial(&mut self) -> NonZeroU32 {
+    /// Get the next serial number for this send buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::SendBuf;
+    ///
+    /// let mut send = SendBuf::new();
+    /// assert_eq!(send.next_serial().get(), 1);
+    /// assert_eq!(send.next_serial().get(), 2);
+    /// ```
+    pub fn next_serial(&mut self) -> NonZeroU32 {
         loop {
-            let Some(serial) = NonZeroU32::new(self.serial.get().wrapping_add(1)) else {
-                self.serial = DEFAULT_SERIAL;
+            let Some(serial) = NonZeroU32::new(self.serial.wrapping_add(1)) else {
+                self.serial = 1;
                 continue;
             };
 
-            self.serial = serial;
+            self.serial = serial.get();
             break serial;
         }
     }
@@ -38,23 +48,9 @@ impl SendBuf {
         Message::method_call(path, member, self.next_serial())
     }
 
-    /// Write a `message` to the internal buffer and return the serial number
-    /// associated with it.
-    ///
-    /// This can be used to add a message to the internal buffer immediately
-    /// without sending it.
-    ///
-    /// To subsequently send the message you can use [`send_buf()`].
-    ///
-    /// [`send_buf()`]: Self::send_buf
-    pub fn write_message(&mut self, message: &Message<'_>) -> Result<NonZeroU32> {
+    /// Write a message to the buffer.
+    pub fn write_message(&mut self, message: &Message<'_>) -> Result<()> {
         self.buf.update_alignment_base();
-
-        let serial = if message.serial == DEFAULT_SERIAL {
-            self.next_serial()
-        } else {
-            message.serial
-        };
 
         let body = message.body();
 
@@ -68,7 +64,7 @@ impl SendBuf {
             flags: message.flags,
             version: 1,
             body_length,
-            serial: serial.get(),
+            serial: message.serial.get(),
         });
 
         let mut array = self.buf.write_array();
@@ -144,7 +140,7 @@ impl SendBuf {
         array.finish();
         self.buf.align_mut::<u64>();
         self.buf.extend_from_slice(body.get());
-        Ok(serial)
+        Ok(())
     }
 }
 

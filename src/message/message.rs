@@ -1,10 +1,7 @@
 use std::num::NonZeroU32;
 
 use crate::protocol::{Flags, MessageType};
-use crate::{BodyBuf, MessageKind, OwnedMessage, ReadBuf, Signature};
-
-/// Default serial value.
-pub(crate) const DEFAULT_SERIAL: NonZeroU32 = unsafe { NonZeroU32::new_unchecked(1) };
+use crate::{BodyBuf, MessageKind, OwnedMessage, ReadBuf, SendBuf, Signature};
 
 /// A D-Bus message.
 ///
@@ -38,10 +35,12 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{OwnedMessage, Message};
+    /// use tokio_dbus::{Message, OwnedMessage, SendBuf};
     ///
-    /// let m = Message::method_call("/org/freedesktop/DBus", "Hello").to_owned();
-    /// let m2 = OwnedMessage::method_call("/org/freedesktop/DBus".into(), "Hello".into());
+    /// let mut send = SendBuf::new();
+    ///
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello").to_owned();
+    /// let m2 = OwnedMessage::method_call("/org/freedesktop/DBus".into(), "Hello".into(), m.serial());
     /// assert_eq!(m, m2);
     /// ```
     #[inline]
@@ -60,7 +59,21 @@ impl<'a> Message<'a> {
     }
 
     /// Construct a method call.
-    pub(crate) fn method_call(path: &'a str, member: &'a str, serial: NonZeroU32) -> Self {
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::num::NonZeroU32;
+    ///
+    /// use tokio_dbus::{Message, OwnedMessage, SendBuf};
+    ///
+    /// let mut send = SendBuf::new();
+    ///
+    /// let m = Message::method_call("/org/freedesktop/DBus", "Hello", send.next_serial()).to_owned();
+    /// let m2 = OwnedMessage::method_call("/org/freedesktop/DBus".into(), "Hello".into(), m.serial());
+    /// assert_eq!(m, m2);
+    /// ```
+    pub fn method_call(path: &'a str, member: &'a str, serial: NonZeroU32) -> Self {
         Self {
             kind: MessageKind::MethodCall { path, member },
             serial,
@@ -73,15 +86,17 @@ impl<'a> Message<'a> {
         }
     }
 
-    /// Convert this message into a [`MessageKind::MessageReturn`] message with
+    /// Convert this message into a [`MessageKind::MethodReturn`] message with
     /// an empty body where the reply serial matches that of the current
     /// message.
-    pub fn method_return(&self) -> Self {
+    ///
+    /// The `send` argument is used to populate the next serial number.
+    pub fn method_return(&self, send: &mut SendBuf) -> Self {
         Self {
             kind: MessageKind::MethodReturn {
                 reply_serial: self.serial,
             },
-            serial: DEFAULT_SERIAL,
+            serial: send.next_serial(),
             flags: Flags::EMPTY,
             signature: Signature::empty(),
             interface: None,
@@ -94,13 +109,13 @@ impl<'a> Message<'a> {
     /// Convert this message into a [`MessageKind::Error`] message with
     /// an empty body where the reply serial matches that of the current
     /// message.
-    pub fn error(&self, error_name: &'a str) -> Self {
+    pub fn error(&self, send: &mut SendBuf, error_name: &'a str) -> Self {
         Self {
             kind: MessageKind::Error {
                 error_name,
                 reply_serial: self.serial,
             },
-            serial: DEFAULT_SERIAL,
+            serial: send.next_serial(),
             flags: Flags::EMPTY,
             signature: Signature::empty(),
             interface: None,
@@ -138,13 +153,15 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::Message;
+    /// use tokio_dbus::{Message, SendBuf};
     ///
-    /// let m = Message::method_call("/org/freedesktop/DBus", "Hello");
-    /// assert_eq!(m.serial(), None);
+    /// let mut send = SendBuf::new();
     ///
-    /// let m2 = m.with_serial(NonZeroU32::new(1).unwrap());
-    /// assert_eq!(m2.serial(), NonZeroU32::new(1));
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
+    /// assert_eq!(m.serial().get(), 1);
+    ///
+    /// let m2 = m.with_serial(NonZeroU32::new(1000).unwrap());
+    /// assert_eq!(m2.serial().get(), 1000);
     /// ```
     pub fn serial(&self) -> NonZeroU32 {
         self.serial
@@ -157,13 +174,15 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::Message;
+    /// use tokio_dbus::{Message, SendBuf};
     ///
-    /// let m = Message::method_call("/org/freedesktop/DBus", "Hello");
-    /// assert_eq!(m.serial(), None);
+    /// let mut send = SendBuf::new();
     ///
-    /// let m2 = m.with_serial(NonZeroU32::new(1).unwrap());
-    /// assert_eq!(m2.serial(), NonZeroU32::new(1));
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
+    /// assert_eq!(m.serial().get(), 1);
+    ///
+    /// let m2 = m.with_serial(NonZeroU32::new(1000).unwrap());
+    /// assert_eq!(m2.serial().get(), 1000);
     /// ```
     pub fn with_serial(self, serial: NonZeroU32) -> Self {
         Self { serial, ..self }
@@ -176,9 +195,11 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, Flags};
+    /// use tokio_dbus::{Flags, Message, SendBuf};
     ///
-    /// let m = Message::method_call("/org/freedesktop/DBus", "Hello");
+    /// let mut send = SendBuf::new();
+    ///
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
     /// assert_eq!(m.flags(), Flags::default());
     ///
     /// let m2 = m.with_flags(Flags::NO_REPLY_EXPECTED);
@@ -195,9 +216,11 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, Flags};
+    /// use tokio_dbus::{Flags, Message, SendBuf};
     ///
-    /// let m = Message::method_call("/org/freedesktop/DBus", "Hello");
+    /// let mut send = SendBuf::new();
+    ///
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
     /// assert_eq!(m.flags(), Flags::default());
     ///
     /// let m2 = m.with_flags(Flags::NO_REPLY_EXPECTED);
@@ -214,9 +237,11 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::Message;
+    /// use tokio_dbus::{Message, SendBuf};
     ///
-    /// let m = Message::method_call("/org/freedesktop/DBus", "Hello");
+    /// let mut send = SendBuf::new();
+    ///
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
     /// assert_eq!(m.interface(), None);
     ///
     /// let m2 = m.with_interface("org.freedesktop.DBus");
@@ -233,9 +258,11 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::Message;
+    /// use tokio_dbus::{Message, SendBuf};
     ///
-    /// let m = Message::method_call("/org/freedesktop/DBus", "Hello");
+    /// let mut send = SendBuf::new();
+    ///
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
     /// assert_eq!(m.interface(), None);
     ///
     /// let m2 = m.with_interface("org.freedesktop.DBus");
@@ -255,9 +282,11 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::Message;
+    /// use tokio_dbus::{Message, SendBuf};
     ///
-    /// let m = Message::method_call("/org/freedesktop/DBus", "Hello");
+    /// let mut send = SendBuf::new();
+    ///
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
     /// assert_eq!(m.destination(), None);
     ///
     /// let m2 = m.with_destination(":1.131");
@@ -274,9 +303,11 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::Message;
+    /// use tokio_dbus::{Message, SendBuf};
     ///
-    /// let m = Message::method_call("/org/freedesktop/DBus", "Hello");
+    /// let mut send = SendBuf::new();
+    ///
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
     /// assert_eq!(m.destination(), None);
     ///
     /// let m2 = m.with_destination(":1.131");
@@ -296,9 +327,11 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::Message;
+    /// use tokio_dbus::{Message, SendBuf};
     ///
-    /// let m = Message::method_call("/org/freedesktop/DBus", "Hello");
+    /// let mut send = SendBuf::new();
+    ///
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
     /// assert_eq!(m.destination(), None);
     ///
     /// let m2 = m.with_sender(":1.131");
@@ -315,9 +348,11 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::Message;
+    /// use tokio_dbus::{Message, SendBuf};
     ///
-    /// let m = Message::method_call("/org/freedesktop/DBus", "Hello");
+    /// let mut send = SendBuf::new();
+    ///
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
     /// assert_eq!(m.destination(), None);
     ///
     /// let m2 = m.with_sender(":1.131");
@@ -337,9 +372,11 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, Signature};
+    /// use tokio_dbus::{Message, SendBuf, Signature};
     ///
-    /// let m = Message::method_call("/org/freedesktop/DBus", "Hello");
+    /// let mut send = SendBuf::new();
+    ///
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
     /// assert_eq!(m.signature(), Signature::EMPTY);
     ///
     /// let m2 = m.with_signature(Signature::STRING);
@@ -356,9 +393,11 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, Signature};
+    /// use tokio_dbus::{Message, Signature, SendBuf};
     ///
-    /// let m = Message::method_call("/org/freedesktop/DBus", "Hello");
+    /// let mut send = SendBuf::new();
+    ///
+    /// let m = send.method_call("/org/freedesktop/DBus", "Hello");
     /// assert_eq!(m.signature(), Signature::EMPTY);
     ///
     /// let m2 = m.with_signature(Signature::STRING);

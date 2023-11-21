@@ -33,7 +33,7 @@ pub use self::read::Read;
 mod read;
 
 #[doc(inline)]
-pub use self::connection::Connection;
+pub use self::connection::{Connection, MessageRef};
 mod connection;
 
 #[doc(inline)]

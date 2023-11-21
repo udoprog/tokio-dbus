@@ -2,7 +2,7 @@ use crate::buf::MAX_ARRAY_LENGTH;
 use crate::error::ErrorKind;
 use crate::{Error, Read, ReadBuf};
 
-/// Write an struct into a [`Buf`].
+/// Read an array from a buffer.
 pub struct ArrayReader<'de> {
     buf: ReadBuf<'de>,
 }
