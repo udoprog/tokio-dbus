@@ -1,6 +1,7 @@
 use std::str::from_utf8;
 
-use crate::{Error, ReadBuf};
+use crate::buf::Buf;
+use crate::Error;
 
 mod sealed {
     use crate::{ObjectPath, Signature};
@@ -17,12 +18,17 @@ mod sealed {
 pub trait Read: self::sealed::Sealed {
     /// Read the type from the given buffer.
     #[doc(hidden)]
-    fn read_from<'de>(buf: &mut ReadBuf<'de>) -> Result<&'de Self, Error>;
+    fn read_from<'de, B>(buf: B) -> Result<&'de Self, Error>
+    where
+        B: Buf<'de>;
 }
 
 impl Read for [u8] {
     #[inline]
-    fn read_from<'de>(buf: &mut ReadBuf<'de>) -> Result<&'de Self, Error> {
+    fn read_from<'de, B>(mut buf: B) -> Result<&'de Self, Error>
+    where
+        B: Buf<'de>,
+    {
         let len = buf.load::<u32>()? as usize;
         buf.load_slice(len)
     }
@@ -30,7 +36,10 @@ impl Read for [u8] {
 
 impl Read for str {
     #[inline]
-    fn read_from<'de>(buf: &mut ReadBuf<'de>) -> Result<&'de Self, Error> {
+    fn read_from<'de, B>(mut buf: B) -> Result<&'de Self, Error>
+    where
+        B: Buf<'de>,
+    {
         let len = buf.load::<u32>()? as usize;
         let bytes = buf.load_slice_nul(len)?;
         Ok(from_utf8(bytes)?)

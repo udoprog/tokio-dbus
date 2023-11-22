@@ -3,26 +3,12 @@
 #[cfg(test)]
 mod tests;
 
-pub use self::typed_array_writer::TypedArrayWriter;
-mod typed_array_writer;
-
-pub use self::typed_struct_writer::TypedStructWriter;
-mod typed_struct_writer;
+pub use self::body::{ArrayReader, StructReader, TypedArrayWriter, TypedStructWriter};
+use self::body::{ArrayWriter, StructWriter};
+mod body;
 
 pub use self::read_buf::ReadBuf;
 mod read_buf;
-
-use self::array_writer::ArrayWriter;
-mod array_writer;
-
-use self::struct_writer::StructWriter;
-mod struct_writer;
-
-pub use self::array_reader::ArrayReader;
-mod array_reader;
-
-pub use self::struct_reader::StructReader;
-mod struct_reader;
 
 pub(crate) use self::aligned_buf::AlignedBuf;
 mod aligned_buf;
@@ -32,6 +18,9 @@ mod unaligned_buf;
 
 pub use self::body_buf::BodyBuf;
 mod body_buf;
+
+pub use self::buf::Buf;
+mod buf;
 
 pub use self::buf_mut::{Alloc, BufMut};
 mod buf_mut;

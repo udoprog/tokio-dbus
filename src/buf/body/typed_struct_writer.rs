@@ -1,8 +1,10 @@
 use std::marker::PhantomData;
 
-use crate::buf::{AlignedBuf, StructWriter, TypedArrayWriter};
+use crate::buf::AlignedBuf;
 use crate::{ty, Arguments};
 use crate::{Frame, Write};
+
+use super::{StructWriter, TypedArrayWriter};
 
 /// Write a typed struct.
 ///
@@ -16,7 +18,7 @@ pub struct TypedStructWriter<'a, E> {
 }
 
 impl<'a, E> TypedStructWriter<'a, E> {
-    pub(super) fn new(inner: StructWriter<'a, AlignedBuf>) -> Self {
+    pub(crate) fn new(inner: StructWriter<'a, AlignedBuf>) -> Self {
         Self {
             inner,
             _marker: PhantomData,

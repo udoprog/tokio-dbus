@@ -59,7 +59,7 @@ impl AlignedBuf {
     ///
     /// The type parameter `A` indicates the alignment of the elements stored in
     /// the array.
-    pub(super) fn write_array<A>(&mut self) -> ArrayWriter<'_, Self, A>
+    pub(crate) fn write_array<A>(&mut self) -> ArrayWriter<'_, Self, A>
     where
         A: ty::Aligned,
     {

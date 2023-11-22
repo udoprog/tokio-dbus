@@ -1,16 +1,18 @@
 use std::marker::PhantomData;
 use std::mem::ManuallyDrop;
 
-use crate::buf::{Alloc, BufMut, StructWriter};
+use crate::buf::{Alloc, BufMut};
 use crate::ty;
 use crate::{Frame, Write};
+
+use super::StructWriter;
 
 /// Write an array into a [`BufMut`].
 ///
 /// Note that this does not enforce that the elements being written have a
 /// uniform type.
 #[must_use = "Arrays must be finalized using ArrayWriter::finish"]
-pub(super) struct ArrayWriter<'a, O: ?Sized, A>
+pub(crate) struct ArrayWriter<'a, O: ?Sized, A>
 where
     O: BufMut,
     A: ty::Aligned,
@@ -26,7 +28,7 @@ where
     O: BufMut,
     A: ty::Aligned,
 {
-    pub(super) fn new(buf: &'a mut O) -> Self {
+    pub(crate) fn new(buf: &'a mut O) -> Self {
         let len = buf.alloc();
         let start = buf.len();
 
@@ -39,7 +41,7 @@ where
     }
 
     /// Finish writing the array.
-    pub(super) fn finish(self) {
+    pub(crate) fn finish(self) {
         ManuallyDrop::new(self).finalize();
     }
 
@@ -72,13 +74,13 @@ where
 
     /// Push an array inside of the array.
     #[inline]
-    pub(super) fn write_struct(&mut self) -> StructWriter<'_, O> {
+    pub(crate) fn write_struct(&mut self) -> StructWriter<'_, O> {
         StructWriter::new(self.buf)
     }
 
     /// Write the array as a slice.
     #[inline]
-    pub(super) fn write_slice(self, data: &[u8]) {
+    pub(crate) fn write_slice(self, data: &[u8]) {
         let mut this = ManuallyDrop::new(self);
         this.buf.extend_from_slice(data);
         this.finalize();

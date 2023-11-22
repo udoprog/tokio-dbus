@@ -1,10 +1,12 @@
 use crate::ty;
 use crate::{Arguments, Frame, Write};
 
-use crate::buf::{ArrayWriter, BufMut};
+use crate::buf::BufMut;
+
+use super::ArrayWriter;
 
 /// Helper to write a struct into a buffer.
-pub struct StructWriter<'a, O: ?Sized>
+pub(crate) struct StructWriter<'a, O: ?Sized>
 where
     O: BufMut,
 {
@@ -16,14 +18,14 @@ where
     O: BufMut,
 {
     #[inline]
-    pub(super) fn new(buf: &'a mut O) -> Self {
+    pub(crate) fn new(buf: &'a mut O) -> Self {
         buf.align_mut::<u64>();
         Self { buf }
     }
 
     /// Store a value in the struct.
     #[inline]
-    pub(super) fn store<T>(&mut self, value: T)
+    pub(crate) fn store<T>(&mut self, value: T)
     where
         T: Frame,
     {
@@ -32,7 +34,7 @@ where
 
     /// Write a field in the struct.
     #[inline]
-    pub(super) fn write<T>(&mut self, value: &T)
+    pub(crate) fn write<T>(&mut self, value: &T)
     where
         T: ?Sized + Write,
     {

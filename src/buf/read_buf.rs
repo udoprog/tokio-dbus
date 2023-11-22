@@ -8,7 +8,8 @@ use std::slice::from_raw_parts;
 use crate::error::{ErrorKind, Result};
 use crate::{Endianness, Error, Frame, Read};
 
-use super::{padding_to, AlignedBuf, ArrayReader, StructReader};
+use super::body::new_array_reader;
+use super::{padding_to, AlignedBuf, ArrayReader, Buf, StructReader};
 
 /// A read-only view into a buffer.
 ///
@@ -220,8 +221,8 @@ impl<'a> ReadBuf<'a> {
     /// assert_eq!(inner.read::<str>()?, None);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn read_array(&mut self) -> Result<ArrayReader<'a>> {
-        ArrayReader::new(self)
+    pub fn read_array(&mut self) -> Result<ArrayReader<Self>> {
+        new_array_reader(self)
     }
 
     /// Read a struct from the buffer.
@@ -263,7 +264,7 @@ impl<'a> ReadBuf<'a> {
     /// assert_eq!(st.read::<str>()?, "Hello World");
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn read_struct(&mut self) -> Result<StructReader<'_, 'a>> {
+    pub fn read_struct(&mut self) -> Result<StructReader<&mut Self>> {
         StructReader::new(self)
     }
 
@@ -421,3 +422,51 @@ impl PartialEq<AlignedBuf> for ReadBuf<'_> {
 }
 
 impl<'a> Eq for ReadBuf<'a> {}
+
+impl<'de> Buf<'de> for ReadBuf<'de> {
+    type Reborrow<'this> = &'this mut ReadBuf<'de> where Self: 'this;
+    type ReadUntil = ReadBuf<'de>;
+
+    #[inline]
+    fn reborrow(&mut self) -> Self::Reborrow<'_> {
+        self
+    }
+
+    #[inline]
+    fn read_until(&mut self, len: usize) -> Self::ReadUntil {
+        ReadBuf::read_until(self, len)
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        ReadBuf::len(self)
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        ReadBuf::is_empty(self)
+    }
+
+    #[inline]
+    fn align<T>(&mut self) -> Result<()> {
+        ReadBuf::align::<T>(self)
+    }
+
+    #[inline]
+    fn load<T>(&mut self) -> Result<T>
+    where
+        T: Frame,
+    {
+        ReadBuf::load(self)
+    }
+
+    #[inline]
+    fn load_slice(&mut self, len: usize) -> Result<&'de [u8]> {
+        ReadBuf::load_slice(self, len)
+    }
+
+    #[inline]
+    fn load_slice_nul(&mut self, len: usize) -> Result<&'de [u8]> {
+        ReadBuf::load_slice_nul(self, len)
+    }
+}

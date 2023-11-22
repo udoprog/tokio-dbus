@@ -1,8 +1,9 @@
 use std::fmt;
 use std::str::from_utf8_unchecked;
 
+use crate::buf::Buf;
 use crate::buf::BufMut;
-use crate::{OwnedObjectPath, Read, ReadBuf, Result, Signature, Write};
+use crate::{OwnedObjectPath, Read, Result, Signature, Write};
 
 use super::{validate, Iter, ObjectPathError};
 
@@ -218,7 +219,10 @@ impl Write for ObjectPath {
 
 impl Read for ObjectPath {
     #[inline]
-    fn read_from<'de>(buf: &mut ReadBuf<'de>) -> Result<&'de Self> {
+    fn read_from<'de, B>(mut buf: B) -> Result<&'de Self>
+    where
+        B: Buf<'de>,
+    {
         let len = buf.load::<u32>()? as usize;
         let bytes = buf.load_slice_nul(len)?;
         Ok(ObjectPath::new(bytes)?)

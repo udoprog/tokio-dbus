@@ -1,17 +1,21 @@
-use crate::{Frame, Read, ReadBuf, Result};
+use crate::{Frame, Read, Result};
 
-use super::ArrayReader;
+use super::{new_array_reader, ArrayReader};
+use crate::buf::Buf;
 
 /// Read a struct from a buffer.
 ///
 /// See [`ReadBuf::read_struct`].
-pub struct StructReader<'a, 'de> {
-    buf: &'a mut ReadBuf<'de>,
+pub struct StructReader<B> {
+    buf: B,
 }
 
-impl<'a, 'de> StructReader<'a, 'de> {
+impl<'de, B> StructReader<B>
+where
+    B: Buf<'de>,
+{
     #[inline]
-    pub(super) fn new(buf: &'a mut ReadBuf<'de>) -> Result<Self> {
+    pub(crate) fn new(mut buf: B) -> Result<Self> {
         buf.align::<u64>()?;
         Ok(Self { buf })
     }
@@ -33,13 +37,13 @@ impl<'a, 'de> StructReader<'a, 'de> {
     where
         T: ?Sized + Read,
     {
-        T::read_from(self.buf)
+        T::read_from(self.buf.reborrow())
     }
 
     /// Read an array from within the struct.
     ///
     /// See [`ReadBuf::read_struct`].
-    pub fn read_array(&mut self) -> Result<ArrayReader<'a>> {
-        ArrayReader::new(self.buf)
+    pub fn read_array(&mut self) -> Result<ArrayReader<B::ReadUntil>> {
+        new_array_reader(self.buf.reborrow())
     }
 }

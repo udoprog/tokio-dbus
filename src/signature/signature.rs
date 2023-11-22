@@ -1,6 +1,7 @@
 use std::fmt;
 use std::str::from_utf8_unchecked;
 
+use crate::buf::Buf;
 use crate::buf::BufMut;
 use crate::error::Result;
 use crate::proto::Type;
@@ -405,7 +406,10 @@ impl Write for Signature {
 
 impl Read for Signature {
     #[inline]
-    fn read_from<'de>(buf: &mut ReadBuf<'de>) -> Result<&'de Self> {
+    fn read_from<'de, B>(mut buf: B) -> Result<&'de Self>
+    where
+        B: Buf<'de>,
+    {
         let len = buf.load::<u8>()? as usize;
         let bytes = buf.load_slice_nul(len)?;
         Ok(Signature::new(bytes)?)
