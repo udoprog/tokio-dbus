@@ -1,6 +1,7 @@
 use std::fmt;
 
 use crate::error::Result;
+use crate::ty;
 use crate::{Endianness, Frame, Read, Signature};
 
 use super::helpers::new_array_reader;
@@ -207,7 +208,10 @@ impl<'a> Body<'a> {
     /// assert_eq!(inner.read::<str>()?, None);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn read_array(&mut self) -> Result<ArrayReader<Self>> {
+    pub fn read_array<E>(&mut self) -> Result<ArrayReader<Self, E>>
+    where
+        E: ty::Aligned,
+    {
         new_array_reader(self)
     }
 

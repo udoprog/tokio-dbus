@@ -82,15 +82,6 @@ impl BodyBuf {
         }
     }
 
-    /// Access the raw interior aligned buf.
-    ///
-    /// Note that operations over this buffer will not take endianness into
-    /// account.
-    #[inline]
-    pub(crate) fn buf_mut(&mut self) -> &mut AlignedBuf {
-        &mut self.buf
-    }
-
     /// Clear the buffer.
     ///
     /// # Examples
@@ -198,6 +189,7 @@ impl BodyBuf {
     ///
     /// [`len()`]: Self::len
     #[inline]
+    #[cfg(test)]
     pub(crate) fn read_until(&mut self, len: usize) -> Body<'_> {
         let data = self.buf.read_until(len);
         Body::from_raw_parts(data, self.endianness, &self.signature)

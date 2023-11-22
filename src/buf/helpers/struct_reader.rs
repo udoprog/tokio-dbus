@@ -2,6 +2,7 @@ use crate::{Frame, Read, Result};
 
 use super::{new_array_reader, ArrayReader};
 use crate::buf::Buf;
+use crate::ty;
 
 /// Read a struct from a buffer.
 ///
@@ -51,7 +52,10 @@ where
     /// See [`Body::read_struct`].
     ///
     /// [`Body::read_struct`]: crate::Body::read_struct
-    pub fn read_array(&mut self) -> Result<ArrayReader<B::ReadUntil>> {
+    pub fn read_array<E>(&mut self) -> Result<ArrayReader<B::ReadUntil, E>>
+    where
+        E: ty::Aligned,
+    {
         new_array_reader(self.buf.reborrow())
     }
 }

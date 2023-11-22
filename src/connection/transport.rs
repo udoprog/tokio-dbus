@@ -218,7 +218,7 @@ impl Transport {
                     recv.clear();
 
                     self.recv_buf(
-                        recv.buf_mut().buf_mut(),
+                        recv.buf_mut(),
                         size_of::<proto::Header>() + size_of::<u32>(),
                     )?;
 
@@ -266,7 +266,7 @@ impl Transport {
                     self.state = TransportState::RecvBody(total);
                 }
                 TransportState::RecvBody(total) => {
-                    self.recv_buf(recv.buf_mut().buf_mut(), total)?;
+                    self.recv_buf(recv.buf_mut(), total)?;
                     self.state = TransportState::Idle;
                     return Ok(());
                 }

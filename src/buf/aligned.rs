@@ -6,6 +6,7 @@ use std::ptr;
 use std::slice::from_raw_parts;
 
 use crate::error::{ErrorKind, Result};
+use crate::ty;
 use crate::{Error, Frame, Read};
 
 use super::helpers::new_array_reader;
@@ -139,11 +140,11 @@ impl<'a> Aligned<'a> {
     ///     Ok(())
     /// }
     /// ```
-    pub fn read_until(&mut self, len: usize) -> Aligned<'a> {
-        assert!(len <= self.len());
+    pub fn read_until(&mut self, n: usize) -> Aligned<'a> {
+        assert!(n <= self.len(), "requested: {n} > length: {}", self.len());
         let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
-        self.read += len;
-        Aligned::new(data, len)
+        self.read += n;
+        Aligned::new(data, n)
     }
 
     /// Read an array from the buffer.
@@ -189,7 +190,10 @@ impl<'a> Aligned<'a> {
     /// assert_eq!(inner.read::<str>()?, None);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn read_array(&mut self) -> Result<ArrayReader<Self>> {
+    pub fn read_array<E>(&mut self) -> Result<ArrayReader<Self, E>>
+    where
+        E: ty::Aligned,
+    {
         new_array_reader(self)
     }
 

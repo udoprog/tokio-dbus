@@ -1,20 +1,27 @@
+use std::marker::PhantomData;
+
 use crate::buf::{Buf, MAX_ARRAY_LENGTH};
 use crate::error::ErrorKind;
+use crate::ty;
 use crate::{Error, Frame, Read, Result};
+
+use super::StructReader;
 
 /// Read an array from a buffer.
 ///
 /// See [`Body::read_array`].
 ///
 /// [`Body::read_array`]: crate::Body::read_array
-pub struct ArrayReader<B> {
+pub struct ArrayReader<B, E> {
     buf: B,
+    _marker: PhantomData<E>,
 }
 
 #[inline]
-pub(crate) fn new_array_reader<'de, B>(mut buf: B) -> Result<ArrayReader<B::ReadUntil>>
+pub(crate) fn new_array_reader<'de, B, E>(mut buf: B) -> Result<ArrayReader<B::ReadUntil, E>>
 where
     B: Buf<'de>,
+    E: ty::Aligned,
 {
     let bytes = buf.load::<u32>()?;
 
@@ -23,13 +30,23 @@ where
     }
 
     let buf = buf.read_until(bytes as usize);
-    Ok(ArrayReader { buf })
+
+    Ok(ArrayReader::new(buf))
 }
 
-impl<'de, B> ArrayReader<B>
+impl<'de, B, E> ArrayReader<B, E>
 where
     B: Buf<'de>,
+    E: ty::Aligned,
 {
+    /// Construct a new array reader around a buffer.
+    pub(crate) fn new(buf: B) -> Self {
+        ArrayReader {
+            buf,
+            _marker: PhantomData,
+        }
+    }
+
     /// Load the next value from the array.
     ///
     /// See [`Body::read_array`].
@@ -40,6 +57,7 @@ where
         T: Frame,
     {
         if self.buf.is_empty() {
+            self.buf.align::<E::Type>()?;
             return Ok(None);
         }
 
@@ -56,6 +74,7 @@ where
         T: ?Sized + Read,
     {
         if self.buf.is_empty() {
+            self.buf.align::<E::Type>()?;
             return Ok(None);
         }
 
@@ -65,11 +84,27 @@ where
     /// Read an array from within the array.
     ///
     /// See [`Body::read_struct`].
-    pub fn read_array(&mut self) -> Result<Option<ArrayReader<B::ReadUntil>>> {
+    pub fn read_array<U>(&mut self) -> Result<Option<ArrayReader<B::ReadUntil, U>>>
+    where
+        U: ty::Aligned,
+    {
         if self.buf.is_empty() {
+            self.buf.align::<E::Type>()?;
             return Ok(None);
         }
 
         Ok(Some(new_array_reader(self.buf.reborrow())?))
+    }
+
+    /// Read a struct from within the array.
+    ///
+    /// See [`Body::read_struct`].
+    pub fn read_struct(&mut self) -> Result<Option<StructReader<B::Reborrow<'_>>>> {
+        if self.buf.is_empty() {
+            self.buf.align::<E::Type>()?;
+            return Ok(None);
+        }
+
+        Ok(Some(StructReader::new(self.buf.reborrow())?))
     }
 }
