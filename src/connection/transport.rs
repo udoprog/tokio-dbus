@@ -167,7 +167,7 @@ impl Transport {
     }
 
     /// Receive a sasl response.
-    pub(crate) fn sasl_recv(&mut self, buf: &mut AlignedBuf) -> Result<usize> {
+    pub(crate) fn sasl_recv(&mut self, buf: &mut UnalignedBuf) -> Result<usize> {
         match self.state {
             TransportState::Sasl(SaslState::Idle) => {
                 let value = recv_line(&mut &self.stream, buf)?;
@@ -218,7 +218,7 @@ impl Transport {
                     recv.clear();
 
                     self.recv_buf(
-                        recv.buf_mut(),
+                        recv.buf_mut().buf_mut(),
                         size_of::<proto::Header>() + size_of::<u32>(),
                     )?;
 
@@ -266,7 +266,7 @@ impl Transport {
                     self.state = TransportState::RecvBody(total);
                 }
                 TransportState::RecvBody(total) => {
-                    self.recv_buf(recv.buf_mut(), total)?;
+                    self.recv_buf(recv.buf_mut().buf_mut(), total)?;
                     self.state = TransportState::Idle;
                     return Ok(());
                 }
@@ -340,7 +340,7 @@ fn send_buf(stream: &mut &UnixStream, buf: &mut UnalignedBuf) -> io::Result<()> 
     Ok(())
 }
 
-fn recv_line(stream: &mut &UnixStream, buf: &mut AlignedBuf) -> io::Result<usize> {
+fn recv_line(stream: &mut &UnixStream, buf: &mut UnalignedBuf) -> io::Result<usize> {
     loop {
         if let Some(n) = buf.get().iter().position(|b| *b == b'\n') {
             return Ok(n + 1);
@@ -351,7 +351,7 @@ fn recv_line(stream: &mut &UnixStream, buf: &mut AlignedBuf) -> io::Result<usize
 }
 
 /// Receive data into the specified buffer.
-fn recv_some(stream: &mut &UnixStream, buf: &mut AlignedBuf) -> io::Result<()> {
+fn recv_some(stream: &mut &UnixStream, buf: &mut UnalignedBuf) -> io::Result<()> {
     buf.reserve_bytes(4096);
     let n = stream.read(buf.get_mut())?;
 

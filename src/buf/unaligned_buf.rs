@@ -1,11 +1,11 @@
 use std::alloc::{alloc, dealloc, handle_alloc_error, realloc, Layout};
 use std::mem::size_of;
 use std::ptr;
-use std::slice::from_raw_parts;
+use std::slice::{from_raw_parts, from_raw_parts_mut};
 
 use crate::buf::{max_size_for_align, padding_to, Alloc, ArrayWriter, BufMut};
 use crate::ty;
-use crate::{Frame, Write};
+use crate::{Frame, Result, Write};
 
 /// A buffer that can be used for buffering unaligned data.
 pub(crate) struct UnalignedBuf {
@@ -107,11 +107,11 @@ impl UnalignedBuf {
     }
 
     /// Write a type to the buffer.
-    pub(crate) fn write<T>(&mut self, value: &T)
+    pub(crate) fn write<T>(&mut self, value: &T) -> Result<()>
     where
         T: ?Sized + Write,
     {
-        value.write_to(self);
+        value.write_to(self)
     }
 
     /// Extend the buffer with a slice.
@@ -145,6 +145,12 @@ impl UnalignedBuf {
         self.written += len;
     }
 
+    /// Reserve space for `bytes` additional bytes in the buffer.
+    pub(crate) fn reserve_bytes(&mut self, bytes: usize) {
+        let requested = self.written + bytes;
+        self.ensure_capacity(requested);
+    }
+
     /// Test if the buffer is empty.
     #[inline]
     pub(crate) fn is_empty(&self) -> bool {
@@ -162,6 +168,32 @@ impl UnalignedBuf {
         unsafe {
             let at = self.data.as_ptr().add(self.read);
             from_raw_parts(at, self.len())
+        }
+    }
+
+    /// Get remaining slice of the buffer that can be written.
+    pub(crate) fn get_mut(&mut self) -> &mut [u8] {
+        unsafe {
+            let len = self.capacity - self.written;
+            let at = self.data.as_ptr().add(self.written);
+            from_raw_parts_mut(at, len)
+        }
+    }
+
+    /// Indicate that we've written `n` bytes to the buffer.
+    pub(crate) fn advance_mut(&mut self, n: usize) {
+        self.written += n;
+    }
+
+    /// Read until len bytes.
+    pub(crate) fn read_until(&mut self, len: usize) -> &[u8] {
+        assert!(len <= self.len());
+
+        // SAFETY: We've ensure that the slice is valid just above.
+        unsafe {
+            let data = self.data.as_ptr().add(self.read);
+            self.advance(len);
+            from_raw_parts(data, len)
         }
     }
 
@@ -281,7 +313,7 @@ impl BufMut for UnalignedBuf {
     }
 
     #[inline]
-    fn write<T>(&mut self, value: &T)
+    fn write<T>(&mut self, value: &T) -> Result<()>
     where
         T: ?Sized + Write,
     {
@@ -289,11 +321,12 @@ impl BufMut for UnalignedBuf {
     }
 
     #[inline]
-    fn store<T>(&mut self, frame: T)
+    fn store<T>(&mut self, frame: T) -> Result<()>
     where
         T: Frame,
     {
-        UnalignedBuf::store(self, frame)
+        UnalignedBuf::store(self, frame);
+        Ok(())
     }
 
     #[inline]

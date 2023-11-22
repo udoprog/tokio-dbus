@@ -1,9 +1,14 @@
-use crate::buf::{AlignedBuf, TypedArrayWriter, TypedStructWriter};
+use std::fmt;
+
+use crate::buf::AlignedBuf;
 use crate::error::Result;
 use crate::signature::{SignatureBuilder, SignatureError, SignatureErrorKind};
-use crate::{ty, Endianness, Frame, ReadBuf, Signature, Write};
+use crate::{ty, Endianness, Frame, OwnedSignature, Signature, Write};
 
 use crate::arguments::{Arguments, ExtendBuf};
+
+use super::body::{ArrayWriter, StructWriter, TypedArrayWriter, TypedStructWriter};
+use super::{Alloc, BodyReadBuf, BufMut};
 
 /// A buffer that can be used to write a body.
 ///
@@ -14,14 +19,16 @@ use crate::arguments::{Arguments, ExtendBuf};
 ///
 /// let mut body = BodyBuf::new();
 ///
-/// body.store(10u16);
-/// body.store(10u32);
+/// body.store(10u16)?;
+/// body.store(10u32)?;
 ///
 /// assert_eq!(body.signature(), Signature::new(b"qu")?);
 /// # Ok::<_, tokio_dbus::Error>(())
 /// ```
+#[derive(Clone, PartialEq, Eq)]
 pub struct BodyBuf {
     buf: AlignedBuf,
+    endianness: Endianness,
     signature: SignatureBuilder,
 }
 
@@ -35,14 +42,27 @@ impl BodyBuf {
     ///
     /// let mut body = BodyBuf::new();
     ///
-    /// body.store(10u16);
-    /// body.store(10u32);
+    /// body.store(10u16)?;
+    /// body.store(10u32)?;
     ///
     /// assert_eq!(body.signature(), Signature::new(b"qu")?);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     pub fn new() -> Self {
         Self::with_endianness(Endianness::NATIVE)
+    }
+
+    /// Construct a body buffer from its raw parts.
+    pub(crate) fn from_raw_parts(
+        buf: AlignedBuf,
+        endianness: Endianness,
+        signature: OwnedSignature,
+    ) -> Self {
+        Self {
+            buf,
+            endianness,
+            signature: SignatureBuilder::from_owned_signature(signature),
+        }
     }
 
     /// Construct a new buffer with the specified endianness.
@@ -57,13 +77,18 @@ impl BodyBuf {
     pub fn with_endianness(endianness: Endianness) -> Self {
         Self {
             signature: SignatureBuilder::new(),
-            buf: AlignedBuf::with_endianness(endianness),
+            endianness,
+            buf: AlignedBuf::new(),
         }
     }
 
-    /// Convert into parts.
-    pub(crate) fn into_parts(self) -> (AlignedBuf, SignatureBuilder) {
-        (self.buf, self.signature)
+    /// Access the raw interior aligned buf.
+    ///
+    /// Note that operations over this buffer will not take endianness into
+    /// account.
+    #[inline]
+    pub(crate) fn buf_mut(&mut self) -> &mut AlignedBuf {
+        &mut self.buf
     }
 
     /// Clear the buffer.
@@ -75,8 +100,8 @@ impl BodyBuf {
     ///
     /// let mut body = BodyBuf::new();
     ///
-    /// body.store(10u16);
-    /// body.store(10u32);
+    /// body.store(10u16)?;
+    /// body.store(10u32)?;
     ///
     /// assert_eq!(body.signature(), Signature::new(b"qu")?);
     /// body.clear();
@@ -97,8 +122,8 @@ impl BodyBuf {
     ///
     /// let mut body = BodyBuf::new();
     ///
-    /// body.store(10u16);
-    /// body.store(10u32);
+    /// body.store(10u16)?;
+    /// body.store(10u32)?;
     ///
     /// assert_eq!(body.signature(), Signature::new(b"qu")?);
     /// # Ok::<_, tokio_dbus::Error>(())
@@ -122,7 +147,25 @@ impl BodyBuf {
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     pub fn endianness(&self) -> Endianness {
-        self.buf.endianness()
+        self.endianness
+    }
+
+    /// Test if the buffer is empty.
+    #[inline]
+    pub(crate) fn is_empty(&self) -> bool {
+        self.buf.is_empty()
+    }
+
+    /// Remaining data to be read from the buffer.
+    #[inline]
+    pub(crate) fn len(&self) -> usize {
+        self.buf.len()
+    }
+
+    /// Align the buffer to the alignment of the given type `T`.
+    #[inline]
+    pub(crate) fn align_mut<T>(&mut self) {
+        self.buf.align_mut::<T>();
     }
 
     /// Get a slice out of the buffer that has ben written to.
@@ -134,39 +177,63 @@ impl BodyBuf {
     ///
     /// let mut body = BodyBuf::with_endianness(Endianness::LITTLE);
     ///
-    /// body.store(10u16);
-    /// body.store(10u32);
+    /// body.store(10u16)?;
+    /// body.store(10u32)?;
     ///
     /// assert_eq!(body.signature(), Signature::new(b"qu")?);
     /// assert_eq!(body.get(), &[10, 0, 0, 0, 10, 0, 0, 0]);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
+    #[inline]
     pub fn get(&self) -> &[u8] {
         self.buf.get()
     }
 
-    /// Return a read buffer over the entire contents of this buffer.
+    /// Read `len` bytes from the buffer and make accessible through a
+    /// [`ReadBuf`].
     ///
-    /// # Examples
+    /// # Panics
     ///
-    /// ```
-    /// use tokio_dbus::{BodyBuf, Signature, Endianness};
+    /// This panics if `len` is larger than [`len()`].
     ///
-    /// let mut body = BodyBuf::with_endianness(Endianness::LITTLE);
-    ///
-    /// body.store(10u16);
-    /// body.store(20u32);
-    ///
-    /// assert_eq!(body.signature(), Signature::new(b"qu")?);
-    ///
-    /// let mut buf = body.read();
-    /// assert_eq!(buf.load::<u16>()?, 10);
-    /// assert_eq!(buf.load::<u32>()?, 20);
-    /// # Ok::<_, tokio_dbus::Error>(())
-    /// ```
-    pub fn read(&self) -> ReadBuf<'_> {
-        let len = self.buf.len();
-        self.buf.peek_until(len)
+    /// [`len()`]: Self::len
+    #[inline]
+    pub(crate) fn read_until(&mut self, len: usize) -> BodyReadBuf<'_> {
+        let data = self.buf.read_until(len);
+        BodyReadBuf::from_raw_parts(data, self.endianness, &self.signature)
+    }
+
+    /// Read the whole buffer until its end.
+    #[inline]
+    pub fn read_until_end(&mut self) -> BodyReadBuf<'_> {
+        let data = self.buf.read_until_end();
+        BodyReadBuf::from_raw_parts(data, self.endianness, &self.signature)
+    }
+
+    /// Access a read buf which peeks into the buffer without advancing it.
+    #[inline]
+    pub fn peek(&self) -> BodyReadBuf<'_> {
+        let data = self.buf.peek();
+        BodyReadBuf::from_raw_parts(data, self.endianness, &self.signature)
+    }
+
+    /// Allocate, zero space for and align data for `T`.
+    #[inline]
+    pub(crate) fn alloc<T>(&mut self) -> Alloc<T>
+    where
+        T: Frame,
+    {
+        self.buf.alloc()
+    }
+
+    /// Write the given value at the previously [`Alloc<T>`] position.
+    #[inline]
+    pub(crate) fn store_at<T>(&mut self, at: Alloc<T>, mut frame: T)
+    where
+        T: Frame,
+    {
+        frame.adjust(self.endianness);
+        self.buf.store_at(at, frame);
     }
 
     /// Set the endianness of the buffer.
@@ -186,8 +253,9 @@ impl BodyBuf {
     /// assert_eq!(body.endianness(), Endianness::BIG);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
+    #[inline]
     pub fn set_endianness(&mut self, endianness: Endianness) {
-        self.buf.set_endianness(endianness);
+        self.endianness = endianness;
     }
 
     /// Store a [`Frame`] of type `T` in the buffer and add its signature.
@@ -208,8 +276,8 @@ impl BodyBuf {
     /// let mut send = SendBuf::new();
     /// let mut body = BodyBuf::new();
     ///
-    /// body.store(10f64);
-    /// body.store(20u32);
+    /// body.store(10f64)?;
+    /// body.store(20u32)?;
     ///
     /// let m = send.method_call(PATH, "Hello")
     ///     .with_body(&body);
@@ -218,7 +286,7 @@ impl BodyBuf {
     /// assert_eq!(m.signature(), Signature::new(b"du")?);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn store<T>(&mut self, frame: T) -> Result<()>
+    pub fn store<T>(&mut self, mut frame: T) -> Result<()>
     where
         T: Frame,
     {
@@ -226,8 +294,19 @@ impl BodyBuf {
             return Err(SignatureError::new(SignatureErrorKind::SignatureTooLong).into());
         }
 
+        frame.adjust(self.endianness);
         self.buf.store(frame);
         Ok(())
+    }
+
+    /// Extend the buffer with a slice.
+    pub(crate) fn extend_from_slice(&mut self, bytes: &[u8]) {
+        self.buf.extend_from_slice(bytes);
+    }
+
+    /// Extend the buffer with a slice ending with a NUL byte.
+    pub(crate) fn extend_from_slice_nul(&mut self, bytes: &[u8]) {
+        self.buf.extend_from_slice_nul(bytes);
     }
 
     /// Write a type `T` to the buffer and and its signature.
@@ -244,8 +323,8 @@ impl BodyBuf {
     /// let mut send = SendBuf::new();
     /// let mut body = BodyBuf::new();
     ///
-    /// body.write("Hello World!");
-    /// body.write(PATH);
+    /// body.write("Hello World!")?;
+    /// body.write(PATH)?;
     ///
     /// let m = send.method_call(PATH, "Hello")
     ///     .with_body(&body);
@@ -262,7 +341,7 @@ impl BodyBuf {
             return Err(SignatureError::new(SignatureErrorKind::SignatureTooLong).into());
         }
 
-        self.buf.write(value);
+        self.buf.write(value)?;
         Ok(())
     }
 
@@ -300,6 +379,14 @@ impl BodyBuf {
         value.extend_to(self)
     }
 
+    /// Write a raw array into the buffer.
+    pub fn write_array_raw<A>(&mut self) -> ArrayWriter<'_, Self, A>
+    where
+        A: ty::Aligned,
+    {
+        ArrayWriter::new(self)
+    }
+
     /// Write an array into the buffer.
     ///
     /// # Examples
@@ -309,7 +396,7 @@ impl BodyBuf {
     ///
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
     /// let mut array = buf.write_array::<u32>()?;
-    /// array.store(1u32);
+    /// array.store(1u32)?;
     /// array.finish();
     ///
     /// assert_eq!(buf.signature(), b"au");
@@ -330,12 +417,14 @@ impl BodyBuf {
     /// assert_eq!(buf.get(), &[0, 0, 0, 0, 0, 0, 0, 0]);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn write_array<E>(&mut self) -> Result<TypedArrayWriter<'_, E>>
+    pub fn write_array<E>(&mut self) -> Result<TypedArrayWriter<'_, AlignedBuf, E>>
     where
         E: ty::Marker,
     {
         <ty::Array<E> as ty::Marker>::write_signature(&mut self.signature)?;
-        Ok(TypedArrayWriter::new(self.buf.write_array()))
+        // NB: We write directly onto the underlying buffer, because we've
+        // already applied the correct signature.
+        Ok(TypedArrayWriter::new(ArrayWriter::new(&mut self.buf)))
     }
 
     /// Write a slice as an byte array.
@@ -343,17 +432,17 @@ impl BodyBuf {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{BodyBuf, Endianness};
+    /// use tokio_dbus::{BodyBuf, Endianness, Signature};
     ///
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
-    /// buf.write_slice(&[1, 2, 3, 4]);
+    /// buf.write_slice(&[1, 2, 3, 4])?;
     ///
-    /// assert_eq!(buf.signature(), b"ay");
+    /// assert_eq!(buf.signature(), Signature::new(b"ay")?);
     /// assert_eq!(buf.get(), &[4, 0, 0, 0, 1, 2, 3, 4]);
+    /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     pub fn write_slice(&mut self, data: &[u8]) -> Result<()> {
-        <ty::Array<u8> as ty::Marker>::write_signature(&mut self.signature)?;
-        self.buf.write_array::<u8>().write_slice(data);
+        self.write_array::<u8>()?.write_slice(data);
         Ok(())
     }
 
@@ -369,26 +458,39 @@ impl BodyBuf {
     /// buf.store(10u8);
     ///
     /// buf.write_struct::<(u16, u32, ty::Array<u8>, ty::Str)>()?
-    ///     .store(10u16)
-    ///     .store(10u32)
+    ///     .store(10u16)?
+    ///     .store(10u32)?
     ///     .write_array(|w| {
-    ///         w.store(1u8);
-    ///         w.store(2u8);
-    ///         w.store(3u8);
-    ///     })
-    ///     .write("Hello World")
+    ///         w.store(1u8)?;
+    ///         w.store(2u8)?;
+    ///         w.store(3u8)?;
+    ///         Ok(())
+    ///     })?
+    ///     .write("Hello World")?
     ///     .finish();
     ///
     /// assert_eq!(buf.signature(), b"y(quays)");
     /// assert_eq!(buf.get(), &[10, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 3, 0, 0, 0, 1, 2, 3, 0, 11, 0, 0, 0, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 0]);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn write_struct<E>(&mut self) -> Result<TypedStructWriter<'_, E>>
+    pub fn write_struct<E>(&mut self) -> Result<TypedStructWriter<'_, AlignedBuf, E>>
     where
         E: ty::Fields,
     {
         E::write_signature(&mut self.signature)?;
-        Ok(TypedStructWriter::new(self.buf.write_struct()))
+        // NB: We write directly onto the underlying buffer, because we've
+        // already applied the correct signature.
+        Ok(TypedStructWriter::new(StructWriter::new(&mut self.buf)))
+    }
+}
+
+impl fmt::Debug for BodyBuf {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("BodyBuf")
+            .field("buf", &self.buf)
+            .field("endianness", &self.endianness)
+            .field("signature", &self.signature.to_signature())
+            .finish()
     }
 }
 
@@ -396,6 +498,65 @@ impl Default for BodyBuf {
     #[inline]
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl BufMut for BodyBuf {
+    #[inline]
+    fn align_mut<T>(&mut self) {
+        BodyBuf::align_mut::<T>(self)
+    }
+
+    #[inline]
+    fn len(&self) -> usize {
+        BodyBuf::len(self)
+    }
+
+    #[inline]
+    fn is_empty(&self) -> bool {
+        BodyBuf::is_empty(self)
+    }
+
+    #[inline]
+    fn write<T>(&mut self, value: &T) -> Result<()>
+    where
+        T: ?Sized + Write,
+    {
+        BodyBuf::write(self, value)
+    }
+
+    #[inline]
+    fn store<T>(&mut self, frame: T) -> Result<()>
+    where
+        T: Frame,
+    {
+        BodyBuf::store(self, frame)
+    }
+
+    #[inline]
+    fn alloc<T>(&mut self) -> Alloc<T>
+    where
+        T: Frame,
+    {
+        BodyBuf::alloc(self)
+    }
+
+    #[inline]
+    fn store_at<T>(&mut self, at: Alloc<T>, frame: T)
+    where
+        T: Frame,
+    {
+        BodyBuf::store_at(self, at, frame)
+    }
+
+    #[inline]
+    fn extend_from_slice(&mut self, bytes: &[u8]) {
+        BodyBuf::extend_from_slice(self, bytes);
+    }
+
+    #[inline]
+    fn extend_from_slice_nul(&mut self, bytes: &[u8]) {
+        BodyBuf::extend_from_slice_nul(self, bytes);
     }
 }
 
@@ -414,5 +575,16 @@ impl ExtendBuf for BodyBuf {
         T: Frame,
     {
         BodyBuf::store(self, frame)
+    }
+}
+
+/// Construct an aligned buffer from a read buffer.
+impl From<BodyReadBuf<'_>> for BodyBuf {
+    #[inline]
+    fn from(buf: BodyReadBuf<'_>) -> Self {
+        let (buf, endianness, signature) = buf.into_raw_parts();
+        let buf = AlignedBuf::from(buf);
+        let signature = signature.to_owned();
+        Self::from_raw_parts(buf, endianness, signature)
     }
 }

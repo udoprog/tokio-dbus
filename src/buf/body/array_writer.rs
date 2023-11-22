@@ -3,7 +3,7 @@ use std::mem::ManuallyDrop;
 
 use crate::buf::{Alloc, BufMut};
 use crate::ty;
-use crate::{Frame, Write};
+use crate::{Frame, Result, Write};
 
 use super::StructWriter;
 
@@ -12,7 +12,7 @@ use super::StructWriter;
 /// Note that this does not enforce that the elements being written have a
 /// uniform type.
 #[must_use = "Arrays must be finalized using ArrayWriter::finish"]
-pub(crate) struct ArrayWriter<'a, O: ?Sized, A>
+pub struct ArrayWriter<'a, O: ?Sized, A>
 where
     O: BufMut,
     A: ty::Aligned,
@@ -47,20 +47,20 @@ where
 
     /// Store a [`Frame`] value into the array.
     #[inline]
-    pub(super) fn store<T>(&mut self, value: T)
+    pub(super) fn store<T>(&mut self, value: T) -> Result<()>
     where
         T: Frame,
     {
-        self.buf.store(value);
+        self.buf.store(value)
     }
 
     /// Write a value into the array.
     #[inline]
-    pub(super) fn write<T>(&mut self, value: &T)
+    pub(super) fn write<T>(&mut self, value: &T) -> Result<()>
     where
         T: ?Sized + Write,
     {
-        value.write_to(self.buf);
+        value.write_to(self.buf)
     }
 
     /// Push an array inside of the array.

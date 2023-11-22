@@ -38,7 +38,7 @@ pub use self::error::{Error, Result};
 mod error;
 
 #[doc(inline)]
-pub use self::buf::{BodyBuf, ReadBuf, RecvBuf, SendBuf};
+pub use self::buf::{BodyBuf, BodyReadBuf, ReadBuf, RecvBuf, SendBuf};
 pub mod buf;
 
 mod sasl;

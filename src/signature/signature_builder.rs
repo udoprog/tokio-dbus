@@ -31,6 +31,25 @@ impl SignatureBuilder {
         }
     }
 
+    /// Construct from an owned signature.
+    pub(crate) fn from_owned_signature(signature: OwnedSignature) -> Self {
+        let (data, init) = signature.into_raw_parts();
+
+        Self {
+            data,
+            init,
+            structs: 0,
+            arrays: 0,
+        }
+    }
+
+    /// Coerce into a signature.
+    pub(crate) fn to_signature(&self) -> &Signature {
+        // SAFETY: Construction of OwnedSignature ensures that the signature is
+        // valid.
+        unsafe { Signature::new_unchecked(self.as_slice()) }
+    }
+
     pub(crate) fn open_array(&mut self) -> Result<(), SignatureError> {
         if self.arrays == MAX_CONTAINER_DEPTH || self.structs + self.arrays == MAX_DEPTH {
             return Err(SignatureError::new(
@@ -121,11 +140,6 @@ impl SignatureBuilder {
         true
     }
 
-    /// Convert into an owned signature.
-    pub(crate) fn into_owned_signature(self) -> OwnedSignature {
-        OwnedSignature::from_raw_parts(self.data, self.init)
-    }
-
     #[inline]
     fn as_slice(&self) -> &[u8] {
         // SAFETY: init is set to the initialized slice.
@@ -136,9 +150,17 @@ impl SignatureBuilder {
 impl Deref for SignatureBuilder {
     type Target = Signature;
 
+    #[inline]
     fn deref(&self) -> &Self::Target {
-        // SAFETY: Construction of OwnedSignature ensures that the signature is
-        // valid.
-        unsafe { Signature::new_unchecked(self.as_slice()) }
+        self.to_signature()
     }
 }
+
+impl PartialEq<SignatureBuilder> for SignatureBuilder {
+    #[inline]
+    fn eq(&self, other: &SignatureBuilder) -> bool {
+        self.as_bytes() == other.as_bytes()
+    }
+}
+
+impl Eq for SignatureBuilder {}

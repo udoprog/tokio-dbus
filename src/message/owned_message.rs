@@ -1,8 +1,7 @@
 use std::num::NonZeroU32;
 
-use crate::buf::AlignedBuf;
 use crate::message::OwnedMessageKind;
-use crate::{BodyBuf, Flags, Message, MessageKind, ObjectPath, OwnedSignature, ReadBuf, Signature};
+use crate::{BodyBuf, BodyReadBuf, Flags, Message, MessageKind, ObjectPath, Signature};
 
 /// An owned D-Bus message.
 ///
@@ -22,10 +21,8 @@ pub struct OwnedMessage {
     pub(super) destination: Option<Box<str>>,
     /// The sender of the message.
     pub(super) sender: Option<Box<str>>,
-    /// The signature of the body.
-    pub(super) signature: OwnedSignature,
     /// The body associated with the message.
-    pub(super) body: AlignedBuf,
+    pub(super) body: BodyBuf,
 }
 
 impl OwnedMessage {
@@ -54,8 +51,7 @@ impl OwnedMessage {
             interface: None,
             destination: None,
             sender: None,
-            signature: OwnedSignature::EMPTY,
-            body: AlignedBuf::new(),
+            body: BodyBuf::new(),
         }
     }
 
@@ -94,11 +90,10 @@ impl OwnedMessage {
             },
             serial,
             flags: Flags::EMPTY,
-            signature: OwnedSignature::EMPTY,
             interface: None,
             destination: self.sender,
             sender: self.destination,
-            body: AlignedBuf::new(),
+            body: BodyBuf::new(),
         }
     }
 
@@ -125,8 +120,7 @@ impl OwnedMessage {
             interface: None,
             destination: None,
             sender: None,
-            signature: OwnedSignature::empty(),
-            body: AlignedBuf::new(),
+            body: BodyBuf::new(),
         }
     }
 
@@ -163,11 +157,10 @@ impl OwnedMessage {
             },
             serial,
             flags: Flags::EMPTY,
-            signature: OwnedSignature::empty(),
             interface: None,
             destination: self.sender,
             sender: self.destination,
-            body: AlignedBuf::new(),
+            body: BodyBuf::new(),
         }
     }
 
@@ -180,8 +173,7 @@ impl OwnedMessage {
             interface: self.interface.as_deref(),
             destination: self.destination.as_deref(),
             sender: self.sender.as_deref(),
-            signature: &self.signature,
-            body: ReadBuf::from_slice(self.body.get(), self.body.endianness()),
+            body: self.body.peek(),
         }
     }
 
@@ -233,13 +225,7 @@ impl OwnedMessage {
     /// assert_eq!(m.signature(), Signature::STRING);
     /// ```
     pub fn with_body(self, body: BodyBuf) -> Self {
-        let (body, signature) = body.into_parts();
-
-        Self {
-            body,
-            signature: signature.into_owned_signature(),
-            ..self
-        }
+        Self { body, ..self }
     }
 
     /// Get a buffer to the body of the message.
@@ -271,7 +257,7 @@ impl OwnedMessage {
     /// assert_eq!(r.read::<str>()?, "Hello World!");
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn body(&self) -> ReadBuf<'_> {
+    pub fn body(&self) -> BodyReadBuf<'_> {
         self.body.peek()
     }
 
@@ -537,7 +523,7 @@ impl OwnedMessage {
     /// assert_eq!(m2.signature(), Signature::STRING);
     /// ```
     pub fn signature(&self) -> &Signature {
-        &self.signature
+        self.body.signature()
     }
 }
 

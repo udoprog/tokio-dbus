@@ -4,11 +4,11 @@ use crate::error::{Error, ErrorKind, Result};
 use crate::proto;
 use crate::{Endianness, Message, MessageKind, ObjectPath, Signature};
 
-use super::{AlignedBuf, MessageRef};
+use super::{BodyBuf, MessageRef};
 
 /// Buffer used for receiving messages through D-Bus.
 pub struct RecvBuf {
-    buf: AlignedBuf,
+    buf: BodyBuf,
     /// The last serial observed. This is used to determine whether a
     /// [`MessageRef`] is valid or not.
     last_message: Option<MessageRef>,
@@ -18,17 +18,19 @@ impl RecvBuf {
     /// Construct a new receive buffer.
     pub fn new() -> Self {
         Self {
-            buf: AlignedBuf::new(),
+            buf: BodyBuf::new(),
             last_message: None,
         }
     }
 
     /// Access the underlying buffer mutably.
-    pub(crate) fn buf_mut(&mut self) -> &mut AlignedBuf {
+    #[inline]
+    pub(crate) fn buf_mut(&mut self) -> &mut BodyBuf {
         &mut self.buf
     }
 
     /// Set last serial.
+    #[inline]
     pub(crate) fn set_last_message(&mut self, message_ref: MessageRef) {
         self.last_message = Some(message_ref);
     }
@@ -165,7 +167,7 @@ impl RecvBuf {
 
         buf.align::<u64>()?;
 
-        let body = buf.read_until(body_length);
+        let body = buf.read_until(body_length).with_signature(signature);
 
         Ok(Message {
             kind,
@@ -174,7 +176,6 @@ impl RecvBuf {
             interface,
             destination,
             sender,
-            signature,
             body,
         })
     }

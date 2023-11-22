@@ -1,8 +1,8 @@
 use std::marker::PhantomData;
 
-use crate::buf::AlignedBuf;
+use crate::buf::BufMut;
 use crate::{ty, Arguments};
-use crate::{Frame, Write};
+use crate::{Frame, Result, Write};
 
 use super::{StructWriter, TypedArrayWriter};
 
@@ -12,13 +12,19 @@ use super::{StructWriter, TypedArrayWriter};
 ///
 /// [`BodyBuf::write_struct`]: crate::BodyBuf::write_struct
 #[must_use = "Must call `finish` after writing all related fields"]
-pub struct TypedStructWriter<'a, E> {
-    inner: StructWriter<'a, AlignedBuf>,
+pub struct TypedStructWriter<'a, B, E>
+where
+    B: BufMut,
+{
+    inner: StructWriter<'a, B>,
     _marker: PhantomData<E>,
 }
 
-impl<'a, E> TypedStructWriter<'a, E> {
-    pub(crate) fn new(inner: StructWriter<'a, AlignedBuf>) -> Self {
+impl<'a, B, E> TypedStructWriter<'a, B, E>
+where
+    B: BufMut,
+{
+    pub(crate) fn new(inner: StructWriter<'a, B>) -> Self {
         Self {
             inner,
             _marker: PhantomData,
@@ -36,8 +42,8 @@ impl<'a, E> TypedStructWriter<'a, E> {
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
     ///
     /// buf.write_struct::<(u16, u32)>()?
-    ///     .store(10u16)
-    ///     .store(10u32)
+    ///     .store(10u16)?
+    ///     .store(10u32)?
     ///     .finish();
     ///
     /// assert_eq!(buf.signature(), b"(qu)");
@@ -45,13 +51,13 @@ impl<'a, E> TypedStructWriter<'a, E> {
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     #[inline]
-    pub fn store(mut self, value: E::First) -> TypedStructWriter<'a, E::Remaining>
+    pub fn store(mut self, value: E::First) -> Result<TypedStructWriter<'a, B, E::Remaining>>
     where
         E: ty::Fields,
         E::First: Frame,
     {
-        self.inner.store(value);
-        TypedStructWriter::new(self.inner)
+        self.inner.store(value)?;
+        Ok(TypedStructWriter::new(self.inner))
     }
 
     /// Store a value and return the builder for the next value to store.
@@ -65,7 +71,7 @@ impl<'a, E> TypedStructWriter<'a, E> {
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
     ///
     /// buf.write_struct::<(ty::Str,)>()?
-    ///     .write("Hello World")
+    ///     .write("Hello World")?
     ///     .finish();
     ///
     /// assert_eq!(buf.signature(), b"(s)");
@@ -76,14 +82,14 @@ impl<'a, E> TypedStructWriter<'a, E> {
     pub fn write(
         mut self,
         value: &<E::First as ty::Unsized>::Target,
-    ) -> TypedStructWriter<'a, E::Remaining>
+    ) -> Result<TypedStructWriter<'a, B, E::Remaining>>
     where
         E: ty::Fields,
         E::First: ty::Unsized,
         <E::First as ty::Unsized>::Target: Write,
     {
-        self.inner.write(value);
-        TypedStructWriter::new(self.inner)
+        self.inner.write(value)?;
+        Ok(TypedStructWriter::new(self.inner))
     }
 
     /// Store a value and return the builder for the next value to store.
@@ -103,11 +109,11 @@ impl<'a, E> TypedStructWriter<'a, E> {
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     #[inline]
-    pub fn fields(mut self, arguments: E)
+    pub fn fields(mut self, arguments: E) -> Result<()>
     where
         E: Arguments,
     {
-        self.inner.extend(arguments);
+        self.inner.extend(arguments)
     }
 
     /// Store a value and return the builder for the next value to store.
@@ -122,11 +128,12 @@ impl<'a, E> TypedStructWriter<'a, E> {
     ///
     /// buf.write_struct::<(ty::Array<u32>,)>()?
     ///     .write_array(|w| {
-    ///         w.store(1);
-    ///         w.store(2);
-    ///         w.store(3);
-    ///         w.store(4);
-    ///     })
+    ///         w.store(1)?;
+    ///         w.store(2)?;
+    ///         w.store(3)?;
+    ///         w.store(4)?;
+    ///         Ok(())
+    ///     })?
     ///     .finish();
     ///
     /// assert_eq!(buf.signature(), b"(au)");
@@ -134,16 +141,16 @@ impl<'a, E> TypedStructWriter<'a, E> {
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     #[inline]
-    pub fn write_array<W, T>(mut self, writer: W) -> TypedStructWriter<'a, E::Remaining>
+    pub fn write_array<W, T>(mut self, writer: W) -> Result<TypedStructWriter<'a, B, E::Remaining>>
     where
-        W: FnOnce(&mut TypedArrayWriter<'_, T>),
+        W: FnOnce(&mut TypedArrayWriter<'_, B, T>) -> Result<()>,
         E: ty::Fields<First = ty::Array<T>>,
         T: ty::Aligned,
     {
         let mut w = TypedArrayWriter::new(self.inner.write_array());
-        writer(&mut w);
+        writer(&mut w)?;
         w.finish();
-        TypedStructWriter::new(self.inner)
+        Ok(TypedStructWriter::new(self.inner))
     }
 
     /// Store a value and return the builder for the next value to store.
@@ -152,9 +159,9 @@ impl<'a, E> TypedStructWriter<'a, E> {
     ///
     /// [`BodyBuf::write_struct`]: crate::BodyBuf::write_struct
     #[inline]
-    pub fn write_struct<W>(mut self, writer: W) -> TypedStructWriter<'a, E::Remaining>
+    pub fn write_struct<W>(mut self, writer: W) -> TypedStructWriter<'a, B, E::Remaining>
     where
-        W: FnOnce(&mut TypedStructWriter<'_, E::First>),
+        W: FnOnce(&mut TypedStructWriter<'_, B, E::First>),
         E: ty::Fields,
         E::First: ty::Fields,
     {
@@ -164,7 +171,10 @@ impl<'a, E> TypedStructWriter<'a, E> {
     }
 }
 
-impl TypedStructWriter<'_, ()> {
+impl<B> TypedStructWriter<'_, B, ()>
+where
+    B: BufMut,
+{
     /// Finish writing the struct.
     ///
     /// See [`BodyBuf::write_struct`].

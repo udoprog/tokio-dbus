@@ -17,11 +17,6 @@ pub struct OwnedSignature {
 }
 
 impl OwnedSignature {
-    /// An empty owned signature.
-    pub(crate) const EMPTY: Self = OwnedSignature::empty();
-}
-
-impl OwnedSignature {
     /// Construct a new empty signature.
     ///
     /// # Examples
@@ -39,12 +34,9 @@ impl OwnedSignature {
         }
     }
 
-    /// Construct from raw parts.
-    pub(crate) const fn from_raw_parts(
-        data: [MaybeUninit<u8>; MAX_SIGNATURE],
-        init: usize,
-    ) -> Self {
-        Self { data, init }
+    /// Coerce an owned signature into its raw parts.
+    pub(crate) const fn into_raw_parts(self) -> ([MaybeUninit<u8>; MAX_SIGNATURE], usize) {
+        (self.data, 0)
     }
 
     /// Construct a new signature with validation inside of a constant context.

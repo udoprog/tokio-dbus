@@ -1,4 +1,4 @@
-use crate::buf::AlignedBuf;
+use crate::buf::BodyBuf;
 use crate::error::Result;
 use crate::proto::Header;
 use crate::proto::{Endianness, Flags, MessageType, Variant};
@@ -99,17 +99,18 @@ const BE_BLOB: [u8; 36] = [
 ];
 
 #[test]
-fn write_blobs() {
-    let mut buf = AlignedBuf::with_endianness(Endianness::LITTLE);
-    write_blob(&mut buf);
+fn write_blobs() -> Result<()> {
+    let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
+    write_blob(&mut buf)?;
     assert_eq!(buf.get(), &LE_BLOB[..]);
 
-    let mut buf = AlignedBuf::with_endianness(Endianness::BIG);
-    write_blob(&mut buf);
+    let mut buf = BodyBuf::with_endianness(Endianness::BIG);
+    write_blob(&mut buf)?;
     assert_eq!(buf.get(), &BE_BLOB[..]);
+    Ok(())
 }
 
-fn write_blob(buf: &mut AlignedBuf) {
+fn write_blob(buf: &mut BodyBuf) -> Result<()> {
     buf.store(Header {
         endianness: buf.endianness(),
         message_type: MessageType::METHOD_RETURN,
@@ -117,30 +118,31 @@ fn write_blob(buf: &mut AlignedBuf) {
         version: 1,
         body_length: 4,
         serial: 0x12345678u32,
-    });
+    })?;
 
-    let mut array = buf.write_array::<u64>();
-
-    let mut st = array.write_struct();
-    st.store(Variant::REPLY_SERIAL);
-    st.write(Signature::UINT32);
-    st.store(0xabcdef12u32);
+    let mut array = buf.write_array_raw::<u64>();
 
     let mut st = array.write_struct();
-    st.store(Variant::SIGNATURE);
-    st.write(Signature::SIGNATURE);
-    st.write(Signature::UINT32);
+    st.store(Variant::REPLY_SERIAL)?;
+    st.write(Signature::UINT32)?;
+    st.store(0xabcdef12u32)?;
+
+    let mut st = array.write_struct();
+    st.store(Variant::SIGNATURE)?;
+    st.write(Signature::SIGNATURE)?;
+    st.write(Signature::UINT32)?;
 
     array.finish();
 
-    buf.store(0xdeadbeefu32);
+    buf.store(0xdeadbeefu32)?;
+    Ok(())
 }
 
 #[test]
 fn test_read_buf() -> Result<()> {
-    let mut buf = AlignedBuf::new();
+    let mut buf = BodyBuf::new();
 
-    buf.store(4u32);
+    buf.store(4u32)?;
     buf.extend_from_slice_nul(b"\x01\x02\x03\x04");
 
     let mut read_buf = buf.read_until(6);
@@ -154,8 +156,8 @@ fn test_read_buf() -> Result<()> {
 
 #[test]
 fn test_read_buf_load() -> Result<()> {
-    let mut buf = AlignedBuf::new();
-    buf.store(7u32);
+    let mut buf = BodyBuf::new();
+    buf.store(7u32)?;
     buf.extend_from_slice_nul(b"foo bar");
 
     let mut read_buf = buf.read_until(6);
@@ -169,8 +171,8 @@ fn test_read_buf_load() -> Result<()> {
 
 #[test]
 fn test_read_buf_read() -> Result<()> {
-    let mut buf = AlignedBuf::new();
-    buf.store(4u32);
+    let mut buf = BodyBuf::new();
+    buf.store(4u32)?;
     buf.extend_from_slice_nul(b"\x01\x02\x03\x04");
 
     let mut read_buf = buf.read_until(6);
@@ -188,8 +190,8 @@ fn test_read_buf_read() -> Result<()> {
 
 #[test]
 fn test_nested_read_buf() -> Result<()> {
-    let mut buf = AlignedBuf::new();
-    buf.store(4u32);
+    let mut buf = BodyBuf::new();
+    buf.store(4u32)?;
     buf.extend_from_slice_nul(b"\x01\x02\x03\x04");
 
     let mut read_buf = buf.read_until(6);

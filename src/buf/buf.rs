@@ -1,5 +1,6 @@
 use crate::error::Result;
 use crate::frame::Frame;
+use crate::Read;
 
 /// A read-only buffer.
 pub trait Buf<'de> {
@@ -13,6 +14,9 @@ pub trait Buf<'de> {
 
     /// Reborrow the buffer.
     fn reborrow(&mut self) -> Self::Reborrow<'_>;
+
+    /// Advance the buffer by `n` bytes.
+    fn advance(&mut self, n: usize) -> Result<()>;
 
     /// Return a reader until the given length.
     fn read_until(&mut self, len: usize) -> Self::ReadUntil;
@@ -31,6 +35,14 @@ pub trait Buf<'de> {
     where
         T: Frame;
 
+    /// Read a reference from the buffer.
+    ///
+    /// This is possible for unaligned types such as `str` and `[u8]` which
+    /// implement [`Read`].
+    fn read<T>(&mut self) -> Result<&'de T>
+    where
+        T: ?Sized + Read;
+
     /// Load a slice.
     fn load_slice(&mut self, len: usize) -> Result<&'de [u8]>;
 
@@ -48,6 +60,11 @@ where
     #[inline]
     fn reborrow(&mut self) -> Self::Reborrow<'_> {
         (**self).reborrow()
+    }
+
+    #[inline]
+    fn advance(&mut self, n: usize) -> Result<()> {
+        (**self).advance(n)
     }
 
     #[inline]
@@ -76,6 +93,14 @@ where
         T: Frame,
     {
         (**self).load::<T>()
+    }
+
+    #[inline]
+    fn read<T>(&mut self) -> Result<&'de T>
+    where
+        T: ?Sized + Read,
+    {
+        (**self).read::<T>()
     }
 
     #[inline]

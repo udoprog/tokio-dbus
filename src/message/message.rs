@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 use crate::proto::{Flags, MessageType};
-use crate::{BodyBuf, MessageKind, ObjectPath, OwnedMessage, ReadBuf, Signature};
+use crate::{BodyBuf, BodyReadBuf, MessageKind, ObjectPath, OwnedMessage, Signature};
 
 /// A borrowed D-Bus message.
 ///
@@ -21,10 +21,8 @@ pub struct Message<'a> {
     pub(crate) destination: Option<&'a str>,
     /// The sender of the message.
     pub(crate) sender: Option<&'a str>,
-    /// The signature of the body.
-    pub(crate) signature: &'a Signature,
     /// The body associated with the message.
-    pub(crate) body: ReadBuf<'a>,
+    pub(crate) body: BodyReadBuf<'a>,
 }
 
 impl<'a> Message<'a> {
@@ -53,8 +51,7 @@ impl<'a> Message<'a> {
             interface: None,
             destination: None,
             sender: None,
-            signature: Signature::empty(),
-            body: ReadBuf::empty(),
+            body: BodyReadBuf::empty(),
         }
     }
 
@@ -92,11 +89,10 @@ impl<'a> Message<'a> {
             },
             serial,
             flags: Flags::EMPTY,
-            signature: Signature::empty(),
             interface: None,
             destination: self.sender,
             sender: self.destination,
-            body: ReadBuf::empty(),
+            body: BodyReadBuf::empty(),
         }
     }
 
@@ -125,8 +121,7 @@ impl<'a> Message<'a> {
             interface: None,
             destination: None,
             sender: None,
-            signature: Signature::empty(),
-            body: ReadBuf::empty(),
+            body: BodyReadBuf::empty(),
         }
     }
 
@@ -163,11 +158,10 @@ impl<'a> Message<'a> {
             },
             serial,
             flags: Flags::EMPTY,
-            signature: Signature::empty(),
             interface: None,
             destination: self.sender,
             sender: self.destination,
-            body: ReadBuf::empty(),
+            body: BodyReadBuf::empty(),
         }
     }
 
@@ -197,8 +191,7 @@ impl<'a> Message<'a> {
             interface: self.interface.map(Box::from),
             destination: self.destination.map(Box::from),
             sender: self.sender.map(Box::from),
-            signature: self.signature.to_owned(),
-            body: self.body.clone().into(),
+            body: BodyBuf::from(self.body.clone()),
         }
     }
 
@@ -250,8 +243,7 @@ impl<'a> Message<'a> {
     /// ```
     pub fn with_body(self, body: &'a BodyBuf) -> Self {
         Self {
-            signature: body.signature(),
-            body: body.read(),
+            body: body.peek(),
             ..self
         }
     }
@@ -284,7 +276,7 @@ impl<'a> Message<'a> {
     /// assert_eq!(r.read::<str>()?, "Hello World!");
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn body(&self) -> ReadBuf<'a> {
+    pub fn body(&self) -> BodyReadBuf<'a> {
         self.body.clone()
     }
 
@@ -550,7 +542,7 @@ impl<'a> Message<'a> {
     /// assert_eq!(m2.signature(), Signature::STRING);
     /// ```
     pub fn signature(&self) -> &Signature {
-        self.signature
+        self.body.signature()
     }
 
     pub(crate) fn message_type(&self) -> crate::proto::MessageType {
@@ -572,7 +564,6 @@ impl PartialEq<OwnedMessage> for Message<'_> {
             && self.interface == other.interface.as_deref()
             && self.destination == other.destination.as_deref()
             && self.sender == other.sender.as_deref()
-            && self.signature == other.signature
             && self.body == other.body
     }
 }

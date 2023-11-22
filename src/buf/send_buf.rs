@@ -117,69 +117,69 @@ impl SendBuf {
         match message.kind {
             MessageKind::MethodCall { path, member } => {
                 let mut st = array.write_struct();
-                st.store(proto::Variant::PATH);
-                st.write(Signature::OBJECT_PATH);
-                st.write(path);
+                st.store(proto::Variant::PATH)?;
+                st.write(Signature::OBJECT_PATH)?;
+                st.write(path)?;
 
                 let mut st = array.write_struct();
-                st.store(proto::Variant::MEMBER);
-                st.write(Signature::STRING);
-                st.write(member);
+                st.store(proto::Variant::MEMBER)?;
+                st.write(Signature::STRING)?;
+                st.write(member)?;
             }
             MessageKind::MethodReturn { reply_serial } => {
                 let mut st = array.write_struct();
-                st.store(proto::Variant::REPLY_SERIAL);
-                st.write(Signature::UINT32);
-                st.store(reply_serial.get());
+                st.store(proto::Variant::REPLY_SERIAL)?;
+                st.write(Signature::UINT32)?;
+                st.store(reply_serial.get())?;
             }
             MessageKind::Error {
                 error_name,
                 reply_serial,
             } => {
                 let mut st = array.write_struct();
-                st.store(proto::Variant::ERROR_NAME);
-                st.write(Signature::STRING);
-                st.write(error_name);
+                st.store(proto::Variant::ERROR_NAME)?;
+                st.write(Signature::STRING)?;
+                st.write(error_name)?;
 
                 let mut st = array.write_struct();
-                st.store(proto::Variant::REPLY_SERIAL);
-                st.write(Signature::UINT32);
-                st.store(reply_serial.get());
+                st.store(proto::Variant::REPLY_SERIAL)?;
+                st.write(Signature::UINT32)?;
+                st.store(reply_serial.get())?;
             }
             MessageKind::Signal { member } => {
                 let mut st = array.write_struct();
-                st.store(proto::Variant::MEMBER);
-                st.write(Signature::STRING);
-                st.write(member);
+                st.store(proto::Variant::MEMBER)?;
+                st.write(Signature::STRING)?;
+                st.write(member)?;
             }
         }
 
         if let Some(interface) = message.interface {
             let mut st = array.write_struct();
-            st.store(proto::Variant::INTERFACE);
-            st.write(Signature::STRING);
-            st.write(interface);
+            st.store(proto::Variant::INTERFACE)?;
+            st.write(Signature::STRING)?;
+            st.write(interface)?;
         }
 
         if let Some(destination) = message.destination {
             let mut st = array.write_struct();
-            st.store(proto::Variant::DESTINATION);
-            st.write(Signature::STRING);
-            st.write(destination);
+            st.store(proto::Variant::DESTINATION)?;
+            st.write(Signature::STRING)?;
+            st.write(destination)?;
         }
 
         if let Some(sender) = message.sender {
             let mut st = array.write_struct();
-            st.store(proto::Variant::SENDER);
-            st.write(Signature::STRING);
-            st.write(sender);
+            st.store(proto::Variant::SENDER)?;
+            st.write(Signature::STRING)?;
+            st.write(sender)?;
         }
 
-        if !message.signature.is_empty() {
+        if !body.signature().is_empty() {
             let mut st = array.write_struct();
-            st.store(proto::Variant::SIGNATURE);
-            st.write(Signature::SIGNATURE);
-            st.write(message.signature);
+            st.store(proto::Variant::SIGNATURE)?;
+            st.write(Signature::SIGNATURE)?;
+            st.write(body.signature())?;
         }
 
         array.finish();

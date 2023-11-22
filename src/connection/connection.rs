@@ -202,14 +202,14 @@ impl Connection {
         loop {
             let mut guard = self.transport.readable_mut().await?;
 
-            match guard.get_inner_mut().sasl_recv(self.recv.buf_mut()) {
+            match guard.get_inner_mut().sasl_recv(self.send.buf_mut()) {
                 Err(e) if e.would_block() => {
                     guard.clear_ready();
                     continue;
                 }
                 Err(e) => return Err(e),
                 Ok(len) => {
-                    return sasl_recv(self.recv.buf_mut().read_until(len).get());
+                    return sasl_recv(self.send.buf_mut().read_until(len));
                 }
             }
         }

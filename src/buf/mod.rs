@@ -3,12 +3,13 @@
 #[cfg(test)]
 mod tests;
 
-pub use self::body::{ArrayReader, StructReader, TypedArrayWriter, TypedStructWriter};
-use self::body::{ArrayWriter, StructWriter};
+pub use self::body::{
+    ArrayReader, ArrayWriter, StructReader, StructWriter, TypedArrayWriter, TypedStructWriter,
+};
 mod body;
 
-pub use self::aligned_read_buf::AlignedReadBuf;
-mod aligned_read_buf;
+pub use self::body_read_buf::BodyReadBuf;
+mod body_read_buf;
 
 pub use self::read_buf::ReadBuf;
 mod read_buf;

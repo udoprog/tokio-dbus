@@ -208,12 +208,13 @@ impl Write for ObjectPath {
     const SIGNATURE: &'static Signature = Signature::OBJECT_PATH;
 
     #[inline]
-    fn write_to<O: ?Sized>(&self, buf: &mut O)
+    fn write_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
     where
         O: BufMut,
     {
-        buf.store(self.0.len() as u32);
+        buf.store(self.0.len() as u32)?;
         buf.extend_from_slice_nul(&self.0);
+        Ok(())
     }
 }
 

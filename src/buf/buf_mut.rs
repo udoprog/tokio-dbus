@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::{Frame, Write};
+use crate::{Frame, Result, Write};
 
 mod sealed {
     use crate::buf::{AlignedBuf, BodyBuf, UnalignedBuf};
@@ -48,20 +48,20 @@ pub trait BufMut: self::sealed::Sealed {
     #[doc(hidden)]
     fn is_empty(&self) -> bool;
 
-    /// Write a [`Write`] of type `T` in the buffer.
-    #[doc(hidden)]
-    fn write<T>(&mut self, value: &T)
-    where
-        T: ?Sized + Write;
-
     /// Store a [`Frame`] of type `T` in the buffer.
     ///
     /// This both allocates enough space for the frame and ensures that the
     /// buffer is aligned per the requirements of the frame.
     #[doc(hidden)]
-    fn store<T>(&mut self, frame: T)
+    fn store<T>(&mut self, frame: T) -> Result<()>
     where
         T: Frame;
+
+    /// Write a [`Write`] of type `T` in the buffer.
+    #[doc(hidden)]
+    fn write<T>(&mut self, value: &T) -> Result<()>
+    where
+        T: ?Sized + Write;
 
     /// Allocate, zero space for and align data for `T`.
     #[doc(hidden)]

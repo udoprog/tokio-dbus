@@ -4,18 +4,14 @@ use std::mem::{align_of, size_of};
 use std::ptr;
 use std::slice::{from_raw_parts, from_raw_parts_mut};
 
-use crate::buf::{
-    max_size_for_align, padding_to, Alloc, ArrayWriter, BufMut, ReadBuf, StructWriter,
-};
-use crate::proto::Endianness;
-use crate::ty;
-use crate::{Frame, Write};
+use crate::buf::{max_size_for_align, padding_to, Alloc, BufMut, ReadBuf};
+use crate::{Frame, Result, Write};
 
 /// The type we're basing our alignment on.
 pub(crate) type AlignType = u64;
 
 /// An owned buffer which is aligned per the specification of D-Bus messages.
-pub(crate) struct AlignedBuf {
+pub struct AlignedBuf {
     /// Pointed to data of the buffer.
     data: ptr::NonNull<u8>,
     /// The initialized capacity of the buffer.
@@ -24,51 +20,17 @@ pub(crate) struct AlignedBuf {
     written: usize,
     /// Read position in the buffer.
     read: usize,
-    /// Dynamic endainness of the buffer.
-    endianness: Endianness,
 }
 
 impl AlignedBuf {
     /// Construct a new empty buffer.
     pub(crate) const fn new() -> Self {
-        Self::with_endianness(Endianness::NATIVE)
-    }
-
-    /// Construct a new buffer with the specified endianness.
-    pub(crate) const fn with_endianness(endianness: Endianness) -> Self {
         Self {
             data: ptr::NonNull::<AlignType>::dangling().cast(),
             capacity: 0,
             written: 0,
             read: 0,
-            endianness,
         }
-    }
-
-    /// Get the endianness of the buffer.
-    pub(crate) fn endianness(&self) -> Endianness {
-        self.endianness
-    }
-
-    /// Set the endianness of the buffer.
-    pub(crate) fn set_endianness(&mut self, endianness: Endianness) {
-        self.endianness = endianness;
-    }
-
-    /// Write an array into the buffer.
-    ///
-    /// The type parameter `A` indicates the alignment of the elements stored in
-    /// the array.
-    pub(crate) fn write_array<A>(&mut self) -> ArrayWriter<'_, Self, A>
-    where
-        A: ty::Aligned,
-    {
-        ArrayWriter::new(self)
-    }
-
-    /// Write a struct into the buffer.
-    pub(super) fn write_struct(&mut self) -> StructWriter<'_, Self> {
-        StructWriter::new(self)
     }
 
     /// Read `len` bytes from the buffer and make accessible through a
@@ -83,30 +45,22 @@ impl AlignedBuf {
         assert!(len <= self.len());
         let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
         self.advance(len);
-        ReadBuf::new(data, len, self.endianness)
+        ReadBuf::new(data, len)
     }
 
     /// Read the entire buffer and make accessible through [`ReadBuf`].
-    #[cfg(test)]
-    pub(crate) fn read(&mut self) -> ReadBuf<'_> {
+    pub(crate) fn read_until_end(&mut self) -> ReadBuf<'_> {
         let len = self.len();
         let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
         self.clear();
-        ReadBuf::new(data, len, self.endianness)
-    }
-
-    /// Access a read buf which peeks into the buffer without advancing it.
-    pub(crate) fn peek_until(&self, len: usize) -> ReadBuf<'_> {
-        assert!(len <= self.len());
-        let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
-        ReadBuf::new(data, len, self.endianness)
+        ReadBuf::new(data, len)
     }
 
     /// Access a read buf which peeks into the buffer without advancing it.
     pub(crate) fn peek(&self) -> ReadBuf<'_> {
         let len = self.len();
         let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
-        ReadBuf::new(data, len, self.endianness)
+        ReadBuf::new(data, len)
     }
 
     /// Allocate, zero space for and align data for `T`.
@@ -126,13 +80,12 @@ impl AlignedBuf {
     }
 
     /// Write the given value at the previously [`Alloc<T>`] position.
-    pub(crate) fn store_at<T>(&mut self, at: Alloc<T>, mut frame: T)
+    pub(crate) fn store_at<T>(&mut self, at: Alloc<T>, frame: T)
     where
         T: Frame,
     {
         let at = at.into_usize();
         assert!(at + size_of::<T>() <= self.written, "write underflow");
-        frame.adjust(self.endianness);
 
         // SAFETY: We've just asserted that the write is in bounds above and
         // this buffer ensures that all types that implement `Frame` are written
@@ -146,12 +99,11 @@ impl AlignedBuf {
     ///
     /// This both allocates enough space for the frame and ensures that the
     /// buffer is aligned per the requirements of the frame.
-    pub(crate) fn store<T>(&mut self, mut frame: T)
+    pub(crate) fn store<T>(&mut self, frame: T)
     where
         T: Frame,
     {
         self.align_mut::<T>();
-        frame.adjust(self.endianness);
 
         // SAFETY: We've just reserved and aligned the buffer in the `reserve`
         // call just above.
@@ -166,11 +118,11 @@ impl AlignedBuf {
     }
 
     /// Write a type to the buffer.
-    pub(crate) fn write<T>(&mut self, value: &T)
+    pub(crate) fn write<T>(&mut self, value: &T) -> Result<()>
     where
         T: ?Sized + Write,
     {
-        value.write_to(self);
+        value.write_to(self)
     }
 
     /// Extend the buffer with a slice.
@@ -230,6 +182,20 @@ impl AlignedBuf {
         }
     }
 
+    /// Get remaining slice of the buffer that can be written.
+    pub(crate) fn get_mut(&mut self) -> &mut [u8] {
+        unsafe {
+            let len = self.capacity - self.written;
+            let at = self.data.as_ptr().add(self.written);
+            from_raw_parts_mut(at, len)
+        }
+    }
+
+    /// Indicate that we've written `n` bytes to the buffer.
+    pub(crate) fn advance_mut(&mut self, n: usize) {
+        self.written += n;
+    }
+
     /// Indicate that we've read `n` bytes from the buffer.
     pub(crate) fn advance(&mut self, n: usize) {
         self.read += n;
@@ -243,20 +209,6 @@ impl AlignedBuf {
     pub(crate) fn clear(&mut self) {
         self.read = 0;
         self.written = 0;
-    }
-
-    /// Get remaining slice of the buffer that can be written.
-    pub(crate) fn get_mut(&mut self) -> &mut [u8] {
-        unsafe {
-            let len = self.capacity - self.written;
-            let at = self.data.as_ptr().add(self.written);
-            from_raw_parts_mut(at, len)
-        }
-    }
-
-    /// Indicate that we've written `n` bytes to the buffer.
-    pub(crate) fn advance_mut(&mut self, n: usize) {
-        self.written += n;
     }
 
     /// Ensure that the buffer has at least `capacity` bytes.
@@ -333,7 +285,6 @@ impl fmt::Debug for AlignedBuf {
         f.debug_struct("AlignedBuf")
             .field("len", &self.len())
             .field("capacity", &self.capacity)
-            .field("endianness", &self.endianness)
             .finish()
     }
 }
@@ -375,7 +326,7 @@ impl BufMut for AlignedBuf {
     }
 
     #[inline]
-    fn write<T>(&mut self, value: &T)
+    fn write<T>(&mut self, value: &T) -> Result<()>
     where
         T: ?Sized + Write,
     {
@@ -383,11 +334,12 @@ impl BufMut for AlignedBuf {
     }
 
     #[inline]
-    fn store<T>(&mut self, frame: T)
+    fn store<T>(&mut self, frame: T) -> Result<()>
     where
         T: Frame,
     {
-        AlignedBuf::store(self, frame)
+        AlignedBuf::store(self, frame);
+        Ok(())
     }
 
     #[inline]
@@ -420,14 +372,14 @@ impl BufMut for AlignedBuf {
 impl PartialEq<AlignedBuf> for AlignedBuf {
     #[inline]
     fn eq(&self, other: &AlignedBuf) -> bool {
-        self.get() == other.get() && self.endianness == other.endianness
+        self.get() == other.get()
     }
 }
 
 impl PartialEq<ReadBuf<'_>> for AlignedBuf {
     #[inline]
     fn eq(&self, other: &ReadBuf<'_>) -> bool {
-        self.get() == other.get() && self.endianness == other.endianness()
+        self.get() == other.get()
     }
 }
 
@@ -436,7 +388,7 @@ impl Eq for AlignedBuf {}
 impl Clone for AlignedBuf {
     #[inline]
     fn clone(&self) -> Self {
-        let mut buf = Self::with_endianness(self.endianness());
+        let mut buf = Self::new();
         buf.extend_from_slice(self.get());
         buf
     }
@@ -446,7 +398,7 @@ impl Clone for AlignedBuf {
 impl From<ReadBuf<'_>> for AlignedBuf {
     #[inline]
     fn from(value: ReadBuf<'_>) -> Self {
-        let mut buf = Self::with_endianness(value.endianness());
+        let mut buf = Self::new();
         buf.extend_from_slice(value.get());
         buf
     }

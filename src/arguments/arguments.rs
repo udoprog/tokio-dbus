@@ -21,7 +21,7 @@ pub trait Arguments: self::sealed::Sealed {
         O: ExtendBuf;
 
     #[doc(hidden)]
-    fn buf_to<O: ?Sized>(&self, buf: &mut O)
+    fn buf_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
     where
         O: BufMut;
 }
@@ -41,7 +41,7 @@ macro_rules! impl_store {
                 }
 
                 #[inline]
-                fn buf_to<O: ?Sized>(&self, buf: &mut O)
+                fn buf_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
                 where
                     O: BufMut
                 {
@@ -67,7 +67,7 @@ macro_rules! impl_write {
                 }
 
                 #[inline]
-                fn buf_to<O: ?Sized>(&self, buf: &mut O)
+                fn buf_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
                 where
                     O: BufMut
                 {
@@ -96,7 +96,7 @@ where
     }
 
     #[inline]
-    fn buf_to<O: ?Sized>(&self, buf: &mut O)
+    fn buf_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
     where
         O: BufMut,
     {
@@ -122,12 +122,13 @@ macro_rules! impl_tuple {
 
             #[inline]
             #[allow(non_snake_case)]
-            fn buf_to<_O: ?Sized>(&self, buf: &mut _O)
+            fn buf_to<_O: ?Sized>(&self, buf: &mut _O) -> Result<()>
             where
                 _O: BufMut
             {
                 let ($($ty,)*) = self;
-                $(<$ty as Arguments>::buf_to($ty, buf);)*
+                $(<$ty as Arguments>::buf_to($ty, buf)?;)*
+                Ok(())
             }
         }
     }

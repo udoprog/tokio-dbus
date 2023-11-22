@@ -6,7 +6,7 @@ use std::ptr;
 use std::slice::from_raw_parts;
 
 use crate::error::{ErrorKind, Result};
-use crate::{Endianness, Error, Frame, Read};
+use crate::{Error, Frame, Read};
 
 use super::body::new_array_reader;
 use super::{padding_to, AlignedBuf, ArrayReader, Buf, StructReader};
@@ -31,55 +31,23 @@ pub struct ReadBuf<'a> {
     data: ptr::NonNull<u8>,
     read: usize,
     written: usize,
-    endianness: Endianness,
     _marker: PhantomData<&'a [u8]>,
 }
 
 impl<'a> ReadBuf<'a> {
     /// Construct an empty read buffer.
     pub(crate) const fn empty() -> Self {
-        Self::new(
-            ptr::NonNull::<u64>::dangling().cast(),
-            0,
-            Endianness::NATIVE,
-        )
-    }
-
-    /// Construct a read buffer from a slice.
-    #[inline]
-    pub(crate) const fn from_slice(data: &'a [u8], endianness: Endianness) -> Self {
-        // SAFETY: data is taken directly from a slice, so it's guaranteed
-        // to be non-null.
-        Self::new(
-            unsafe { ptr::NonNull::new_unchecked(data.as_ptr() as *mut _) },
-            data.len(),
-            endianness,
-        )
+        Self::new(ptr::NonNull::<u64>::dangling().cast(), 0)
     }
 
     /// Construct a new read buffer wrapping pointed to data.
-    pub(crate) const fn new(
-        data: ptr::NonNull<u8>,
-        written: usize,
-        endianness: Endianness,
-    ) -> Self {
+    pub(crate) const fn new(data: ptr::NonNull<u8>, written: usize) -> Self {
         Self {
             data,
             read: 0,
             written,
-            endianness,
             _marker: PhantomData,
         }
-    }
-
-    /// Get the endianness of the buffer.
-    pub fn endianness(&self) -> Endianness {
-        self.endianness
-    }
-
-    /// Adjust endianness of read buffer.
-    pub fn with_endianness(self, endianness: Endianness) -> Self {
-        Self { endianness, ..self }
     }
 
     /// Get a slice out of the buffer that has ben written to.
@@ -175,7 +143,7 @@ impl<'a> ReadBuf<'a> {
         assert!(len <= self.len());
         let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
         self.read += len;
-        ReadBuf::new(data, len, self.endianness)
+        ReadBuf::new(data, len)
     }
 
     /// Read an array from the buffer.
@@ -187,22 +155,22 @@ impl<'a> ReadBuf<'a> {
     ///
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
     /// let mut array = buf.write_array::<u32>()?;
-    /// array.store(10u32);
-    /// array.store(20u32);
-    /// array.store(30u32);
+    /// array.store(10u32)?;
+    /// array.store(20u32)?;
+    /// array.store(30u32)?;
     /// array.finish();
     ///
     /// let mut array = buf.write_array::<ty::Array<ty::Str>>()?;
     /// let mut inner = array.write_array();
-    /// inner.write("foo");
-    /// inner.write("bar");
-    /// inner.write("baz");
+    /// inner.write("foo")?;
+    /// inner.write("bar")?;
+    /// inner.write("baz")?;
     /// inner.finish();
     /// array.finish();
     ///
     /// assert_eq!(buf.signature(), b"auaas");
     ///
-    /// let mut buf = buf.read();
+    /// let mut buf = buf.read_until_end();
     /// let mut array = buf.read_array()?;
     /// assert_eq!(array.load::<u32>()?, Some(10));
     /// assert_eq!(array.load::<u32>()?, Some(20));
@@ -236,19 +204,20 @@ impl<'a> ReadBuf<'a> {
     /// buf.store(10u8);
     ///
     /// buf.write_struct::<(u16, u32, ty::Array<u8>, ty::Str)>()?
-    ///     .store(20u16)
-    ///     .store(30u32)
+    ///     .store(20u16)?
+    ///     .store(30u32)?
     ///     .write_array(|w| {
-    ///         w.store(1u8);
-    ///         w.store(2u8);
-    ///         w.store(3u8);
-    ///     })
-    ///     .write("Hello World")
+    ///         w.store(1u8)?;
+    ///         w.store(2u8)?;
+    ///         w.store(3u8)?;
+    ///         Ok(())
+    ///     })?
+    ///     .write("Hello World")?
     ///     .finish();
     ///
     /// assert_eq!(buf.signature(), Signature::new(b"y(quays)")?);
     ///
-    /// let mut buf = buf.read();
+    /// let mut buf = buf.peek();
     /// assert_eq!(buf.load::<u8>()?, 10u8);
     ///
     /// let mut st = buf.read_struct()?;
@@ -308,10 +277,8 @@ impl<'a> ReadBuf<'a> {
         self.read += padding;
 
         // SAFETY: read is guaranteed to be in bounds of the buffer.
-        let mut frame = unsafe { ptr::read(self.data.as_ptr().add(self.read).cast::<T>()) };
-
+        let frame = unsafe { ptr::read(self.data.as_ptr().add(self.read).cast::<T>()) };
         self.read += size_of::<T>();
-        frame.adjust(self.endianness);
         Ok(frame)
     }
 
@@ -391,7 +358,6 @@ impl Clone for ReadBuf<'_> {
             data: self.data,
             read: self.read,
             written: self.written,
-            endianness: self.endianness,
             _marker: self._marker,
         }
     }
@@ -400,24 +366,21 @@ impl Clone for ReadBuf<'_> {
 impl fmt::Debug for ReadBuf<'_> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ReadBuf")
-            .field("len", &self.written)
-            .field("endianness", &self.endianness)
-            .finish()
+        f.debug_struct("ReadBuf").field("len", &self.len()).finish()
     }
 }
 
 impl<'a, 'b> PartialEq<ReadBuf<'a>> for ReadBuf<'b> {
     #[inline]
     fn eq(&self, other: &ReadBuf<'a>) -> bool {
-        self.get() == other.get() && self.endianness == other.endianness
+        self.get() == other.get()
     }
 }
 
 impl PartialEq<AlignedBuf> for ReadBuf<'_> {
     #[inline]
     fn eq(&self, other: &AlignedBuf) -> bool {
-        self.get() == other.get() && self.endianness == other.endianness()
+        self.get() == other.get()
     }
 }
 
@@ -430,6 +393,11 @@ impl<'de> Buf<'de> for ReadBuf<'de> {
     #[inline]
     fn reborrow(&mut self) -> Self::Reborrow<'_> {
         self
+    }
+
+    #[inline]
+    fn advance(&mut self, n: usize) -> Result<()> {
+        ReadBuf::advance(self, n)
     }
 
     #[inline]
@@ -458,6 +426,14 @@ impl<'de> Buf<'de> for ReadBuf<'de> {
         T: Frame,
     {
         ReadBuf::load(self)
+    }
+
+    #[inline]
+    fn read<T>(&mut self) -> Result<&'de T>
+    where
+        T: ?Sized + Read,
+    {
+        ReadBuf::read(self)
     }
 
     #[inline]

@@ -77,12 +77,12 @@ fn signature_tests() {
 #[test]
 fn signature_skip() -> Result<()> {
     let mut buf = AlignedBuf::new();
-    buf.write("Hello");
-    buf.write("World");
+    buf.write("Hello")?;
+    buf.write("World")?;
 
     let sig = Signature::new_const(b"s");
 
-    let mut read_buf = buf.read();
+    let mut read_buf = buf.read_until_end();
 
     sig.skip(&mut read_buf)?;
 
@@ -99,14 +99,14 @@ fn signature_skip_array() -> Result<()> {
     let mut array = buf.write_array::<ty::Array<ty::Str>>()?;
 
     let mut first = array.write_array();
-    first.write("A");
-    first.write("B");
-    first.write("C");
+    first.write("A")?;
+    first.write("B")?;
+    first.write("C")?;
     first.finish();
 
     let mut second = array.write_array();
-    second.write("D");
-    second.write("E");
+    second.write("D")?;
+    second.write("E")?;
     second.finish();
 
     array.finish();
@@ -114,7 +114,7 @@ fn signature_skip_array() -> Result<()> {
     let sig = Signature::new_const(b"aas");
     assert_eq!(sig, buf.signature());
 
-    let mut read_buf = buf.read();
+    let mut read_buf = buf.peek();
 
     sig.skip(&mut read_buf)?;
 

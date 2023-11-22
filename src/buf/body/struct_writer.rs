@@ -1,12 +1,12 @@
 use crate::ty;
-use crate::{Arguments, Frame, Write};
+use crate::{Arguments, Frame, Result, Write};
 
 use crate::buf::BufMut;
 
 use super::ArrayWriter;
 
 /// Helper to write a struct into a buffer.
-pub(crate) struct StructWriter<'a, O: ?Sized>
+pub struct StructWriter<'a, O: ?Sized>
 where
     O: BufMut,
 {
@@ -25,25 +25,25 @@ where
 
     /// Store a value in the struct.
     #[inline]
-    pub(crate) fn store<T>(&mut self, value: T)
+    pub(crate) fn store<T>(&mut self, value: T) -> Result<()>
     where
         T: Frame,
     {
-        self.buf.store(value);
+        self.buf.store(value)
     }
 
     /// Write a field in the struct.
     #[inline]
-    pub(crate) fn write<T>(&mut self, value: &T)
+    pub(crate) fn write<T>(&mut self, value: &T) -> Result<()>
     where
         T: ?Sized + Write,
     {
-        value.write_to(self.buf);
+        value.write_to(self.buf)
     }
 
     /// Extend the current struct with the given arguments as fields.
     #[inline]
-    pub(super) fn extend<T>(&mut self, value: T)
+    pub(super) fn extend<T>(&mut self, value: T) -> Result<()>
     where
         T: Arguments,
     {
