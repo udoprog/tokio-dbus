@@ -24,7 +24,6 @@ use super::{padding_to, ArrayReader, StructReader};
 ///     assert_eq!(buf.get(), &[b'o', b' ', b'b', b'a', b'r', 0]);
 ///     Ok(())
 /// }
-/// # read(&mut ReadBuf::from_slice_le(b"\x07\x00\x00\x00foo bar\x00"))?;
 /// # Ok::<_, tokio_dbus::Error>(())
 /// ```
 pub struct ReadBuf<'a> {
@@ -38,14 +37,11 @@ pub struct ReadBuf<'a> {
 impl<'a> ReadBuf<'a> {
     /// Construct an empty read buffer.
     pub(crate) const fn empty() -> Self {
-        Self::new(ptr::NonNull::dangling(), 0, Endianness::NATIVE)
-    }
-
-    /// Construct a read buffer from a slice.
-    #[doc(hidden)]
-    #[inline]
-    pub const fn from_slice_le(data: &'a [u8]) -> Self {
-        Self::from_slice(data, Endianness::LITTLE)
+        Self::new(
+            ptr::NonNull::<u64>::dangling().cast(),
+            0,
+            Endianness::NATIVE,
+        )
     }
 
     /// Construct a read buffer from a slice.
@@ -99,7 +95,6 @@ impl<'a> ReadBuf<'a> {
     ///     assert_eq!(buf.get(), &[b'o', b' ', b'b', b'a', b'r', 0]);
     ///     Ok(())
     /// }
-    /// # read(&mut ReadBuf::from_slice_le(b"\x07\x00\x00\x00foo bar\x00"))?;
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     pub fn get(&self) -> &'a [u8] {
@@ -137,7 +132,6 @@ impl<'a> ReadBuf<'a> {
     ///     assert!(buf.is_empty());
     ///     Ok(())
     /// }
-    /// # read(&mut ReadBuf::from_slice_le(b"\x04\x00\x00\x00\x01\x02"))?;
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ````
     pub fn read<T>(&mut self) -> Result<&'a T>
@@ -298,7 +292,6 @@ impl<'a> ReadBuf<'a> {
     ///     assert_eq!(buf.get(), &[b'o', b' ', b'b', b'a', b'r', 0]);
     ///     Ok(())
     /// }
-    /// # read(&mut ReadBuf::from_slice_le(b"\x07\x00\x00\x00foo bar\x00"))?;
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     pub fn load<T>(&mut self) -> Result<T>
@@ -314,8 +307,7 @@ impl<'a> ReadBuf<'a> {
         self.read += padding;
 
         // SAFETY: read is guaranteed to be in bounds of the buffer.
-        let mut frame =
-            unsafe { ptr::read_unaligned(self.data.as_ptr().add(self.read).cast::<T>()) };
+        let mut frame = unsafe { ptr::read(self.data.as_ptr().add(self.read).cast::<T>()) };
 
         self.read += size_of::<T>();
         frame.adjust(self.endianness);

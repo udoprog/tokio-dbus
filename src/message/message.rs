@@ -198,7 +198,7 @@ impl<'a> Message<'a> {
             destination: self.destination.map(Box::from),
             sender: self.sender.map(Box::from),
             signature: self.signature.to_owned(),
-            body: self.body.get().into(),
+            body: self.body.clone().into(),
             endianness: self.body.endianness(),
         }
     }
@@ -244,13 +244,17 @@ impl<'a> Message<'a> {
     /// body.write("Hello World!");
     ///
     /// let m = send.method_call(PATH, "Hello")
-    ///     .with_body_buf(&body);
+    ///     .with_body(&body);
     ///
     /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
     /// assert_eq!(m.signature(), Signature::STRING);
     /// ```
-    pub fn with_body_buf(self, body: &'a BodyBuf) -> Self {
-        self.with_signature(body.signature()).with_body(body.read())
+    pub fn with_body(self, body: &'a BodyBuf) -> Self {
+        Self {
+            signature: body.signature(),
+            body: body.read(),
+            ..self
+        }
     }
 
     /// Get a buffer to the body of the message.
@@ -271,7 +275,7 @@ impl<'a> Message<'a> {
     /// body.write("Hello World!");
     ///
     /// let m = send.method_call(PATH, "Hello")
-    ///     .with_body_buf(&body);
+    ///     .with_body(&body);
     ///
     /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
     /// assert_eq!(m.signature(), Signature::new(b"us")?);
@@ -283,39 +287,6 @@ impl<'a> Message<'a> {
     /// ```
     pub fn body(&self) -> ReadBuf<'a> {
         self.body.clone()
-    }
-
-    /// Modify the body of the message.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::num::NonZeroU32;
-    ///
-    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf, Signature};
-    ///
-    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
-    ///
-    /// let mut send = SendBuf::new();
-    /// let mut body = BodyBuf::new();
-    ///
-    /// body.store(42u32);
-    /// body.write("Hello World!");
-    ///
-    /// let m = send.method_call(PATH, "Hello")
-    ///     .with_body(body.read())
-    ///     .with_signature(body.signature());
-    ///
-    /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
-    /// assert_eq!(m.signature(), Signature::new(b"us")?);
-    ///
-    /// let mut r = m.body();
-    /// assert_eq!(r.load::<u32>()?, 42);
-    /// assert_eq!(r.read::<str>()?, "Hello World!");
-    /// # Ok::<_, tokio_dbus::Error>(())
-    /// ```
-    pub fn with_body(self, body: ReadBuf<'a>) -> Self {
-        Self { body, ..self }
     }
 
     /// Get the serial of the message.
@@ -564,7 +535,7 @@ impl<'a> Message<'a> {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, ObjectPath, SendBuf, Signature};
+    /// use tokio_dbus::{BodyBuf, Message, ObjectPath, SendBuf, Signature};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
@@ -573,34 +544,14 @@ impl<'a> Message<'a> {
     /// let m = send.method_call(PATH, "Hello");
     /// assert_eq!(m.signature(), Signature::EMPTY);
     ///
-    /// let m2 = m.with_signature(Signature::STRING);
+    /// let mut body = BodyBuf::new();
+    /// body.write("Hello World!");
+    ///
+    /// let m2 = m.with_body(&body);
     /// assert_eq!(m2.signature(), Signature::STRING);
     /// ```
     pub fn signature(&self) -> &Signature {
         self.signature
-    }
-
-    /// Modify the signature of the message.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::num::NonZeroU32;
-    ///
-    /// use tokio_dbus::{Message, ObjectPath, Signature, SendBuf};
-    ///
-    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
-    ///
-    /// let mut send = SendBuf::new();
-    ///
-    /// let m = send.method_call(PATH, "Hello");
-    /// assert_eq!(m.signature(), Signature::EMPTY);
-    ///
-    /// let m2 = m.with_signature(Signature::STRING);
-    /// assert_eq!(m2.signature(), Signature::STRING);
-    /// ```
-    pub fn with_signature(self, signature: &'a Signature) -> Self {
-        Self { signature, ..self }
     }
 
     pub(crate) fn message_type(&self) -> crate::proto::MessageType {
@@ -623,7 +574,7 @@ impl PartialEq<OwnedMessage> for Message<'_> {
             && self.destination == other.destination.as_deref()
             && self.sender == other.sender.as_deref()
             && self.signature == other.signature
-            && self.body.get() == &*other.body
+            && self.body.get() == other.body.get()
             && self.body.endianness() == other.endianness
     }
 }

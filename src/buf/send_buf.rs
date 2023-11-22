@@ -1,13 +1,13 @@
 use std::num::NonZeroU32;
 
-use crate::buf::OwnedBuf;
+use crate::buf::UnalignedBuf;
 use crate::error::{Error, ErrorKind, Result};
-use crate::proto;
+use crate::{proto, Endianness};
 use crate::{Message, MessageKind, ObjectPath, Signature};
 
 /// Buffer used for sending messages through D-Bus.
 pub struct SendBuf {
-    buf: OwnedBuf,
+    buf: UnalignedBuf,
     serial: u32,
 }
 
@@ -15,18 +15,18 @@ impl SendBuf {
     /// Construct a new send buffer.
     pub fn new() -> Self {
         Self {
-            buf: OwnedBuf::new(),
+            buf: UnalignedBuf::new(),
             serial: 0,
         }
     }
 
     /// Access the underlying buffer.
-    pub(crate) fn buf(&mut self) -> &OwnedBuf {
+    pub(crate) fn buf(&mut self) -> &UnalignedBuf {
         &self.buf
     }
 
     /// Access the underlying buffer mutably.
-    pub(crate) fn buf_mut(&mut self) -> &mut OwnedBuf {
+    pub(crate) fn buf_mut(&mut self) -> &mut UnalignedBuf {
         &mut self.buf
     }
 
@@ -95,7 +95,7 @@ impl SendBuf {
 
     /// Write a message to the buffer.
     pub fn write_message(&mut self, message: &Message<'_>) -> Result<()> {
-        self.buf.update_alignment_base();
+        self.buf.update_base_align();
 
         let body = message.body();
 
@@ -104,7 +104,7 @@ impl SendBuf {
         };
 
         self.buf.store(proto::Header {
-            endianness: self.buf.endianness(),
+            endianness: Endianness::NATIVE,
             message_type: message.message_type(),
             flags: message.flags,
             version: 1,

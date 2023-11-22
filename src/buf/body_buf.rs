@@ -1,4 +1,4 @@
-use crate::buf::{OwnedBuf, TypedArrayWriter, TypedStructWriter};
+use crate::buf::{AlignedBuf, TypedArrayWriter, TypedStructWriter};
 use crate::error::Result;
 use crate::signature::{SignatureBuilder, SignatureError, SignatureErrorKind};
 use crate::{ty, Endianness, Frame, ReadBuf, Signature, Write};
@@ -21,8 +21,8 @@ use crate::arguments::{Arguments, ExtendBuf};
 /// # Ok::<_, tokio_dbus::Error>(())
 /// ```
 pub struct BodyBuf {
+    buf: AlignedBuf,
     signature: SignatureBuilder,
-    buf: OwnedBuf,
 }
 
 impl BodyBuf {
@@ -45,6 +45,27 @@ impl BodyBuf {
         Self::with_endianness(Endianness::NATIVE)
     }
 
+    /// Construct a new buffer with the specified endianness.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{BodyBuf, Endianness};
+    ///
+    /// let buf = BodyBuf::with_endianness(Endianness::LITTLE);
+    /// ```
+    pub fn with_endianness(endianness: Endianness) -> Self {
+        Self {
+            signature: SignatureBuilder::new(),
+            buf: AlignedBuf::with_endianness(endianness),
+        }
+    }
+
+    /// Convert into parts.
+    pub(crate) fn into_parts(self) -> (AlignedBuf, SignatureBuilder) {
+        (self.buf, self.signature)
+    }
+
     /// Clear the buffer.
     ///
     /// # Examples
@@ -65,22 +86,6 @@ impl BodyBuf {
     pub fn clear(&mut self) {
         self.signature.clear();
         self.buf.clear();
-    }
-
-    /// Construct a new buffer with the specified endianness.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tokio_dbus::{BodyBuf, Endianness};
-    ///
-    /// let buf = BodyBuf::with_endianness(Endianness::LITTLE);
-    /// ```
-    pub fn with_endianness(endianness: Endianness) -> Self {
-        Self {
-            signature: SignatureBuilder::new(),
-            buf: OwnedBuf::with_endianness(endianness),
-        }
     }
 
     /// Get the signature of the buffer.
@@ -207,7 +212,7 @@ impl BodyBuf {
     /// body.store(20u32);
     ///
     /// let m = send.method_call(PATH, "Hello")
-    ///     .with_body_buf(&body);
+    ///     .with_body(&body);
     ///
     /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
     /// assert_eq!(m.signature(), Signature::new(b"du")?);
@@ -243,7 +248,7 @@ impl BodyBuf {
     /// body.write(PATH);
     ///
     /// let m = send.method_call(PATH, "Hello")
-    ///     .with_body_buf(&body);
+    ///     .with_body(&body);
     ///
     /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
     /// assert_eq!(m.signature(), Signature::new(b"so")?);
@@ -281,7 +286,7 @@ impl BodyBuf {
     /// body.extend(("Hello World!", PATH, 10u32));
     ///
     /// let m = send.method_call(PATH, "Hello")
-    ///     .with_body_buf(&body);
+    ///     .with_body(&body);
     ///
     /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
     /// assert_eq!(m.signature(), Signature::new(b"sou")?);

@@ -37,7 +37,7 @@ async fn main() -> Result<()> {
 
                     message
                         .error("se.tedro.DBusExample.Error", send.next_serial())
-                        .with_body_buf(body)
+                        .with_body(body)
                 }
             };
 
@@ -65,7 +65,7 @@ fn handle_method_call<'a>(
             "Ping" => {
                 let value = msg.body().load::<u32>()?;
                 body.extend(value)?;
-                msg.method_return(send.next_serial()).with_body_buf(body)
+                msg.method_return(send.next_serial()).with_body(body)
             }
             method => bail!("Unknown method: {method}"),
         },

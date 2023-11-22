@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::buf::{ArrayWriter, OwnedBuf, TypedStructWriter};
+use crate::buf::{AlignedBuf, ArrayWriter, TypedStructWriter};
 use crate::ty;
 use crate::{Frame, Write};
 
@@ -10,12 +10,12 @@ use crate::{Frame, Write};
 ///
 /// [`BodyBuf::write_array`]: crate::BodyBuf::write_array
 pub struct TypedArrayWriter<'a, E> {
-    inner: ArrayWriter<'a, OwnedBuf>,
+    inner: ArrayWriter<'a, AlignedBuf>,
     _marker: PhantomData<E>,
 }
 
 impl<'a, E> TypedArrayWriter<'a, E> {
-    pub(super) fn new(inner: ArrayWriter<'a, OwnedBuf>) -> Self {
+    pub(super) fn new(inner: ArrayWriter<'a, AlignedBuf>) -> Self {
         Self {
             inner,
             _marker: PhantomData,

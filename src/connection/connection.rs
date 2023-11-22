@@ -255,7 +255,7 @@ impl Connection {
             .send
             .method_call(org_freedesktop_dbus::PATH, "RequestName")
             .with_destination(org_freedesktop_dbus::DESTINATION)
-            .with_body_buf(&self.body);
+            .with_body(&self.body);
 
         self.send.write_message(&m)?;
         let serial = m.serial();

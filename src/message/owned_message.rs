@@ -1,5 +1,6 @@
 use std::num::NonZeroU32;
 
+use crate::buf::AlignedBuf;
 use crate::message::OwnedMessageKind;
 use crate::{
     BodyBuf, Endianness, Flags, Message, MessageKind, ObjectPath, OwnedSignature, ReadBuf,
@@ -27,7 +28,7 @@ pub struct OwnedMessage {
     /// The signature of the body.
     pub(super) signature: OwnedSignature,
     /// The body associated with the message.
-    pub(super) body: Box<[u8]>,
+    pub(super) body: AlignedBuf,
     /// The endianness of the body.
     pub(super) endianness: Endianness,
 }
@@ -59,7 +60,7 @@ impl OwnedMessage {
             destination: None,
             sender: None,
             signature: OwnedSignature::EMPTY,
-            body: Box::from([]),
+            body: AlignedBuf::new(),
             endianness: Endianness::NATIVE,
         }
     }
@@ -103,7 +104,7 @@ impl OwnedMessage {
             interface: None,
             destination: self.sender,
             sender: self.destination,
-            body: Box::from([]),
+            body: AlignedBuf::new(),
             endianness: self.endianness,
         }
     }
@@ -132,7 +133,7 @@ impl OwnedMessage {
             destination: None,
             sender: None,
             signature: OwnedSignature::empty(),
-            body: Box::from([]),
+            body: AlignedBuf::new(),
             endianness: Endianness::NATIVE,
         }
     }
@@ -174,7 +175,7 @@ impl OwnedMessage {
             interface: None,
             destination: self.sender,
             sender: self.destination,
-            body: Box::from([]),
+            body: AlignedBuf::new(),
             endianness: self.endianness,
         }
     }
@@ -189,7 +190,7 @@ impl OwnedMessage {
             destination: self.destination.as_deref(),
             sender: self.sender.as_deref(),
             signature: &self.signature,
-            body: ReadBuf::from_slice(self.body.as_ref(), self.endianness),
+            body: ReadBuf::from_slice(self.body.get(), self.endianness),
         }
     }
 
@@ -235,14 +236,19 @@ impl OwnedMessage {
     ///
     /// let m = send.method_call(PATH, "Hello")
     ///     .to_owned()
-    ///     .with_body_buf(&body);
+    ///     .with_body(body);
     ///
     /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
     /// assert_eq!(m.signature(), Signature::STRING);
     /// ```
-    pub fn with_body_buf(self, body: &BodyBuf) -> Self {
-        self.with_signature(body.signature().to_owned())
-            .with_body(body.read().get().into())
+    pub fn with_body(self, body: BodyBuf) -> Self {
+        let (body, signature) = body.into_parts();
+
+        Self {
+            body,
+            signature: signature.into_owned_signature(),
+            ..self
+        }
     }
 
     /// Get a buffer to the body of the message.
@@ -264,7 +270,7 @@ impl OwnedMessage {
     ///
     /// let m = send.method_call(PATH, "Hello")
     ///     .to_owned()
-    ///     .with_body_buf(&body);
+    ///     .with_body(body);
     ///
     /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
     /// assert_eq!(m.signature(), Signature::new(b"us")?);
@@ -275,41 +281,7 @@ impl OwnedMessage {
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     pub fn body(&self) -> ReadBuf<'_> {
-        ReadBuf::from_slice(&self.body, self.endianness)
-    }
-
-    /// Modify the body of the message.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::num::NonZeroU32;
-    ///
-    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf, Signature};
-    ///
-    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
-    ///
-    /// let mut send = SendBuf::new();
-    /// let mut body = BodyBuf::new();
-    ///
-    /// body.store(42u32);
-    /// body.write("Hello World!");
-    ///
-    /// let m = send.method_call(PATH, "Hello")
-    ///     .to_owned()
-    ///     .with_body(body.read().get().into())
-    ///     .with_signature(body.signature().to_owned());
-    ///
-    /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
-    /// assert_eq!(m.signature(), Signature::new(b"us")?);
-    ///
-    /// let mut r = m.body();
-    /// assert_eq!(r.load::<u32>()?, 42);
-    /// assert_eq!(r.read::<str>()?, "Hello World!");
-    /// # Ok::<_, tokio_dbus::Error>(())
-    /// ```
-    pub fn with_body(self, body: Box<[u8]>) -> Self {
-        Self { body, ..self }
+        ReadBuf::from_slice(self.body.get(), self.endianness)
     }
 
     /// Get the serial of the message.
@@ -558,7 +530,7 @@ impl OwnedMessage {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{Message, ObjectPath, SendBuf, Signature};
+    /// use tokio_dbus::{BodyBuf, Message, ObjectPath, SendBuf, Signature};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
@@ -567,34 +539,14 @@ impl OwnedMessage {
     /// let m = send.method_call(PATH, "Hello").to_owned();
     /// assert_eq!(m.signature(), Signature::EMPTY);
     ///
-    /// let m2 = m.with_signature(Signature::STRING.to_owned());
+    /// let mut body = BodyBuf::new();
+    /// body.write("Hello World!");
+    ///
+    /// let m2 = m.with_body(body);
     /// assert_eq!(m2.signature(), Signature::STRING);
     /// ```
     pub fn signature(&self) -> &Signature {
         &self.signature
-    }
-
-    /// Modify the signature of the message.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::num::NonZeroU32;
-    ///
-    /// use tokio_dbus::{Message, ObjectPath, Signature, SendBuf};
-    ///
-    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
-    ///
-    /// let mut send = SendBuf::new();
-    ///
-    /// let m = send.method_call(PATH, "Hello");
-    /// assert_eq!(m.signature(), Signature::EMPTY);
-    ///
-    /// let m2 = m.with_signature(Signature::STRING);
-    /// assert_eq!(m2.signature(), Signature::STRING);
-    /// ```
-    pub fn with_signature(self, signature: OwnedSignature) -> Self {
-        Self { signature, ..self }
     }
 }
 

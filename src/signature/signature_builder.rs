@@ -4,6 +4,7 @@ use std::{mem::MaybeUninit, ops::Deref};
 use crate::signature::{
     Signature, SignatureError, SignatureErrorKind, MAX_CONTAINER_DEPTH, MAX_DEPTH, MAX_SIGNATURE,
 };
+use crate::OwnedSignature;
 
 /// A D-Bus signature builder.
 ///
@@ -118,6 +119,11 @@ impl SignatureBuilder {
         }
 
         true
+    }
+
+    /// Convert into an owned signature.
+    pub(crate) fn into_owned_signature(self) -> OwnedSignature {
+        OwnedSignature::from_raw_parts(self.data, self.init)
     }
 
     #[inline]

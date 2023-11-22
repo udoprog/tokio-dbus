@@ -1,5 +1,6 @@
 use std::alloc::{alloc, dealloc, handle_alloc_error, realloc, Layout};
-use std::mem::size_of;
+use std::fmt;
+use std::mem::{align_of, size_of};
 use std::ptr;
 use std::slice::{from_raw_parts, from_raw_parts_mut};
 
@@ -9,11 +10,11 @@ use crate::buf::{
 use crate::proto::Endianness;
 use crate::{Frame, Write};
 
-/// The alignment of the buffer.
-const ALIGNMENT: usize = 1;
+/// The type we're basing our alignment on.
+pub(crate) type AlignType = u64;
 
-/// A buffer that can be used for buffering aligned data.
-pub(crate) struct OwnedBuf {
+/// An owned buffer which is aligned per the specification of D-Bus messages.
+pub(crate) struct AlignedBuf {
     /// Pointed to data of the buffer.
     data: ptr::NonNull<u8>,
     /// The initialized capacity of the buffer.
@@ -22,26 +23,23 @@ pub(crate) struct OwnedBuf {
     written: usize,
     /// Read position in the buffer.
     read: usize,
-    /// Current frame basis used for alignment.
-    base: usize,
     /// Dynamic endainness of the buffer.
     endianness: Endianness,
 }
 
-impl OwnedBuf {
+impl AlignedBuf {
     /// Construct a new empty buffer.
-    pub(crate) fn new() -> Self {
+    pub(crate) const fn new() -> Self {
         Self::with_endianness(Endianness::NATIVE)
     }
 
     /// Construct a new buffer with the specified endianness.
-    pub(crate) fn with_endianness(endianness: Endianness) -> Self {
+    pub(crate) const fn with_endianness(endianness: Endianness) -> Self {
         Self {
-            data: ptr::NonNull::dangling(),
+            data: ptr::NonNull::<AlignType>::dangling().cast(),
             capacity: 0,
             written: 0,
             read: 0,
-            base: 0,
             endianness,
         }
     }
@@ -64,14 +62,6 @@ impl OwnedBuf {
     /// Write a struct into the buffer.
     pub(super) fn write_struct(&mut self) -> StructWriter<'_, Self> {
         StructWriter::new(self)
-    }
-
-    /// Update alignment basis to match the write location.
-    ///
-    /// This ensures that subsequent writes are aligned even if the underlying
-    /// buffer is not.
-    pub(crate) fn update_alignment_base(&mut self) {
-        self.base = self.written;
     }
 
     /// Read `len` bytes from the buffer and make accessible through a
@@ -130,11 +120,11 @@ impl OwnedBuf {
         assert!(at + size_of::<T>() <= self.written, "write underflow");
         frame.adjust(self.endianness);
 
-        // SAFETY: We've just asserted that the write is in bounds above.
+        // SAFETY: We've just asserted that the write is in bounds above and
+        // this buffer ensures that all types that implement `Frame` are written
+        // to aligned location.
         unsafe {
-            let src = (&frame as *const T).cast::<u8>();
-            let dst = self.data.as_ptr().add(at);
-            ptr::copy_nonoverlapping(src, dst, size_of::<T>());
+            self.data.as_ptr().add(at).cast::<T>().write(frame);
         }
     }
 
@@ -152,9 +142,11 @@ impl OwnedBuf {
         // SAFETY: We've just reserved and aligned the buffer in the `reserve`
         // call just above.
         unsafe {
-            let src = (&frame as *const T).cast::<u8>();
-            let dst = self.data.as_ptr().add(self.written);
-            ptr::copy_nonoverlapping(src, dst, size_of::<T>());
+            self.data
+                .as_ptr()
+                .add(self.written)
+                .cast::<T>()
+                .write(frame);
             self.written += size_of::<T>();
         }
     }
@@ -172,6 +164,7 @@ impl OwnedBuf {
         let requested = self.written + bytes.len();
         self.ensure_capacity(requested);
 
+        // SAFETY: We've ensures that the necessary capacity is available.
         unsafe {
             self.data
                 .as_ptr()
@@ -187,6 +180,7 @@ impl OwnedBuf {
         let requested = self.written + bytes.len() + 1;
         self.ensure_capacity(requested);
 
+        // SAFETY: We've ensures that the necessary capacity is available.
         unsafe {
             let ptr = self.data.as_ptr().add(self.written);
             ptr.copy_from(bytes.as_ptr(), bytes.len());
@@ -235,7 +229,6 @@ impl OwnedBuf {
     pub(crate) fn clear(&mut self) {
         self.read = 0;
         self.written = 0;
-        self.base = 0;
     }
 
     /// Get remaining slice of the buffer that can be written.
@@ -261,7 +254,7 @@ impl OwnedBuf {
         let capacity = 16usize.max(capacity.next_power_of_two());
 
         assert!(
-            capacity <= max_size_for_align(ALIGNMENT),
+            capacity <= max_size_for_align(align_of::<AlignType>()),
             "capacity overflow"
         );
 
@@ -272,7 +265,7 @@ impl OwnedBuf {
     fn realloc(&mut self, capacity: usize) {
         unsafe {
             if self.capacity == 0 {
-                let layout = Layout::from_size_align_unchecked(capacity, ALIGNMENT);
+                let layout = Layout::from_size_align_unchecked(capacity, align_of::<AlignType>());
                 let ptr = alloc(layout);
 
                 if ptr.is_null() {
@@ -281,7 +274,8 @@ impl OwnedBuf {
 
                 self.data = ptr::NonNull::new_unchecked(ptr);
             } else {
-                let layout = Layout::from_size_align_unchecked(self.capacity, ALIGNMENT);
+                let layout =
+                    Layout::from_size_align_unchecked(self.capacity, align_of::<AlignType>());
                 let ptr = realloc(self.data.as_ptr(), layout, capacity);
 
                 if ptr.is_null() {
@@ -295,7 +289,7 @@ impl OwnedBuf {
 
     /// Align the write end of the buffer and zero-initialize any padding.
     pub(crate) fn align_mut<T>(&mut self) {
-        let padding = padding_to::<T>(self.written - self.base);
+        let padding = padding_to::<T>(self.written);
         let requested = self.written + padding + size_of::<T>();
 
         self.ensure_capacity(requested);
@@ -315,23 +309,34 @@ impl OwnedBuf {
     }
 }
 
-// SAFETY: [`OwnedBuf`] is `Send` because it owns data of type `u8`.
-unsafe impl Send for OwnedBuf {}
-// SAFETY: [`OwnedBuf`] is `Send` because it owns data of type `u8`.
-unsafe impl Sync for OwnedBuf {}
+// SAFETY: [`AlignedBuf`] is `Send` because it owns data of type `u8`.
+unsafe impl Send for AlignedBuf {}
+// SAFETY: [`AlignedBuf`] is `Send` because it owns data of type `u8`.
+unsafe impl Sync for AlignedBuf {}
 
-impl Default for OwnedBuf {
+impl fmt::Debug for AlignedBuf {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AlignedBuf")
+            .field("len", &self.len())
+            .field("capacity", &self.capacity)
+            .field("endianness", &self.endianness)
+            .finish()
+    }
+}
+
+impl Default for AlignedBuf {
     #[inline]
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Drop for OwnedBuf {
+impl Drop for AlignedBuf {
     fn drop(&mut self) {
         unsafe {
             if self.capacity > 0 {
-                let layout = Layout::from_size_align_unchecked(self.capacity, ALIGNMENT);
+                let layout =
+                    Layout::from_size_align_unchecked(self.capacity, align_of::<AlignType>());
                 dealloc(self.data.as_ptr(), layout);
                 self.capacity = 0;
             }
@@ -339,20 +344,20 @@ impl Drop for OwnedBuf {
     }
 }
 
-impl BufMut for OwnedBuf {
+impl BufMut for AlignedBuf {
     #[inline]
     fn align_mut<T>(&mut self) {
-        OwnedBuf::align_mut::<T>(self)
+        AlignedBuf::align_mut::<T>(self)
     }
 
     #[inline]
     fn len(&self) -> usize {
-        OwnedBuf::len(self)
+        AlignedBuf::len(self)
     }
 
     #[inline]
     fn is_empty(&self) -> bool {
-        OwnedBuf::is_empty(self)
+        AlignedBuf::is_empty(self)
     }
 
     #[inline]
@@ -360,7 +365,7 @@ impl BufMut for OwnedBuf {
     where
         T: ?Sized + Write,
     {
-        OwnedBuf::write(self, value)
+        AlignedBuf::write(self, value)
     }
 
     #[inline]
@@ -368,7 +373,7 @@ impl BufMut for OwnedBuf {
     where
         T: Frame,
     {
-        OwnedBuf::store(self, frame)
+        AlignedBuf::store(self, frame)
     }
 
     #[inline]
@@ -376,7 +381,7 @@ impl BufMut for OwnedBuf {
     where
         T: Frame,
     {
-        OwnedBuf::alloc(self)
+        AlignedBuf::alloc(self)
     }
 
     #[inline]
@@ -384,16 +389,44 @@ impl BufMut for OwnedBuf {
     where
         T: Frame,
     {
-        OwnedBuf::store_at(self, at, frame)
+        AlignedBuf::store_at(self, at, frame)
     }
 
     #[inline]
     fn extend_from_slice(&mut self, bytes: &[u8]) {
-        OwnedBuf::extend_from_slice(self, bytes);
+        AlignedBuf::extend_from_slice(self, bytes);
     }
 
     #[inline]
     fn extend_from_slice_nul(&mut self, bytes: &[u8]) {
-        OwnedBuf::extend_from_slice_nul(self, bytes);
+        AlignedBuf::extend_from_slice_nul(self, bytes);
+    }
+}
+
+impl PartialEq<AlignedBuf> for AlignedBuf {
+    #[inline]
+    fn eq(&self, other: &AlignedBuf) -> bool {
+        self.get() == other.get() && self.endianness == other.endianness
+    }
+}
+
+impl Eq for AlignedBuf {}
+
+impl Clone for AlignedBuf {
+    #[inline]
+    fn clone(&self) -> Self {
+        let mut buf = Self::with_endianness(self.endianness());
+        buf.extend_from_slice(self.get());
+        buf
+    }
+}
+
+/// Construct an aligned buffer from a read buffer.
+impl From<ReadBuf<'_>> for AlignedBuf {
+    #[inline]
+    fn from(value: ReadBuf<'_>) -> Self {
+        let mut buf = Self::with_endianness(value.endianness());
+        buf.extend_from_slice(value.get());
+        buf
     }
 }

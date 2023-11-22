@@ -9,7 +9,7 @@ use std::os::fd::RawFd;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::net::UnixStream;
 
-use crate::buf::{padding_to, OwnedBuf, MAX_ARRAY_LENGTH, MAX_BODY_LENGTH};
+use crate::buf::{padding_to, AlignedBuf, UnalignedBuf, MAX_ARRAY_LENGTH, MAX_BODY_LENGTH};
 use crate::error::{Error, ErrorKind, Result};
 use crate::proto;
 use crate::sasl::Auth;
@@ -131,7 +131,7 @@ impl Transport {
     /// Send a SASL message and receive a response.
     pub(crate) fn sasl_send(
         &mut self,
-        buf: &mut OwnedBuf,
+        buf: &mut UnalignedBuf,
         request: &SaslRequest<'_>,
     ) -> Result<()> {
         loop {
@@ -166,7 +166,7 @@ impl Transport {
     }
 
     /// Receive a sasl response.
-    pub(crate) fn sasl_recv(&mut self, buf: &mut OwnedBuf) -> Result<usize> {
+    pub(crate) fn sasl_recv(&mut self, buf: &mut AlignedBuf) -> Result<usize> {
         match self.state {
             TransportState::Sasl(SaslState::Idle) => {
                 let value = recv_line(&mut &self.stream, buf)?;
@@ -180,7 +180,7 @@ impl Transport {
     ///
     /// This does not expect a response from the server, instead it is expected
     /// to transition into the binary D-Bus protocol.
-    pub(crate) fn sasl_begin(&mut self, buf: &mut OwnedBuf) -> Result<()> {
+    pub(crate) fn sasl_begin(&mut self, buf: &mut UnalignedBuf) -> Result<()> {
         loop {
             match &mut self.state {
                 TransportState::Sasl(sasl) => match sasl {
@@ -204,7 +204,7 @@ impl Transport {
     }
 
     /// Write and sned a single message over the connection.
-    pub(crate) fn send_buf(&self, buf: &mut OwnedBuf) -> Result<()> {
+    pub(crate) fn send_buf(&self, buf: &mut UnalignedBuf) -> Result<()> {
         send_buf(&mut &self.stream, buf)?;
         Ok(())
     }
@@ -214,7 +214,7 @@ impl Transport {
         loop {
             match self.state {
                 TransportState::Idle => {
-                    recv.advance();
+                    recv.clear();
 
                     self.recv_buf(
                         recv.buf_mut(),
@@ -255,7 +255,7 @@ impl Transport {
                     self.recv_buf(recv.buf_mut(), total)?;
                     self.state = TransportState::Idle;
 
-                    recv.set_last_message(total, header.serial);
+                    recv.set_last_message(header.serial);
 
                     return Ok(MessageRef {
                         header,
@@ -268,12 +268,21 @@ impl Transport {
         }
     }
 
-    /// Fill a buffer up to `n` bytes.
-    pub(crate) fn recv_buf(&self, buf: &mut OwnedBuf, n: usize) -> io::Result<()> {
+    /// Receive exactly `n` bytes into the receive buffer.
+    pub(crate) fn recv_buf(&mut self, buf: &mut AlignedBuf, n: usize) -> io::Result<()> {
         buf.reserve_bytes(n);
 
-        while buf.len() < n {
-            recv_some(&mut &self.stream, buf)?;
+        let mut remaining = n;
+
+        while remaining > 0 {
+            let n = self.stream.read(&mut buf.get_mut()[..remaining])?;
+
+            if n == 0 {
+                return Err(io::Error::from(io::ErrorKind::UnexpectedEof));
+            }
+
+            buf.advance_mut(n);
+            remaining -= n;
         }
 
         Ok(())
@@ -314,7 +323,7 @@ pub(crate) fn sasl_recv(bytes: &[u8]) -> Result<SaslResponse<'_>> {
 }
 
 /// Send the given buffer over the connection.
-fn send_buf(stream: &mut &UnixStream, buf: &mut OwnedBuf) -> io::Result<()> {
+fn send_buf(stream: &mut &UnixStream, buf: &mut UnalignedBuf) -> io::Result<()> {
     while !buf.is_empty() {
         let n = stream.write(buf.get())?;
         buf.advance(n);
@@ -324,7 +333,7 @@ fn send_buf(stream: &mut &UnixStream, buf: &mut OwnedBuf) -> io::Result<()> {
     Ok(())
 }
 
-fn recv_line(stream: &mut &UnixStream, buf: &mut OwnedBuf) -> io::Result<usize> {
+fn recv_line(stream: &mut &UnixStream, buf: &mut AlignedBuf) -> io::Result<usize> {
     loop {
         if let Some(n) = buf.get().iter().position(|b| *b == b'\n') {
             return Ok(n + 1);
@@ -335,7 +344,7 @@ fn recv_line(stream: &mut &UnixStream, buf: &mut OwnedBuf) -> io::Result<usize> 
 }
 
 /// Receive data into the specified buffer.
-fn recv_some(stream: &mut &UnixStream, buf: &mut OwnedBuf) -> io::Result<()> {
+fn recv_some(stream: &mut &UnixStream, buf: &mut AlignedBuf) -> io::Result<()> {
     buf.reserve_bytes(4096);
     let n = stream.read(buf.get_mut())?;
 

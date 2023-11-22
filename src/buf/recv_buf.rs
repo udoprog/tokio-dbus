@@ -1,6 +1,6 @@
-use std::num::{NonZeroU32, NonZeroUsize};
+use std::num::NonZeroU32;
 
-use crate::buf::{OwnedBuf, ReadBuf};
+use crate::buf::{AlignedBuf, ReadBuf};
 use crate::connection::MessageRef;
 use crate::error::{Error, ErrorKind, Result};
 use crate::{proto, ObjectPath};
@@ -8,10 +8,7 @@ use crate::{Message, MessageKind, Signature};
 
 /// Buffer used for receiving messages through D-Bus.
 pub struct RecvBuf {
-    buf: OwnedBuf,
-    /// The amount the receive buffer needs to be advanced before processing can
-    /// continue.
-    advance: Option<NonZeroUsize>,
+    buf: AlignedBuf,
     /// The last serial observed. This is used to determine whether a
     /// [`MessageRef`] is valid or not.
     last_serial: Option<NonZeroU32>,
@@ -21,29 +18,25 @@ impl RecvBuf {
     /// Construct a new receive buffer.
     pub fn new() -> Self {
         Self {
-            buf: OwnedBuf::new(),
-            advance: None,
+            buf: AlignedBuf::new(),
             last_serial: None,
         }
     }
 
     /// Access the underlying buffer mutably.
-    pub(crate) fn buf_mut(&mut self) -> &mut OwnedBuf {
+    pub(crate) fn buf_mut(&mut self) -> &mut AlignedBuf {
         &mut self.buf
     }
 
     /// Set last serial.
-    pub(crate) fn set_last_message(&mut self, total: usize, serial: u32) {
-        self.advance = NonZeroUsize::new(total);
+    pub(crate) fn set_last_message(&mut self, serial: u32) {
         self.last_serial = NonZeroU32::new(serial);
     }
 
-    pub(crate) fn advance(&mut self) {
-        if let Some(advance) = self.advance.take() {
-            self.buf.advance(advance.get());
-            self.buf.update_alignment_base();
-            self.last_serial = None;
-        }
+    /// Clear the receive buffer.
+    pub(crate) fn clear(&mut self) {
+        self.buf.clear();
+        self.last_serial = None;
     }
 
     /// Read a [`MessageRef`] into a [`Message`].

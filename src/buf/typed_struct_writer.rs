@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::buf::{OwnedBuf, StructWriter, TypedArrayWriter};
+use crate::buf::{AlignedBuf, StructWriter, TypedArrayWriter};
 use crate::{ty, Arguments};
 use crate::{Frame, Write};
 
@@ -11,12 +11,12 @@ use crate::{Frame, Write};
 /// [`BodyBuf::write_struct`]: crate::BodyBuf::write_struct
 #[must_use = "Must call `finish` after writing all related fields"]
 pub struct TypedStructWriter<'a, E> {
-    inner: StructWriter<'a, OwnedBuf>,
+    inner: StructWriter<'a, AlignedBuf>,
     _marker: PhantomData<E>,
 }
 
 impl<'a, E> TypedStructWriter<'a, E> {
-    pub(super) fn new(inner: StructWriter<'a, OwnedBuf>) -> Self {
+    pub(super) fn new(inner: StructWriter<'a, AlignedBuf>) -> Self {
         Self {
             inner,
             _marker: PhantomData,

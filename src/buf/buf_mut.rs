@@ -3,13 +3,13 @@ use std::marker::PhantomData;
 use crate::{Frame, Write};
 
 mod sealed {
-    use crate::buf::{BodyBuf, OwnedBuf};
+    use crate::buf::{AlignedBuf, BodyBuf, UnalignedBuf};
 
     pub trait Sealed {}
 
     impl Sealed for BodyBuf {}
-
-    impl Sealed for OwnedBuf {}
+    impl Sealed for AlignedBuf {}
+    impl Sealed for UnalignedBuf {}
 }
 
 /// An allocated location in the buffer that can be written to later.

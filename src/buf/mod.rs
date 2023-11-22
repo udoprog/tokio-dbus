@@ -24,8 +24,11 @@ mod array_reader;
 pub use self::struct_reader::StructReader;
 mod struct_reader;
 
-pub(crate) use self::owned_buf::OwnedBuf;
-mod owned_buf;
+pub(crate) use self::aligned_buf::AlignedBuf;
+mod aligned_buf;
+
+pub(crate) use self::unaligned_buf::UnalignedBuf;
+mod unaligned_buf;
 
 pub use self::body_buf::BodyBuf;
 mod body_buf;

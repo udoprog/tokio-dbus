@@ -1,4 +1,4 @@
-use crate::buf::OwnedBuf;
+use crate::buf::AlignedBuf;
 use crate::error::Result;
 use crate::proto::Header;
 use crate::proto::{Endianness, Flags, MessageType, Variant};
@@ -100,16 +100,16 @@ const BE_BLOB: [u8; 36] = [
 
 #[test]
 fn write_blobs() {
-    let mut buf = OwnedBuf::with_endianness(Endianness::LITTLE);
+    let mut buf = AlignedBuf::with_endianness(Endianness::LITTLE);
     write_blob(&mut buf);
     assert_eq!(buf.get(), &LE_BLOB[..]);
 
-    let mut buf = OwnedBuf::with_endianness(Endianness::BIG);
+    let mut buf = AlignedBuf::with_endianness(Endianness::BIG);
     write_blob(&mut buf);
     assert_eq!(buf.get(), &BE_BLOB[..]);
 }
 
-fn write_blob(buf: &mut OwnedBuf) {
+fn write_blob(buf: &mut AlignedBuf) {
     buf.store(Header {
         endianness: buf.endianness(),
         message_type: MessageType::METHOD_RETURN,
@@ -139,7 +139,7 @@ fn write_blob(buf: &mut OwnedBuf) {
 
 #[test]
 fn test_read_buf() -> Result<()> {
-    let mut buf = OwnedBuf::new();
+    let mut buf = AlignedBuf::new();
 
     buf.store(4u32);
     buf.extend_from_slice_nul(b"\x01\x02\x03\x04");
@@ -155,7 +155,7 @@ fn test_read_buf() -> Result<()> {
 
 #[test]
 fn test_read_buf_load() -> Result<()> {
-    let mut buf = OwnedBuf::new();
+    let mut buf = AlignedBuf::new();
     buf.store(7u32);
     buf.extend_from_slice_nul(b"foo bar");
 
@@ -170,7 +170,7 @@ fn test_read_buf_load() -> Result<()> {
 
 #[test]
 fn test_read_buf_read() -> Result<()> {
-    let mut buf = OwnedBuf::new();
+    let mut buf = AlignedBuf::new();
     buf.store(4u32);
     buf.extend_from_slice_nul(b"\x01\x02\x03\x04");
 
@@ -189,7 +189,7 @@ fn test_read_buf_read() -> Result<()> {
 
 #[test]
 fn test_nested_read_buf() -> Result<()> {
-    let mut buf = OwnedBuf::new();
+    let mut buf = AlignedBuf::new();
     buf.store(4u32);
     buf.extend_from_slice_nul(b"\x01\x02\x03\x04");
 

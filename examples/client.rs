@@ -17,7 +17,7 @@ async fn main() -> Result<()> {
         .method_call(PATH, "Ping")
         .with_destination(NAME)
         .with_interface(INTERFACE)
-        .with_body_buf(body);
+        .with_body(body);
 
     send.write_message(&m)?;
 

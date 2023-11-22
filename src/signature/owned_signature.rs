@@ -39,6 +39,14 @@ impl OwnedSignature {
         }
     }
 
+    /// Construct from raw parts.
+    pub(crate) const fn from_raw_parts(
+        data: [MaybeUninit<u8>; MAX_SIGNATURE],
+        init: usize,
+    ) -> Self {
+        Self { data, init }
+    }
+
     /// Construct a new signature with validation inside of a constant context.
     ///
     /// This will panic in case the signature is invalid.

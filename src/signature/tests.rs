@@ -1,6 +1,6 @@
 use crate::error::Result;
 use crate::ty;
-use crate::{buf::OwnedBuf, BodyBuf};
+use crate::{buf::AlignedBuf, BodyBuf};
 
 use super::{Signature, SignatureErrorKind, MAX_SIGNATURE};
 
@@ -76,7 +76,7 @@ fn signature_tests() {
 
 #[test]
 fn signature_skip() -> Result<()> {
-    let mut buf = OwnedBuf::new();
+    let mut buf = AlignedBuf::new();
     buf.write("Hello");
     buf.write("World");
 

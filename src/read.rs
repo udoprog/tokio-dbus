@@ -7,6 +7,7 @@ mod sealed {
 
     pub trait Sealed {}
     impl Sealed for [u8] {}
+    impl Sealed for [u16] {}
     impl Sealed for str {}
     impl Sealed for ObjectPath {}
     impl Sealed for Signature {}
