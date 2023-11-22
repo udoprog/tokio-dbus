@@ -3,16 +3,16 @@
 #[cfg(test)]
 mod tests;
 
-pub use self::body::{
+pub use self::helpers::{
     ArrayReader, ArrayWriter, StructReader, StructWriter, TypedArrayWriter, TypedStructWriter,
 };
+mod helpers;
+
+pub use self::body::Body;
 mod body;
 
-pub use self::body_read_buf::BodyReadBuf;
-mod body_read_buf;
-
-pub use self::read_buf::ReadBuf;
-mod read_buf;
+pub use self::aligned::Aligned;
+mod aligned;
 
 pub(crate) use self::aligned_buf::AlignedBuf;
 mod aligned_buf;
@@ -32,11 +32,9 @@ mod buf_mut;
 pub use self::send_buf::SendBuf;
 mod send_buf;
 
+pub(crate) use self::recv_buf::MessageRef;
 pub use self::recv_buf::RecvBuf;
 mod recv_buf;
-
-pub(crate) use self::message_ref::MessageRef;
-mod message_ref;
 
 /// The maximum length of an array in bytes.
 pub(crate) const MAX_ARRAY_LENGTH: u32 = 1u32 << 26;

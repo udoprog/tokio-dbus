@@ -4,7 +4,7 @@ use std::mem::{align_of, size_of};
 use std::ptr;
 use std::slice::{from_raw_parts, from_raw_parts_mut};
 
-use crate::buf::{max_size_for_align, padding_to, Alloc, BufMut, ReadBuf};
+use crate::buf::{max_size_for_align, padding_to, Aligned, Alloc, BufMut};
 use crate::{Frame, Result, Write};
 
 /// The type we're basing our alignment on.
@@ -34,33 +34,33 @@ impl AlignedBuf {
     }
 
     /// Read `len` bytes from the buffer and make accessible through a
-    /// [`ReadBuf`].
+    /// [`Aligned`].
     ///
     /// # Panics
     ///
     /// This panics if `len` is larger than [`len()`].
     ///
     /// [`len()`]: Self::len
-    pub(crate) fn read_until(&mut self, len: usize) -> ReadBuf<'_> {
+    pub(crate) fn read_until(&mut self, len: usize) -> Aligned<'_> {
         assert!(len <= self.len());
         let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
         self.advance(len);
-        ReadBuf::new(data, len)
+        Aligned::new(data, len)
     }
 
-    /// Read the entire buffer and make accessible through [`ReadBuf`].
-    pub(crate) fn read_until_end(&mut self) -> ReadBuf<'_> {
+    /// Read the entire buffer and make accessible through [`Aligned`].
+    pub(crate) fn read_until_end(&mut self) -> Aligned<'_> {
         let len = self.len();
         let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
         self.clear();
-        ReadBuf::new(data, len)
+        Aligned::new(data, len)
     }
 
     /// Access a read buf which peeks into the buffer without advancing it.
-    pub(crate) fn peek(&self) -> ReadBuf<'_> {
+    pub(crate) fn peek(&self) -> Aligned<'_> {
         let len = self.len();
         let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
-        ReadBuf::new(data, len)
+        Aligned::new(data, len)
     }
 
     /// Allocate, zero space for and align data for `T`.
@@ -376,9 +376,9 @@ impl PartialEq<AlignedBuf> for AlignedBuf {
     }
 }
 
-impl PartialEq<ReadBuf<'_>> for AlignedBuf {
+impl PartialEq<Aligned<'_>> for AlignedBuf {
     #[inline]
-    fn eq(&self, other: &ReadBuf<'_>) -> bool {
+    fn eq(&self, other: &Aligned<'_>) -> bool {
         self.get() == other.get()
     }
 }
@@ -395,9 +395,9 @@ impl Clone for AlignedBuf {
 }
 
 /// Construct an aligned buffer from a read buffer.
-impl From<ReadBuf<'_>> for AlignedBuf {
+impl From<Aligned<'_>> for AlignedBuf {
     #[inline]
-    fn from(value: ReadBuf<'_>) -> Self {
+    fn from(value: Aligned<'_>) -> Self {
         let mut buf = Self::new();
         buf.extend_from_slice(value.get());
         buf

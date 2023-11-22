@@ -4,7 +4,9 @@ use crate::{Error, Frame, Read, Result};
 
 /// Read an array from a buffer.
 ///
-/// See [`ReadBuf::read_array`].
+/// See [`Body::read_array`].
+///
+/// [`Body::read_array`]: crate::Body::read_array
 pub struct ArrayReader<B> {
     buf: B,
 }
@@ -30,7 +32,9 @@ where
 {
     /// Load the next value from the array.
     ///
-    /// See [`ReadBuf::read_array`].
+    /// See [`Body::read_array`].
+    ///
+    /// [`Body::read_array`]: crate::Body::read_array
     pub fn load<T>(&mut self) -> Result<Option<T>>
     where
         T: Frame,
@@ -44,7 +48,9 @@ where
 
     /// Read the next value from the array.
     ///
-    /// See [`ReadBuf::read_array`].
+    /// See [`Body::read_array`].
+    ///
+    /// [`Body::read_array`]: crate::Body::read_array
     pub fn read<T>(&mut self) -> Result<Option<&'de T>>
     where
         T: ?Sized + Read,
@@ -58,7 +64,7 @@ where
 
     /// Read an array from within the array.
     ///
-    /// See [`ReadBuf::read_struct`].
+    /// See [`Body::read_struct`].
     pub fn read_array(&mut self) -> Result<Option<ArrayReader<B::ReadUntil>>> {
         if self.buf.is_empty() {
             return Ok(None);

@@ -3,17 +3,17 @@ use std::fmt;
 use crate::error::Result;
 use crate::{Endianness, Frame, Read, Signature};
 
-use super::body::new_array_reader;
-use super::{ArrayReader, BodyBuf, Buf, ReadBuf, StructReader};
+use super::helpers::new_array_reader;
+use super::{Aligned, ArrayReader, BodyBuf, Buf, StructReader};
 
 /// A read-only view into a buffer.
 ///
 /// # Examples
 ///
 /// ```
-/// use tokio_dbus::{Result, BodyReadBuf};
+/// use tokio_dbus::{Result, Body};
 ///
-/// fn read(buf: &mut BodyReadBuf<'_>) -> Result<()> {
+/// fn read(buf: &mut Body<'_>) -> Result<()> {
 ///     assert_eq!(buf.load::<u32>()?, 7u32);
 ///     assert_eq!(buf.load::<u8>()?, b'f');
 ///     assert_eq!(buf.load::<u8>()?, b'o');
@@ -22,22 +22,22 @@ use super::{ArrayReader, BodyBuf, Buf, ReadBuf, StructReader};
 /// }
 /// # Ok::<_, tokio_dbus::Error>(())
 /// ```
-pub struct BodyReadBuf<'a> {
-    data: ReadBuf<'a>,
+pub struct Body<'a> {
+    data: Aligned<'a>,
     endianness: Endianness,
     signature: &'a Signature,
 }
 
-impl<'a> BodyReadBuf<'a> {
+impl<'a> Body<'a> {
     /// Construct an empty read buffer.
     pub(crate) const fn empty() -> Self {
-        Self::from_raw_parts(ReadBuf::empty(), Endianness::NATIVE, Signature::EMPTY)
+        Self::from_raw_parts(Aligned::empty(), Endianness::NATIVE, Signature::EMPTY)
     }
 
     /// Construct a new read buffer wrapping pointed to data.
     #[inline]
     pub(crate) const fn from_raw_parts(
-        data: ReadBuf<'a>,
+        data: Aligned<'a>,
         endianness: Endianness,
         signature: &'a Signature,
     ) -> Self {
@@ -50,7 +50,7 @@ impl<'a> BodyReadBuf<'a> {
 
     /// Deconstruct into raw parts.
     #[inline]
-    pub(crate) const fn into_raw_parts(self) -> (ReadBuf<'a>, Endianness, &'a Signature) {
+    pub(crate) const fn into_raw_parts(self) -> (Aligned<'a>, Endianness, &'a Signature) {
         (self.data, self.endianness, self.signature)
     }
 
@@ -79,9 +79,9 @@ impl<'a> BodyReadBuf<'a> {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{Result, BodyReadBuf};
+    /// use tokio_dbus::{Result, Body};
     ///
-    /// fn read(buf: &mut BodyReadBuf<'_>) -> Result<()> {
+    /// fn read(buf: &mut Body<'_>) -> Result<()> {
     ///     assert_eq!(buf.load::<u32>()?, 7u32);
     ///     assert_eq!(buf.load::<u8>()?, b'f');
     ///     assert_eq!(buf.load::<u8>()?, b'o');
@@ -112,9 +112,9 @@ impl<'a> BodyReadBuf<'a> {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{Result, BodyReadBuf};
+    /// use tokio_dbus::{Result, Body};
     ///
-    /// fn read(buf: &mut BodyReadBuf<'_>) -> Result<()> {
+    /// fn read(buf: &mut Body<'_>) -> Result<()> {
     ///     assert_eq!(buf.load::<u32>()?, 4);
     ///     assert_eq!(buf.load::<u8>()?, 1);
     ///     assert_eq!(buf.load::<u8>()?, 2);
@@ -132,7 +132,7 @@ impl<'a> BodyReadBuf<'a> {
     }
 
     /// Read `len` bytes from the buffer and make accessible through a
-    /// [`BodyReadBuf`].
+    /// [`Body`].
     ///
     /// # Panics
     ///
@@ -143,9 +143,9 @@ impl<'a> BodyReadBuf<'a> {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{Result, BodyReadBuf};
+    /// use tokio_dbus::{Result, Body};
     ///
-    /// fn read(buf: &mut BodyReadBuf<'_>) -> Result<()> {
+    /// fn read(buf: &mut Body<'_>) -> Result<()> {
     ///     let mut read_buf = buf.read_until(6);
     ///     assert_eq!(read_buf.load::<u32>()?, 4);
     ///
@@ -160,8 +160,8 @@ impl<'a> BodyReadBuf<'a> {
     ///     Ok(())
     /// }
     /// ```
-    pub fn read_until(&mut self, len: usize) -> BodyReadBuf<'a> {
-        BodyReadBuf::from_raw_parts(self.data.read_until(len), self.endianness, self.signature)
+    pub fn read_until(&mut self, len: usize) -> Body<'a> {
+        Body::from_raw_parts(self.data.read_until(len), self.endianness, self.signature)
     }
 
     /// Read an array from the buffer.
@@ -271,9 +271,9 @@ impl<'a> BodyReadBuf<'a> {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{Result, BodyReadBuf};
+    /// use tokio_dbus::{Result, Body};
     ///
-    /// fn read(buf: &mut BodyReadBuf<'_>) -> Result<()> {
+    /// fn read(buf: &mut Body<'_>) -> Result<()> {
     ///     assert_eq!(buf.load::<u32>()?, 7u32);
     ///     assert_eq!(buf.load::<u8>()?, b'f');
     ///     assert_eq!(buf.load::<u8>()?, b'o');
@@ -312,12 +312,12 @@ impl<'a> BodyReadBuf<'a> {
     }
 }
 
-// SAFETY: BodyReadBuf is equivalent to `&[u8]`.
-unsafe impl Send for BodyReadBuf<'_> {}
-// SAFETY: BodyReadBuf is equivalent to `&[u8]`.
-unsafe impl Sync for BodyReadBuf<'_> {}
+// SAFETY: Body is equivalent to `&[u8]`.
+unsafe impl Send for Body<'_> {}
+// SAFETY: Body is equivalent to `&[u8]`.
+unsafe impl Sync for Body<'_> {}
 
-impl Clone for BodyReadBuf<'_> {
+impl Clone for Body<'_> {
     #[inline]
     fn clone(&self) -> Self {
         Self {
@@ -328,35 +328,35 @@ impl Clone for BodyReadBuf<'_> {
     }
 }
 
-impl fmt::Debug for BodyReadBuf<'_> {
+impl fmt::Debug for Body<'_> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("BodyReadBuf")
+        f.debug_struct("Body")
             .field("data", &self.data)
             .field("endianness", &self.endianness)
             .finish()
     }
 }
 
-impl<'a, 'b> PartialEq<BodyReadBuf<'a>> for BodyReadBuf<'b> {
+impl<'a, 'b> PartialEq<Body<'a>> for Body<'b> {
     #[inline]
-    fn eq(&self, other: &BodyReadBuf<'a>) -> bool {
+    fn eq(&self, other: &Body<'a>) -> bool {
         self.get() == other.get() && self.endianness == other.endianness
     }
 }
 
-impl PartialEq<BodyBuf> for BodyReadBuf<'_> {
+impl PartialEq<BodyBuf> for Body<'_> {
     #[inline]
     fn eq(&self, other: &BodyBuf) -> bool {
         self.get() == other.get() && self.endianness == other.endianness()
     }
 }
 
-impl<'a> Eq for BodyReadBuf<'a> {}
+impl<'a> Eq for Body<'a> {}
 
-impl<'de> Buf<'de> for BodyReadBuf<'de> {
-    type Reborrow<'this> = &'this mut BodyReadBuf<'de> where Self: 'this;
-    type ReadUntil = BodyReadBuf<'de>;
+impl<'de> Buf<'de> for Body<'de> {
+    type Reborrow<'this> = &'this mut Body<'de> where Self: 'this;
+    type ReadUntil = Body<'de>;
 
     #[inline]
     fn reborrow(&mut self) -> Self::Reborrow<'_> {
@@ -365,27 +365,27 @@ impl<'de> Buf<'de> for BodyReadBuf<'de> {
 
     #[inline]
     fn advance(&mut self, n: usize) -> Result<()> {
-        BodyReadBuf::advance(self, n)
+        Body::advance(self, n)
     }
 
     #[inline]
     fn read_until(&mut self, len: usize) -> Self::ReadUntil {
-        BodyReadBuf::read_until(self, len)
+        Body::read_until(self, len)
     }
 
     #[inline]
     fn len(&self) -> usize {
-        BodyReadBuf::len(self)
+        Body::len(self)
     }
 
     #[inline]
     fn is_empty(&self) -> bool {
-        BodyReadBuf::is_empty(self)
+        Body::is_empty(self)
     }
 
     #[inline]
     fn align<T>(&mut self) -> Result<()> {
-        BodyReadBuf::align::<T>(self)
+        Body::align::<T>(self)
     }
 
     #[inline]
@@ -393,7 +393,7 @@ impl<'de> Buf<'de> for BodyReadBuf<'de> {
     where
         T: Frame,
     {
-        BodyReadBuf::load(self)
+        Body::load(self)
     }
 
     #[inline]
@@ -401,16 +401,16 @@ impl<'de> Buf<'de> for BodyReadBuf<'de> {
     where
         T: ?Sized + Read,
     {
-        BodyReadBuf::read(self)
+        Body::read(self)
     }
 
     #[inline]
     fn load_slice(&mut self, len: usize) -> Result<&'de [u8]> {
-        BodyReadBuf::load_slice(self, len)
+        Body::load_slice(self, len)
     }
 
     #[inline]
     fn load_slice_nul(&mut self, len: usize) -> Result<&'de [u8]> {
-        BodyReadBuf::load_slice_nul(self, len)
+        Body::load_slice_nul(self, len)
     }
 }

@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 use crate::proto::{Flags, MessageType};
-use crate::{BodyBuf, BodyReadBuf, MessageKind, ObjectPath, OwnedMessage, Signature};
+use crate::{Body, BodyBuf, MessageKind, ObjectPath, OwnedMessage, Signature};
 
 /// A borrowed D-Bus message.
 ///
@@ -22,7 +22,7 @@ pub struct Message<'a> {
     /// The sender of the message.
     pub(crate) sender: Option<&'a str>,
     /// The body associated with the message.
-    pub(crate) body: BodyReadBuf<'a>,
+    pub(crate) body: Body<'a>,
 }
 
 impl<'a> Message<'a> {
@@ -51,7 +51,7 @@ impl<'a> Message<'a> {
             interface: None,
             destination: None,
             sender: None,
-            body: BodyReadBuf::empty(),
+            body: Body::empty(),
         }
     }
 
@@ -92,7 +92,7 @@ impl<'a> Message<'a> {
             interface: None,
             destination: self.sender,
             sender: self.destination,
-            body: BodyReadBuf::empty(),
+            body: Body::empty(),
         }
     }
 
@@ -122,7 +122,7 @@ impl<'a> Message<'a> {
             interface: None,
             destination: None,
             sender: None,
-            body: BodyReadBuf::empty(),
+            body: Body::empty(),
         }
     }
 
@@ -163,7 +163,7 @@ impl<'a> Message<'a> {
             interface: None,
             destination: self.sender,
             sender: self.destination,
-            body: BodyReadBuf::empty(),
+            body: Body::empty(),
         }
     }
 
@@ -281,7 +281,7 @@ impl<'a> Message<'a> {
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     #[must_use]
-    pub fn body(&self) -> BodyReadBuf<'a> {
+    pub fn body(&self) -> Body<'a> {
         self.body.clone()
     }
 

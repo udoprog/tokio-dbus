@@ -8,7 +8,7 @@ use std::slice::from_raw_parts;
 use crate::error::{ErrorKind, Result};
 use crate::{Error, Frame, Read};
 
-use super::body::new_array_reader;
+use super::helpers::new_array_reader;
 use super::{padding_to, AlignedBuf, ArrayReader, Buf, StructReader};
 
 /// A read-only view into a buffer.
@@ -16,9 +16,9 @@ use super::{padding_to, AlignedBuf, ArrayReader, Buf, StructReader};
 /// # Examples
 ///
 /// ```
-/// use tokio_dbus::{Result, ReadBuf};
+/// use tokio_dbus::{Result, Aligned};
 ///
-/// fn read(buf: &mut ReadBuf<'_>) -> Result<()> {
+/// fn read(buf: &mut Aligned<'_>) -> Result<()> {
 ///     assert_eq!(buf.load::<u32>()?, 7u32);
 ///     assert_eq!(buf.load::<u8>()?, b'f');
 ///     assert_eq!(buf.load::<u8>()?, b'o');
@@ -27,14 +27,14 @@ use super::{padding_to, AlignedBuf, ArrayReader, Buf, StructReader};
 /// }
 /// # Ok::<_, tokio_dbus::Error>(())
 /// ```
-pub struct ReadBuf<'a> {
+pub struct Aligned<'a> {
     data: ptr::NonNull<u8>,
     read: usize,
     written: usize,
     _marker: PhantomData<&'a [u8]>,
 }
 
-impl<'a> ReadBuf<'a> {
+impl<'a> Aligned<'a> {
     /// Construct an empty read buffer.
     pub(crate) const fn empty() -> Self {
         Self::new(ptr::NonNull::<u64>::dangling().cast(), 0)
@@ -55,9 +55,9 @@ impl<'a> ReadBuf<'a> {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{Result, ReadBuf};
+    /// use tokio_dbus::{Result, Aligned};
     ///
-    /// fn read(buf: &mut ReadBuf<'_>) -> Result<()> {
+    /// fn read(buf: &mut Aligned<'_>) -> Result<()> {
     ///     assert_eq!(buf.load::<u32>()?, 7u32);
     ///     assert_eq!(buf.load::<u8>()?, b'f');
     ///     assert_eq!(buf.load::<u8>()?, b'o');
@@ -91,9 +91,9 @@ impl<'a> ReadBuf<'a> {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{Result, ReadBuf};
+    /// use tokio_dbus::{Result, Aligned};
     ///
-    /// fn read(buf: &mut ReadBuf<'_>) -> Result<()> {
+    /// fn read(buf: &mut Aligned<'_>) -> Result<()> {
     ///     assert_eq!(buf.load::<u32>()?, 4);
     ///     assert_eq!(buf.load::<u8>()?, 1);
     ///     assert_eq!(buf.load::<u8>()?, 2);
@@ -111,7 +111,7 @@ impl<'a> ReadBuf<'a> {
     }
 
     /// Read `len` bytes from the buffer and make accessible through a
-    /// [`ReadBuf`].
+    /// [`Aligned`].
     ///
     /// # Panics
     ///
@@ -122,9 +122,9 @@ impl<'a> ReadBuf<'a> {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{Result, ReadBuf};
+    /// use tokio_dbus::{Result, Aligned};
     ///
-    /// fn read(buf: &mut ReadBuf<'_>) -> Result<()> {
+    /// fn read(buf: &mut Aligned<'_>) -> Result<()> {
     ///     let mut read_buf = buf.read_until(6);
     ///     assert_eq!(read_buf.load::<u32>()?, 4);
     ///
@@ -139,11 +139,11 @@ impl<'a> ReadBuf<'a> {
     ///     Ok(())
     /// }
     /// ```
-    pub fn read_until(&mut self, len: usize) -> ReadBuf<'a> {
+    pub fn read_until(&mut self, len: usize) -> Aligned<'a> {
         assert!(len <= self.len());
         let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
         self.read += len;
-        ReadBuf::new(data, len)
+        Aligned::new(data, len)
     }
 
     /// Read an array from the buffer.
@@ -253,9 +253,9 @@ impl<'a> ReadBuf<'a> {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{Result, ReadBuf};
+    /// use tokio_dbus::{Result, Aligned};
     ///
-    /// fn read(buf: &mut ReadBuf<'_>) -> Result<()> {
+    /// fn read(buf: &mut Aligned<'_>) -> Result<()> {
     ///     assert_eq!(buf.load::<u32>()?, 7u32);
     ///     assert_eq!(buf.load::<u8>()?, b'f');
     ///     assert_eq!(buf.load::<u8>()?, b'o');
@@ -346,12 +346,12 @@ impl<'a> ReadBuf<'a> {
     }
 }
 
-// SAFETY: ReadBuf is equivalent to `&[u8]`.
-unsafe impl Send for ReadBuf<'_> {}
-// SAFETY: ReadBuf is equivalent to `&[u8]`.
-unsafe impl Sync for ReadBuf<'_> {}
+// SAFETY: Aligned is equivalent to `&[u8]`.
+unsafe impl Send for Aligned<'_> {}
+// SAFETY: Aligned is equivalent to `&[u8]`.
+unsafe impl Sync for Aligned<'_> {}
 
-impl Clone for ReadBuf<'_> {
+impl Clone for Aligned<'_> {
     #[inline]
     fn clone(&self) -> Self {
         Self {
@@ -363,32 +363,32 @@ impl Clone for ReadBuf<'_> {
     }
 }
 
-impl fmt::Debug for ReadBuf<'_> {
+impl fmt::Debug for Aligned<'_> {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("ReadBuf").field("len", &self.len()).finish()
+        f.debug_struct("Aligned").field("len", &self.len()).finish()
     }
 }
 
-impl<'a, 'b> PartialEq<ReadBuf<'a>> for ReadBuf<'b> {
+impl<'a, 'b> PartialEq<Aligned<'a>> for Aligned<'b> {
     #[inline]
-    fn eq(&self, other: &ReadBuf<'a>) -> bool {
+    fn eq(&self, other: &Aligned<'a>) -> bool {
         self.get() == other.get()
     }
 }
 
-impl PartialEq<AlignedBuf> for ReadBuf<'_> {
+impl PartialEq<AlignedBuf> for Aligned<'_> {
     #[inline]
     fn eq(&self, other: &AlignedBuf) -> bool {
         self.get() == other.get()
     }
 }
 
-impl<'a> Eq for ReadBuf<'a> {}
+impl<'a> Eq for Aligned<'a> {}
 
-impl<'de> Buf<'de> for ReadBuf<'de> {
-    type Reborrow<'this> = &'this mut ReadBuf<'de> where Self: 'this;
-    type ReadUntil = ReadBuf<'de>;
+impl<'de> Buf<'de> for Aligned<'de> {
+    type Reborrow<'this> = &'this mut Aligned<'de> where Self: 'this;
+    type ReadUntil = Aligned<'de>;
 
     #[inline]
     fn reborrow(&mut self) -> Self::Reborrow<'_> {
@@ -397,27 +397,27 @@ impl<'de> Buf<'de> for ReadBuf<'de> {
 
     #[inline]
     fn advance(&mut self, n: usize) -> Result<()> {
-        ReadBuf::advance(self, n)
+        Aligned::advance(self, n)
     }
 
     #[inline]
     fn read_until(&mut self, len: usize) -> Self::ReadUntil {
-        ReadBuf::read_until(self, len)
+        Aligned::read_until(self, len)
     }
 
     #[inline]
     fn len(&self) -> usize {
-        ReadBuf::len(self)
+        Aligned::len(self)
     }
 
     #[inline]
     fn is_empty(&self) -> bool {
-        ReadBuf::is_empty(self)
+        Aligned::is_empty(self)
     }
 
     #[inline]
     fn align<T>(&mut self) -> Result<()> {
-        ReadBuf::align::<T>(self)
+        Aligned::align::<T>(self)
     }
 
     #[inline]
@@ -425,7 +425,7 @@ impl<'de> Buf<'de> for ReadBuf<'de> {
     where
         T: Frame,
     {
-        ReadBuf::load(self)
+        Aligned::load(self)
     }
 
     #[inline]
@@ -433,16 +433,16 @@ impl<'de> Buf<'de> for ReadBuf<'de> {
     where
         T: ?Sized + Read,
     {
-        ReadBuf::read(self)
+        Aligned::read(self)
     }
 
     #[inline]
     fn load_slice(&mut self, len: usize) -> Result<&'de [u8]> {
-        ReadBuf::load_slice(self, len)
+        Aligned::load_slice(self, len)
     }
 
     #[inline]
     fn load_slice_nul(&mut self, len: usize) -> Result<&'de [u8]> {
-        ReadBuf::load_slice_nul(self, len)
+        Aligned::load_slice_nul(self, len)
     }
 }

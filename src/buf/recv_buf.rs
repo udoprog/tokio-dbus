@@ -4,7 +4,24 @@ use crate::error::{Error, ErrorKind, Result};
 use crate::proto;
 use crate::{Endianness, Message, MessageKind, ObjectPath, Signature};
 
-use super::{BodyBuf, MessageRef};
+use super::BodyBuf;
+
+/// An owned reference to a message in a [`RecvBuf`].
+///
+/// To convert into a [`Message`], use [`Connection::read_message`] or
+/// [`RecvBuf::read_message`].
+///
+/// [`Message`]: crate::Message
+/// [`Connection::read_message`]: crate::Connection::read_message
+/// [`RecvBuf::read_message`]: crate::RecvBuf::read_message
+/// [`RecvBuf`]: crate::RecvBuf
+pub(crate) struct MessageRef {
+    pub(crate) serial: NonZeroU32,
+    pub(crate) message_type: proto::MessageType,
+    pub(crate) flags: proto::Flags,
+    pub(crate) body_length: usize,
+    pub(crate) headers: usize,
+}
 
 /// Buffer used for receiving messages through D-Bus.
 pub struct RecvBuf {
@@ -122,6 +139,8 @@ impl RecvBuf {
             }
         }
 
+        buf.align::<u64>()?;
+
         let kind = match message_type {
             proto::MessageType::METHOD_CALL => {
                 let Some(path) = path else {
@@ -164,8 +183,6 @@ impl RecvBuf {
             }
             _ => return Err(Error::new(ErrorKind::InvalidProtocol)),
         };
-
-        buf.align::<u64>()?;
 
         let body = buf.read_until(body_length).with_signature(signature);
 

@@ -5,7 +5,9 @@ use crate::buf::Buf;
 
 /// Read a struct from a buffer.
 ///
-/// See [`ReadBuf::read_struct`].
+/// See [`Body::read_struct`].
+///
+/// [`Body::read_struct`]: crate::Body::read_struct
 pub struct StructReader<B> {
     buf: B,
 }
@@ -22,7 +24,9 @@ where
 
     /// Load a field from the struct.
     ///
-    /// See [`ReadBuf::read_struct`].
+    /// See [`Body::read_struct`].
+    ///
+    /// [`Body::read_struct`]: crate::Body::read_struct
     pub fn load<T>(&mut self) -> Result<T>
     where
         T: Frame,
@@ -32,7 +36,9 @@ where
 
     /// Read a field from the struct.
     ///
-    /// See [`ReadBuf::read_struct`].
+    /// See [`Body::read_struct`].
+    ///
+    /// [`Body::read_struct`]: crate::Body::read_struct
     pub fn read<T>(&mut self) -> Result<&'de T>
     where
         T: ?Sized + Read,
@@ -42,7 +48,9 @@ where
 
     /// Read an array from within the struct.
     ///
-    /// See [`ReadBuf::read_struct`].
+    /// See [`Body::read_struct`].
+    ///
+    /// [`Body::read_struct`]: crate::Body::read_struct
     pub fn read_array(&mut self) -> Result<ArrayReader<B::ReadUntil>> {
         new_array_reader(self.buf.reborrow())
     }

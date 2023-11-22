@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 use crate::message::OwnedMessageKind;
-use crate::{BodyBuf, BodyReadBuf, Flags, Message, MessageKind, ObjectPath, Signature};
+use crate::{Body, BodyBuf, Flags, Message, MessageKind, ObjectPath, Signature};
 
 /// An owned D-Bus message.
 ///
@@ -265,7 +265,7 @@ impl OwnedMessage {
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     #[must_use]
-    pub fn body(&self) -> BodyReadBuf<'_> {
+    pub fn body(&self) -> Body<'_> {
         self.body.peek()
     }
 

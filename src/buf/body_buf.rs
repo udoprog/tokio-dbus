@@ -7,8 +7,8 @@ use crate::{ty, Endianness, Frame, OwnedSignature, Signature, Write};
 
 use crate::arguments::{Arguments, ExtendBuf};
 
-use super::body::{ArrayWriter, StructWriter, TypedArrayWriter, TypedStructWriter};
-use super::{Alloc, BodyReadBuf, BufMut};
+use super::helpers::{ArrayWriter, StructWriter, TypedArrayWriter, TypedStructWriter};
+use super::{Alloc, Body, BufMut};
 
 /// A buffer that can be used to write a body.
 ///
@@ -189,8 +189,8 @@ impl BodyBuf {
         self.buf.get()
     }
 
-    /// Read `len` bytes from the buffer and make accessible through a
-    /// [`ReadBuf`].
+    /// Read `len` bytes from the buffer and make accessible through a [`Body`]
+    /// instance.
     ///
     /// # Panics
     ///
@@ -198,23 +198,23 @@ impl BodyBuf {
     ///
     /// [`len()`]: Self::len
     #[inline]
-    pub(crate) fn read_until(&mut self, len: usize) -> BodyReadBuf<'_> {
+    pub(crate) fn read_until(&mut self, len: usize) -> Body<'_> {
         let data = self.buf.read_until(len);
-        BodyReadBuf::from_raw_parts(data, self.endianness, &self.signature)
+        Body::from_raw_parts(data, self.endianness, &self.signature)
     }
 
     /// Read the whole buffer until its end.
     #[inline]
-    pub fn read_until_end(&mut self) -> BodyReadBuf<'_> {
+    pub fn read_until_end(&mut self) -> Body<'_> {
         let data = self.buf.read_until_end();
-        BodyReadBuf::from_raw_parts(data, self.endianness, &self.signature)
+        Body::from_raw_parts(data, self.endianness, &self.signature)
     }
 
     /// Access a read buf which peeks into the buffer without advancing it.
     #[inline]
-    pub fn peek(&self) -> BodyReadBuf<'_> {
+    pub fn peek(&self) -> Body<'_> {
         let data = self.buf.peek();
-        BodyReadBuf::from_raw_parts(data, self.endianness, &self.signature)
+        Body::from_raw_parts(data, self.endianness, &self.signature)
     }
 
     /// Allocate, zero space for and align data for `T`.
@@ -579,9 +579,9 @@ impl ExtendBuf for BodyBuf {
 }
 
 /// Construct an aligned buffer from a read buffer.
-impl From<BodyReadBuf<'_>> for BodyBuf {
+impl From<Body<'_>> for BodyBuf {
     #[inline]
-    fn from(buf: BodyReadBuf<'_>) -> Self {
+    fn from(buf: Body<'_>) -> Self {
         let (buf, endianness, signature) = buf.into_raw_parts();
         let buf = AlignedBuf::from(buf);
         let signature = signature.to_owned();
