@@ -166,7 +166,7 @@ impl BodyBuf {
     /// ```
     pub fn read(&self) -> ReadBuf<'_> {
         let len = self.buf.len();
-        self.buf.peek_buf(len)
+        self.buf.peek_until(len)
     }
 
     /// Set the endianness of the buffer.

@@ -257,11 +257,7 @@ impl Transport {
 
                     recv.set_last_message(header.serial);
 
-                    return Ok(MessageRef {
-                        header,
-                        headers,
-                        total,
-                    });
+                    return Ok(MessageRef { header, headers });
                 }
                 state => return Err(Error::new(ErrorKind::InvalidState(state))),
             }

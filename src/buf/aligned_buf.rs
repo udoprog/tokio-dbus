@@ -96,8 +96,15 @@ impl AlignedBuf {
     }
 
     /// Access a read buf which peeks into the buffer without advancing it.
-    pub(crate) fn peek_buf(&self, len: usize) -> ReadBuf<'_> {
+    pub(crate) fn peek_until(&self, len: usize) -> ReadBuf<'_> {
         assert!(len <= self.len());
+        let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
+        ReadBuf::new(data, len, self.endianness)
+    }
+
+    /// Access a read buf which peeks into the buffer without advancing it.
+    pub(crate) fn peek(&self) -> ReadBuf<'_> {
+        let len = self.len();
         let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
         ReadBuf::new(data, len, self.endianness)
     }

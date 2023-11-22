@@ -22,7 +22,7 @@ async fn main() -> Result<()> {
     loop {
         let message = c.process().await?;
         let (recv, send, body) = c.buffers();
-        let message = recv.read_message(&message)?;
+        let message = recv.read_message(message)?;
 
         dbg!(&message);
 
@@ -30,8 +30,8 @@ async fn main() -> Result<()> {
             let ret = match handle_method_call(path, member, &message, send, body) {
                 Ok(m) => m,
                 Err(error) => {
-                    // Clear the body in case handler buffered something
-                    // before erroring.
+                    // Clear the body in case handler buffered something before
+                    // erroring.
                     body.clear();
                     body.write(error.to_string().as_str())?;
 
@@ -41,7 +41,7 @@ async fn main() -> Result<()> {
                 }
             };
 
-            send.write_message(&ret)?;
+            send.write_message(ret)?;
         }
     }
 }
@@ -57,7 +57,7 @@ fn handle_method_call<'a>(
     let interface = msg.interface().context("Missing interface")?;
 
     if path != PATH {
-        bail!("Bad path: {}", path);
+        bail!("Bad path: {path}");
     };
 
     let m = match interface {
@@ -69,7 +69,7 @@ fn handle_method_call<'a>(
             }
             method => bail!("Unknown method: {method}"),
         },
-        interface => bail!("Unknown interface: {}", interface),
+        interface => bail!("Unknown interface: {interface}"),
     };
 
     Ok(m)

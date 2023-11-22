@@ -94,7 +94,7 @@ impl SendBuf {
     }
 
     /// Write a message to the buffer.
-    pub fn write_message(&mut self, message: &Message<'_>) -> Result<()> {
+    pub fn write_message(&mut self, message: Message<'_>) -> Result<()> {
         self.buf.update_base_align();
 
         let body = message.body();

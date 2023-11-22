@@ -91,7 +91,7 @@ impl Connection {
 
             // Read once for internal processing. Avoid this once borrow checker
             // allows returning a reference here directly.
-            let message = self.recv.read_message(&message_ref)?;
+            let message = self.recv.read_message(message_ref)?;
 
             if let ConnectionState::HelloSent(serial) = self.state {
                 match message.kind {
@@ -146,7 +146,7 @@ impl Connection {
     ///
     /// [`process()`]: Self::process
     /// [`buffers()`]: Self::buffers
-    pub fn write_message(&mut self, message: &Message<'_>) -> Result<()> {
+    pub fn write_message(&mut self, message: Message<'_>) -> Result<()> {
         self.send.write_message(message)
     }
 
@@ -159,7 +159,7 @@ impl Connection {
     ///
     /// Errors if the message reference is out of date, such as if another
     /// message has been received.
-    pub fn read_message(&self, message_ref: &MessageRef) -> Result<Message<'_>> {
+    pub fn read_message(&self, message_ref: MessageRef) -> Result<Message<'_>> {
         self.recv.read_message(message_ref)
     }
 
@@ -241,8 +241,9 @@ impl Connection {
             .method_call(org_freedesktop_dbus::PATH, "Hello")
             .with_destination(org_freedesktop_dbus::DESTINATION);
 
-        self.send.write_message(&m)?;
-        self.state = ConnectionState::HelloSent(m.serial());
+        let serial = m.serial();
+        self.send.write_message(m)?;
+        self.state = ConnectionState::HelloSent(serial);
         Ok(())
     }
 
@@ -257,14 +258,13 @@ impl Connection {
             .with_destination(org_freedesktop_dbus::DESTINATION)
             .with_body(&self.body);
 
-        self.send.write_message(&m)?;
         let serial = m.serial();
-
+        self.send.write_message(m)?;
         self.body.clear();
 
         loop {
             let message_ref = self.process().await?;
-            let message = self.recv.read_message(&message_ref)?;
+            let message = self.recv.read_message(message_ref)?;
 
             match message.kind {
                 MessageKind::MethodReturn { reply_serial } if reply_serial == serial => {

@@ -19,13 +19,13 @@ async fn main() -> Result<()> {
         .with_interface(INTERFACE)
         .with_body(body);
 
-    send.write_message(&m)?;
-
     let serial = m.serial();
+
+    send.write_message(m)?;
 
     let reply = loop {
         let message = c.process().await?;
-        let message = c.read_message(&message)?;
+        let message = c.read_message(message)?;
 
         match message.kind() {
             MessageKind::MethodReturn { reply_serial } if reply_serial == serial => {
@@ -35,7 +35,7 @@ async fn main() -> Result<()> {
                 error_name,
                 reply_serial,
             } if reply_serial == serial => {
-                bail!("{}: {}", error_name, message.body().read::<str>()?)
+                bail!("{error_name}: {}", message.body().read::<str>()?)
             }
             _ => {}
         }

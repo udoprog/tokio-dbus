@@ -9,9 +9,8 @@ use crate::proto;
 /// [`Connection::read_message`]: crate::Connection::read_message
 /// [`RecvBuf::read_message`]: crate::RecvBuf::read_message
 /// [`RecvBuf`]: crate::RecvBuf
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct MessageRef {
     pub(crate) header: proto::Header,
     pub(crate) headers: usize,
-    pub(crate) total: usize,
 }
