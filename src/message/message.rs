@@ -199,7 +199,6 @@ impl<'a> Message<'a> {
             sender: self.sender.map(Box::from),
             signature: self.signature.to_owned(),
             body: self.body.clone().into(),
-            endianness: self.body.endianness(),
         }
     }
 
@@ -574,7 +573,6 @@ impl PartialEq<OwnedMessage> for Message<'_> {
             && self.destination == other.destination.as_deref()
             && self.sender == other.sender.as_deref()
             && self.signature == other.signature
-            && self.body.get() == other.body.get()
-            && self.body.endianness() == other.endianness
+            && self.body == other.body
     }
 }

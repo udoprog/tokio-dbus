@@ -424,6 +424,13 @@ impl PartialEq<AlignedBuf> for AlignedBuf {
     }
 }
 
+impl PartialEq<ReadBuf<'_>> for AlignedBuf {
+    #[inline]
+    fn eq(&self, other: &ReadBuf<'_>) -> bool {
+        self.get() == other.get() && self.endianness == other.endianness()
+    }
+}
+
 impl Eq for AlignedBuf {}
 
 impl Clone for AlignedBuf {

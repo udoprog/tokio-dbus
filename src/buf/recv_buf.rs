@@ -1,17 +1,17 @@
 use std::num::NonZeroU32;
 
-use crate::buf::AlignedBuf;
-use crate::connection::MessageRef;
 use crate::error::{Error, ErrorKind, Result};
-use crate::{proto, ObjectPath};
-use crate::{Message, MessageKind, Signature};
+use crate::proto;
+use crate::{Endianness, Message, MessageKind, ObjectPath, Signature};
+
+use super::{AlignedBuf, MessageRef};
 
 /// Buffer used for receiving messages through D-Bus.
 pub struct RecvBuf {
     buf: AlignedBuf,
     /// The last serial observed. This is used to determine whether a
     /// [`MessageRef`] is valid or not.
-    last_serial: Option<NonZeroU32>,
+    last_message: Option<MessageRef>,
 }
 
 impl RecvBuf {
@@ -19,7 +19,7 @@ impl RecvBuf {
     pub fn new() -> Self {
         Self {
             buf: AlignedBuf::new(),
-            last_serial: None,
+            last_message: None,
         }
     }
 
@@ -29,14 +29,19 @@ impl RecvBuf {
     }
 
     /// Set last serial.
-    pub(crate) fn set_last_message(&mut self, serial: u32) {
-        self.last_serial = NonZeroU32::new(serial);
+    pub(crate) fn set_last_message(&mut self, message_ref: MessageRef) {
+        self.last_message = Some(message_ref);
+    }
+
+    /// Set endianness of buffer content.
+    pub(crate) fn set_endianness(&mut self, endianness: Endianness) {
+        self.buf.set_endianness(endianness);
     }
 
     /// Clear the receive buffer.
     pub(crate) fn clear(&mut self) {
         self.buf.clear();
-        self.last_serial = None;
+        self.last_message = None;
     }
 
     /// Read a [`MessageRef`] into a [`Message`].
@@ -48,16 +53,20 @@ impl RecvBuf {
     ///
     /// Errors if the message reference is out of date, such as if another
     /// message has been received.
-    pub fn read_message(&self, message_ref: MessageRef) -> Result<Message<'_>> {
-        let MessageRef { header, headers } = message_ref;
-
-        if NonZeroU32::new(header.serial) != self.last_serial {
+    pub fn last_message(&self) -> Result<Message<'_>> {
+        let Some(message_ref) = &self.last_message else {
             return Err(Error::new(ErrorKind::InvalidMessageRef));
-        }
+        };
 
-        let mut buf = self.buf.peek().with_endianness(header.endianness);
+        let MessageRef {
+            serial,
+            message_type,
+            flags,
+            body_length,
+            headers,
+        } = *message_ref;
 
-        let serial = NonZeroU32::new(header.serial).ok_or(ErrorKind::ZeroSerial)?;
+        let mut buf = self.buf.peek();
 
         let mut path = None;
         let mut interface = None;
@@ -111,7 +120,7 @@ impl RecvBuf {
             }
         }
 
-        let kind = match header.message_type {
+        let kind = match message_type {
             proto::MessageType::METHOD_CALL => {
                 let Some(path) = path else {
                     return Err(Error::new(ErrorKind::MissingPath));
@@ -156,12 +165,12 @@ impl RecvBuf {
 
         buf.align::<u64>()?;
 
-        let body = buf.read_until(header.body_length as usize);
+        let body = buf.read_until(body_length);
 
         Ok(Message {
             kind,
             serial,
-            flags: header.flags,
+            flags,
             interface,
             destination,
             sender,

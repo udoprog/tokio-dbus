@@ -4,19 +4,20 @@ use std::fmt;
 use std::io;
 use std::io::{Read, Write};
 use std::mem::size_of;
+use std::num::NonZeroU32;
 use std::os::fd::AsRawFd;
 use std::os::fd::RawFd;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::net::UnixStream;
 
-use crate::buf::{padding_to, AlignedBuf, UnalignedBuf, MAX_ARRAY_LENGTH, MAX_BODY_LENGTH};
+use crate::buf::{
+    padding_to, AlignedBuf, MessageRef, UnalignedBuf, MAX_ARRAY_LENGTH, MAX_BODY_LENGTH,
+};
 use crate::error::{Error, ErrorKind, Result};
 use crate::proto;
 use crate::sasl::Auth;
 use crate::sasl::{Guid, SaslRequest, SaslResponse};
 use crate::{Frame, RecvBuf};
-
-use super::MessageRef;
 
 const ENV_SESSION_BUS: &str = "DBUS_SESSION_BUS_ADDRESS";
 const ENV_SYSTEM_BUS: &str = "DBUS_SYSTEM_BUS_ADDRESS";
@@ -50,7 +51,7 @@ pub(crate) enum TransportState {
     // Connection is open and idle.
     Idle,
     /// Body is being received.
-    RecvBody(proto::Header, usize, usize),
+    RecvBody(usize),
 }
 
 impl fmt::Display for TransportState {
@@ -210,7 +211,7 @@ impl Transport {
     }
 
     /// Receive a message.
-    pub(crate) fn recv_message(&mut self, recv: &mut RecvBuf) -> Result<MessageRef> {
+    pub(crate) fn recv_message(&mut self, recv: &mut RecvBuf) -> Result<()> {
         loop {
             match self.state {
                 TransportState::Idle => {
@@ -247,17 +248,27 @@ impl Transport {
                         return Err(Error::new(ErrorKind::ArrayTooLong(headers)));
                     };
 
+                    let serial = NonZeroU32::new(header.serial).ok_or(ErrorKind::ZeroSerial)?;
+
                     // Padding used in the header.
                     let total = headers + padding_to::<u64>(headers) + body_length;
-                    self.state = TransportState::RecvBody(header, headers, total);
+
+                    let message_ref = MessageRef {
+                        serial,
+                        message_type: header.message_type,
+                        flags: header.flags,
+                        body_length,
+                        headers,
+                    };
+
+                    recv.set_endianness(header.endianness);
+                    recv.set_last_message(message_ref);
+                    self.state = TransportState::RecvBody(total);
                 }
-                TransportState::RecvBody(header, headers, total) => {
+                TransportState::RecvBody(total) => {
                     self.recv_buf(recv.buf_mut(), total)?;
                     self.state = TransportState::Idle;
-
-                    recv.set_last_message(header.serial);
-
-                    return Ok(MessageRef { header, headers });
+                    return Ok(());
                 }
                 state => return Err(Error::new(ErrorKind::InvalidState(state))),
             }

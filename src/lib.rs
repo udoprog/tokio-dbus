@@ -56,7 +56,7 @@ pub use self::message::{Message, MessageKind, OwnedMessage};
 mod message;
 
 #[cfg(feature = "tokio")]
-pub use self::connection::{Connection, ConnectionBuilder, MessageRef};
+pub use self::connection::{Connection, ConnectionBuilder};
 mod connection;
 
 mod lossy_str;

@@ -2,10 +2,7 @@ use std::num::NonZeroU32;
 
 use crate::buf::AlignedBuf;
 use crate::message::OwnedMessageKind;
-use crate::{
-    BodyBuf, Endianness, Flags, Message, MessageKind, ObjectPath, OwnedSignature, ReadBuf,
-    Signature,
-};
+use crate::{BodyBuf, Flags, Message, MessageKind, ObjectPath, OwnedSignature, ReadBuf, Signature};
 
 /// An owned D-Bus message.
 ///
@@ -29,8 +26,6 @@ pub struct OwnedMessage {
     pub(super) signature: OwnedSignature,
     /// The body associated with the message.
     pub(super) body: AlignedBuf,
-    /// The endianness of the body.
-    pub(super) endianness: Endianness,
 }
 
 impl OwnedMessage {
@@ -61,7 +56,6 @@ impl OwnedMessage {
             sender: None,
             signature: OwnedSignature::EMPTY,
             body: AlignedBuf::new(),
-            endianness: Endianness::NATIVE,
         }
     }
 
@@ -105,7 +99,6 @@ impl OwnedMessage {
             destination: self.sender,
             sender: self.destination,
             body: AlignedBuf::new(),
-            endianness: self.endianness,
         }
     }
 
@@ -134,7 +127,6 @@ impl OwnedMessage {
             sender: None,
             signature: OwnedSignature::empty(),
             body: AlignedBuf::new(),
-            endianness: Endianness::NATIVE,
         }
     }
 
@@ -176,7 +168,6 @@ impl OwnedMessage {
             destination: self.sender,
             sender: self.destination,
             body: AlignedBuf::new(),
-            endianness: self.endianness,
         }
     }
 
@@ -190,7 +181,7 @@ impl OwnedMessage {
             destination: self.destination.as_deref(),
             sender: self.sender.as_deref(),
             signature: &self.signature,
-            body: ReadBuf::from_slice(self.body.get(), self.endianness),
+            body: ReadBuf::from_slice(self.body.get(), self.body.endianness()),
         }
     }
 
@@ -281,7 +272,7 @@ impl OwnedMessage {
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     pub fn body(&self) -> ReadBuf<'_> {
-        ReadBuf::from_slice(self.body.get(), self.endianness)
+        self.body.peek()
     }
 
     /// Get the serial of the message.

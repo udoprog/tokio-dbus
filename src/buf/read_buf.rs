@@ -8,7 +8,7 @@ use std::slice::from_raw_parts;
 use crate::error::{ErrorKind, Result};
 use crate::{Endianness, Error, Frame, Read};
 
-use super::{padding_to, ArrayReader, StructReader};
+use super::{padding_to, AlignedBuf, ArrayReader, StructReader};
 
 /// A read-only view into a buffer.
 ///
@@ -410,6 +410,13 @@ impl<'a, 'b> PartialEq<ReadBuf<'a>> for ReadBuf<'b> {
     #[inline]
     fn eq(&self, other: &ReadBuf<'a>) -> bool {
         self.get() == other.get() && self.endianness == other.endianness
+    }
+}
+
+impl PartialEq<AlignedBuf> for ReadBuf<'_> {
+    #[inline]
+    fn eq(&self, other: &AlignedBuf) -> bool {
+        self.get() == other.get() && self.endianness == other.endianness()
     }
 }
 

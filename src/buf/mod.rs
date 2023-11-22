@@ -42,6 +42,9 @@ mod send_buf;
 pub use self::recv_buf::RecvBuf;
 mod recv_buf;
 
+pub(crate) use self::message_ref::MessageRef;
+mod message_ref;
+
 /// The maximum length of an array in bytes.
 pub(crate) const MAX_ARRAY_LENGTH: u32 = 1u32 << 26;
 /// The maximum length of a body in bytes.

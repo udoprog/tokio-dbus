@@ -6,8 +6,5 @@ mod transport;
 pub use self::builder::ConnectionBuilder;
 mod builder;
 
-pub use self::message_ref::MessageRef;
-mod message_ref;
-
 pub use self::connection::Connection;
 mod connection;

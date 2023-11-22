@@ -9,7 +9,7 @@ use crate::org_freedesktop_dbus::{self, NameFlag, NameReply};
 use crate::sasl::{SaslRequest, SaslResponse};
 use crate::{BodyBuf, Error, Message, MessageKind, ObjectPath, RecvBuf, SendBuf};
 
-use super::{sasl_recv, ConnectionBuilder, MessageRef, Transport};
+use super::{sasl_recv, ConnectionBuilder, Transport};
 
 /// The high level state of a client.
 pub(crate) enum ConnectionState {
@@ -79,19 +79,19 @@ impl Connection {
     /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
     /// let mut c = Connection::session_bus().await?;
     ///
-    /// let message = c.process().await?;
-    /// let message: Message<'_> = c.read_message(&message)?;
+    /// c.process().await?;
+    /// let message: Message<'_> = c.last_message()?;
     /// # Ok(()) }    
     /// ```
-    pub async fn process(&mut self) -> Result<MessageRef, Error> {
+    pub async fn process(&mut self) -> Result<(), Error> {
         loop {
-            let Some(message_ref) = self.io(false).await? else {
+            if !self.io(false).await? {
                 continue;
             };
 
             // Read once for internal processing. Avoid this once borrow checker
             // allows returning a reference here directly.
-            let message = self.recv.read_message(message_ref)?;
+            let message = self.recv.last_message()?;
 
             if let ConnectionState::HelloSent(serial) = self.state {
                 match message.kind {
@@ -112,7 +112,7 @@ impl Connection {
                 continue;
             }
 
-            return Ok(message_ref);
+            return Ok(());
         }
     }
 
@@ -129,7 +129,7 @@ impl Connection {
     /// # Ok(()) }
     /// ```
     pub async fn flush(&mut self) -> Result<(), Error> {
-        while self.io(true).await?.is_some() {}
+        while self.io(true).await? {}
         Ok(())
     }
 
@@ -159,8 +159,8 @@ impl Connection {
     ///
     /// Errors if the message reference is out of date, such as if another
     /// message has been received.
-    pub fn read_message(&self, message_ref: MessageRef) -> Result<Message<'_>> {
-        self.recv.read_message(message_ref)
+    pub fn last_message(&self) -> Result<Message<'_>> {
+        self.recv.last_message()
     }
 
     /// Access the underlying buffers of the connection.
@@ -263,8 +263,8 @@ impl Connection {
         self.body.clear();
 
         loop {
-            let message_ref = self.process().await?;
-            let message = self.recv.read_message(message_ref)?;
+            self.process().await?;
+            let message = self.recv.last_message()?;
 
             match message.kind {
                 MessageKind::MethodReturn { reply_serial } if reply_serial == serial => {
@@ -289,7 +289,7 @@ impl Connection {
         }
     }
 
-    async fn io(&mut self, flush: bool) -> Result<Option<MessageRef>, Error> {
+    async fn io(&mut self, flush: bool) -> Result<bool, Error> {
         loop {
             let interest = if !flush {
                 let mut interest = Interest::READABLE;
@@ -302,15 +302,15 @@ impl Connection {
             } else if self.send.buf().is_empty() {
                 Interest::WRITABLE
             } else {
-                return Ok(None);
+                return Ok(false);
             };
 
             let mut guard = self.transport.ready_mut(interest).await?;
 
             if guard.ready().is_readable() {
                 match guard.get_inner_mut().recv_message(&mut self.recv) {
-                    Ok(message_ref) => {
-                        return Ok(Some(message_ref));
+                    Ok(()) => {
+                        return Ok(true);
                     }
                     Err(e) if e.would_block() => {
                         guard.clear_ready_matching(Ready::READABLE);
