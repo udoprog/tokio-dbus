@@ -4,6 +4,7 @@ use std::str::from_utf8_unchecked;
 /// An iterator over an [`ObjectPath`].
 ///
 /// [`ObjectPath`]: crate::ObjectPath
+#[must_use = "iterators are lazy and do nothing unless consumed"]
 pub struct Iter<'a> {
     data: &'a [u8],
 }

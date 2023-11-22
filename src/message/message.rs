@@ -113,6 +113,7 @@ impl<'a> Message<'a> {
     /// let m2 = Message::signal("Hello", m.serial());
     /// assert_eq!(m, m2);
     /// ```
+    #[must_use]
     pub fn signal(member: &'a str, serial: NonZeroU32) -> Self {
         Self {
             kind: MessageKind::Signal { member },
@@ -150,6 +151,7 @@ impl<'a> Message<'a> {
     /// assert_eq!(m.sender(), m2.destination());
     /// assert_eq!(m.destination(), m2.sender());
     /// ```
+    #[must_use]
     pub fn error(&self, error_name: &'a str, serial: NonZeroU32) -> Self {
         Self {
             kind: MessageKind::Error {
@@ -214,6 +216,7 @@ impl<'a> Message<'a> {
     /// let m2 = m.error("org.freedesktop.DBus.UnknownMethod", send.next_serial());
     /// assert!(matches!(m2.kind(), MessageKind::Error { .. }));
     /// ```
+    #[must_use]
     pub fn kind(&self) -> MessageKind<'a> {
         self.kind
     }
@@ -241,6 +244,7 @@ impl<'a> Message<'a> {
     /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
     /// assert_eq!(m.signature(), Signature::STRING);
     /// ```
+    #[must_use]
     pub fn with_body(self, body: &'a BodyBuf) -> Self {
         Self {
             body: body.peek(),
@@ -276,6 +280,7 @@ impl<'a> Message<'a> {
     /// assert_eq!(r.read::<str>()?, "Hello World!");
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
+    #[must_use]
     pub fn body(&self) -> BodyReadBuf<'a> {
         self.body.clone()
     }
@@ -299,6 +304,7 @@ impl<'a> Message<'a> {
     /// let m2 = m.with_serial(NonZeroU32::new(1000).unwrap());
     /// assert_eq!(m2.serial().get(), 1000);
     /// ```
+    #[must_use]
     pub fn serial(&self) -> NonZeroU32 {
         self.serial
     }
@@ -322,6 +328,7 @@ impl<'a> Message<'a> {
     /// let m2 = m.with_serial(NonZeroU32::new(1000).unwrap());
     /// assert_eq!(m2.serial().get(), 1000);
     /// ```
+    #[must_use]
     pub fn with_serial(self, serial: NonZeroU32) -> Self {
         Self { serial, ..self }
     }
@@ -345,6 +352,7 @@ impl<'a> Message<'a> {
     /// let m2 = m.with_flags(Flags::NO_REPLY_EXPECTED);
     /// assert_eq!(m2.flags(), Flags::NO_REPLY_EXPECTED);
     /// ```
+    #[must_use]
     pub fn flags(&self) -> Flags {
         self.flags
     }
@@ -368,6 +376,7 @@ impl<'a> Message<'a> {
     /// let m2 = m.with_flags(Flags::NO_REPLY_EXPECTED);
     /// assert_eq!(m2.flags(), Flags::NO_REPLY_EXPECTED);
     /// ```
+    #[must_use]
     pub fn with_flags(self, flags: Flags) -> Self {
         Self { flags, ..self }
     }
@@ -391,6 +400,7 @@ impl<'a> Message<'a> {
     /// let m2 = m.with_interface("org.freedesktop.DBus");
     /// assert_eq!(m2.interface(), Some("org.freedesktop.DBus"));
     /// ```
+    #[must_use]
     pub fn interface(&self) -> Option<&'a str> {
         self.interface
     }
@@ -414,6 +424,7 @@ impl<'a> Message<'a> {
     /// let m2 = m.with_interface("org.freedesktop.DBus");
     /// assert_eq!(m2.interface(), Some("org.freedesktop.DBus"));
     /// ```
+    #[must_use]
     pub fn with_interface(self, interface: &'a str) -> Self {
         Self {
             interface: Some(interface),
@@ -440,6 +451,7 @@ impl<'a> Message<'a> {
     /// let m2 = m.with_destination(":1.131");
     /// assert_eq!(m2.destination(), Some(":1.131"));
     /// ```
+    #[must_use]
     pub fn destination(&self) -> Option<&'a str> {
         self.destination
     }
@@ -463,6 +475,7 @@ impl<'a> Message<'a> {
     /// let m2 = m.with_destination(":1.131");
     /// assert_eq!(m2.destination(), Some(":1.131"));
     /// ```
+    #[must_use]
     pub fn with_destination(self, destination: &'a str) -> Self {
         Self {
             destination: Some(destination),
@@ -489,6 +502,7 @@ impl<'a> Message<'a> {
     /// let m2 = m.with_sender(":1.131");
     /// assert_eq!(m2.sender(), Some(":1.131"));
     /// ```
+    #[must_use]
     pub fn sender(&self) -> Option<&'a str> {
         self.sender
     }
@@ -512,6 +526,7 @@ impl<'a> Message<'a> {
     /// let m2 = m.with_sender(":1.131");
     /// assert_eq!(m2.sender(), Some(":1.131"));
     /// ```
+    #[must_use]
     pub fn with_sender(self, sender: &'a str) -> Self {
         Self {
             sender: Some(sender),
@@ -541,6 +556,7 @@ impl<'a> Message<'a> {
     /// let m2 = m.with_body(&body);
     /// assert_eq!(m2.signature(), Signature::STRING);
     /// ```
+    #[must_use]
     pub fn signature(&self) -> &Signature {
         self.body.signature()
     }

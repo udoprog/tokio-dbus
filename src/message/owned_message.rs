@@ -43,6 +43,7 @@ impl OwnedMessage {
     /// let m2 = OwnedMessage::method_call(PATH.into(), "Hello".into(), m.serial());
     /// assert_eq!(m, m2);
     /// ```
+    #[must_use]
     pub fn method_call(path: Box<ObjectPath>, member: Box<str>, serial: NonZeroU32) -> Self {
         Self {
             kind: OwnedMessageKind::MethodCall { path, member },
@@ -83,6 +84,7 @@ impl OwnedMessage {
     /// assert_eq!(m.sender(), m2.destination());
     /// assert_eq!(m.destination(), m2.sender());
     /// ```
+    #[must_use]
     pub fn method_return(self, serial: NonZeroU32) -> Self {
         Self {
             kind: OwnedMessageKind::MethodReturn {
@@ -112,6 +114,7 @@ impl OwnedMessage {
     /// let m2 = OwnedMessage::signal("Hello".into(), m.serial());
     /// assert_eq!(m, m2);
     /// ```
+    #[must_use]
     pub fn signal(member: Box<str>, serial: NonZeroU32) -> Self {
         Self {
             kind: OwnedMessageKind::Signal { member },
@@ -149,6 +152,7 @@ impl OwnedMessage {
     /// assert_eq!(m.sender(), m2.destination());
     /// assert_eq!(m.destination(), m2.sender());
     /// ```
+    #[must_use]
     pub fn error(self, error_name: Box<str>, serial: NonZeroU32) -> Self {
         Self {
             kind: OwnedMessageKind::Error {
@@ -165,6 +169,7 @@ impl OwnedMessage {
     }
 
     /// Borrow into a [`Message`].
+    #[must_use]
     pub fn borrow(&self) -> Message<'_> {
         Message {
             kind: self.kind.borrow(),
@@ -196,6 +201,7 @@ impl OwnedMessage {
     /// let m2 = m.error("org.freedesktop.DBus.UnknownMethod", send.next_serial());
     /// assert!(matches!(m2.kind(), MessageKind::Error { .. }));
     /// ```
+    #[must_use]
     pub fn kind(&self) -> MessageKind<'_> {
         self.kind.borrow()
     }
@@ -224,6 +230,7 @@ impl OwnedMessage {
     /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
     /// assert_eq!(m.signature(), Signature::STRING);
     /// ```
+    #[must_use]
     pub fn with_body(self, body: BodyBuf) -> Self {
         Self { body, ..self }
     }
@@ -257,6 +264,7 @@ impl OwnedMessage {
     /// assert_eq!(r.read::<str>()?, "Hello World!");
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
+    #[must_use]
     pub fn body(&self) -> BodyReadBuf<'_> {
         self.body.peek()
     }
@@ -280,6 +288,7 @@ impl OwnedMessage {
     /// let m2 = m.with_serial(NonZeroU32::new(1000).unwrap());
     /// assert_eq!(m2.serial().get(), 1000);
     /// ```
+    #[must_use]
     pub fn serial(&self) -> NonZeroU32 {
         self.serial
     }
@@ -303,6 +312,7 @@ impl OwnedMessage {
     /// let m2 = m.with_serial(NonZeroU32::new(1000).unwrap());
     /// assert_eq!(m2.serial().get(), 1000);
     /// ```
+    #[must_use]
     pub fn with_serial(self, serial: NonZeroU32) -> Self {
         Self { serial, ..self }
     }
@@ -326,6 +336,7 @@ impl OwnedMessage {
     /// let m2 = m.with_flags(Flags::NO_REPLY_EXPECTED);
     /// assert_eq!(m2.flags(), Flags::NO_REPLY_EXPECTED);
     /// ```
+    #[must_use]
     pub fn flags(&self) -> Flags {
         self.flags
     }
@@ -349,6 +360,7 @@ impl OwnedMessage {
     /// let m2 = m.with_flags(Flags::NO_REPLY_EXPECTED);
     /// assert_eq!(m2.flags(), Flags::NO_REPLY_EXPECTED);
     /// ```
+    #[must_use]
     pub fn with_flags(self, flags: Flags) -> Self {
         Self { flags, ..self }
     }
@@ -372,6 +384,7 @@ impl OwnedMessage {
     /// let m2 = m.with_interface("org.freedesktop.DBus".into());
     /// assert_eq!(m2.interface(), Some("org.freedesktop.DBus"));
     /// ```
+    #[must_use]
     pub fn interface(&self) -> Option<&str> {
         self.interface.as_deref()
     }
@@ -395,6 +408,7 @@ impl OwnedMessage {
     /// let m2 = m.with_interface("org.freedesktop.DBus".into());
     /// assert_eq!(m2.interface(), Some("org.freedesktop.DBus"));
     /// ```
+    #[must_use]
     pub fn with_interface(self, interface: Box<str>) -> Self {
         Self {
             interface: Some(interface),
@@ -421,6 +435,7 @@ impl OwnedMessage {
     /// let m2 = m.with_destination(":1.131".into());
     /// assert_eq!(m2.destination(), Some(":1.131"));
     /// ```
+    #[must_use]
     pub fn destination(&self) -> Option<&str> {
         self.destination.as_deref()
     }
@@ -444,6 +459,7 @@ impl OwnedMessage {
     /// let m2 = m.with_destination(":1.131".into());
     /// assert_eq!(m2.destination(), Some(":1.131"));
     /// ```
+    #[must_use]
     pub fn with_destination(self, destination: Box<str>) -> Self {
         Self {
             destination: Some(destination),
@@ -470,6 +486,7 @@ impl OwnedMessage {
     /// let m2 = m.with_sender(":1.131".into());
     /// assert_eq!(m2.sender(), Some(":1.131"));
     /// ```
+    #[must_use]
     pub fn sender(&self) -> Option<&str> {
         self.sender.as_deref()
     }
@@ -493,6 +510,7 @@ impl OwnedMessage {
     /// let m2 = m.with_sender(":1.131".into());
     /// assert_eq!(m2.sender(), Some(":1.131"));
     /// ```
+    #[must_use]
     pub fn with_sender(self, sender: Box<str>) -> Self {
         Self {
             sender: Some(sender),
@@ -522,6 +540,7 @@ impl OwnedMessage {
     /// let m2 = m.with_body(body);
     /// assert_eq!(m2.signature(), Signature::STRING);
     /// ```
+    #[must_use]
     pub fn signature(&self) -> &Signature {
         self.body.signature()
     }

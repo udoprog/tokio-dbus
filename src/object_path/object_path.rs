@@ -40,6 +40,12 @@ impl ObjectPath {
     pub const ROOT: &'static Self = Self::new_const(b"/");
 
     /// Construct a new object path.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the argument is not a valid object.
+    ///
+    /// See [`ObjectPath`] for more information.
     #[track_caller]
     pub const fn new_const(path: &[u8]) -> &Self {
         if !validate(path) {
@@ -51,6 +57,12 @@ impl ObjectPath {
     }
 
     /// Construct a new validated object path.
+    ///
+    /// # Errors
+    ///
+    /// Errors if the argument is not a valid object.
+    ///
+    /// See [`ObjectPath`] for more information.
     pub fn new<P>(path: &P) -> Result<&Self, ObjectPathError>
     where
         P: ?Sized + AsRef<[u8]>,
@@ -100,6 +112,7 @@ impl ObjectPath {
     ///
     /// assert!(FOO_BAR.starts_with(FOO));
     /// ```
+    #[must_use]
     pub fn starts_with(&self, other: &ObjectPath) -> bool {
         self.0.starts_with(&other.0)
     }
@@ -109,6 +122,7 @@ impl ObjectPath {
     /// # Safety
     ///
     /// The caller must ensure that the path is a valid object path.
+    #[must_use]
     pub(super) const unsafe fn new_unchecked(path: &[u8]) -> &Self {
         &*(path as *const _ as *const Self)
     }
