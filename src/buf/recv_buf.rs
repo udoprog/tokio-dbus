@@ -67,18 +67,14 @@ impl RecvBuf {
         self.last_message = None;
     }
 
-    /// Read a [`MessageRef`] into a [`Message`].
-    ///
-    /// Note that if the [`MessageRef`] is outdated by calling process again,
-    /// the behavior of this function is not well-defined (but safe).
+    /// Read the last message buffered.
     ///
     /// # Errors
     ///
-    /// Errors if the message reference is out of date, such as if another
-    /// message has been received.
+    /// In case there is no message buffered.
     pub fn last_message(&self) -> Result<Message<'_>> {
         let Some(message_ref) = &self.last_message else {
-            return Err(Error::new(ErrorKind::InvalidMessageRef));
+            return Err(Error::new(ErrorKind::MissingMessage));
         };
 
         let MessageRef {
@@ -103,7 +99,7 @@ impl RecvBuf {
 
         // Use a `Body` abstraction here, since we need to adjust the headers by
         // the received endianness.
-        let mut headers = ArrayReader::<_, u64>::new(buf.read_until(headers));
+        let mut headers = ArrayReader::<_, (u64,)>::new(buf.read_until(headers));
 
         while let Some(mut st) = headers.read_struct()? {
             let variant = st.load::<proto::Variant>()?;

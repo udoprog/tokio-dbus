@@ -190,27 +190,27 @@ impl<'a> Body<'a> {
     /// assert_eq!(buf.signature(), b"auaas");
     ///
     /// let mut buf = buf.read_until_end();
-    /// let mut array = buf.read_array()?;
-    /// assert_eq!(array.load::<u32>()?, Some(10));
-    /// assert_eq!(array.load::<u32>()?, Some(20));
-    /// assert_eq!(array.load::<u32>()?, Some(30));
-    /// assert_eq!(array.load::<u32>()?, None);
+    /// let mut array = buf.read_array::<u32>()?;
+    /// assert_eq!(array.load()?, Some(10));
+    /// assert_eq!(array.load()?, Some(20));
+    /// assert_eq!(array.load()?, Some(30));
+    /// assert_eq!(array.load()?, None);
     ///
-    /// let mut array = buf.read_array()?;
+    /// let mut array = buf.read_array::<ty::Array<ty::Str>>()?;
     ///
     /// let Some(mut inner) = array.read_array()? else {
     ///     panic!("Missing inner array");
     /// };
     ///
-    /// assert_eq!(inner.read::<str>()?, Some("foo"));
-    /// assert_eq!(inner.read::<str>()?, Some("bar"));
-    /// assert_eq!(inner.read::<str>()?, Some("baz"));
-    /// assert_eq!(inner.read::<str>()?, None);
+    /// assert_eq!(inner.read()?, Some("foo"));
+    /// assert_eq!(inner.read()?, Some("bar"));
+    /// assert_eq!(inner.read()?, Some("baz"));
+    /// assert_eq!(inner.read()?, None);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     pub fn read_array<E>(&mut self) -> Result<ArrayReader<Self, E>>
     where
-        E: ty::Aligned,
+        E: ty::Marker,
     {
         new_array_reader(self)
     }
@@ -246,11 +246,11 @@ impl<'a> Body<'a> {
     /// assert_eq!(st.load::<u16>()?, 20u16);
     /// assert_eq!(st.load::<u32>()?, 30u32);
     ///
-    /// let mut array = st.read_array()?;
-    /// assert_eq!(array.load::<u8>()?, Some(1));
-    /// assert_eq!(array.load::<u8>()?, Some(2));
-    /// assert_eq!(array.load::<u8>()?, Some(3));
-    /// assert_eq!(array.load::<u8>()?, None);
+    /// let mut array = st.read_array::<u8>()?;
+    /// assert_eq!(array.load()?, Some(1));
+    /// assert_eq!(array.load()?, Some(2));
+    /// assert_eq!(array.load()?, Some(3));
+    /// assert_eq!(array.load()?, None);
     ///
     /// assert_eq!(st.read::<str>()?, "Hello World");
     /// # Ok::<_, tokio_dbus::Error>(())

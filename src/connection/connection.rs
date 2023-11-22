@@ -78,7 +78,6 @@ impl Connection {
     ///
     /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
     /// let mut c = Connection::session_bus().await?;
-    ///
     /// c.process().await?;
     /// let message: Message<'_> = c.last_message()?;
     /// # Ok(()) }    
@@ -150,32 +149,62 @@ impl Connection {
         self.send.write_message(message)
     }
 
-    /// Read a [`MessageRef`] into a [`Message`].
-    ///
-    /// Note that if the [`MessageRef`] is outdated by calling process again,
-    /// the behavior of this function is not well-defined (but safe).
+    /// Read the last message buffered.
     ///
     /// # Errors
     ///
-    /// Errors if the message reference is out of date, such as if another
-    /// message has been received.
+    /// In case there is no message buffered.
     pub fn last_message(&self) -> Result<Message<'_>> {
         self.recv.last_message()
     }
 
     /// Access the underlying buffers of the connection.
     ///
-    /// This is usually needed to solve lifetime issues, such as holding onto a
-    /// message constructed from a [`MessageRef`] while buffering a response.
-    ///
-    /// The [`RecvBuf`] is used to translate [`MessageRef`] as returned by
-    /// [`process()`] into [`Message`] instances and [`SendBuf`] is used to
-    /// queue messages to be sent.
+    /// The [`RecvBuf`] instance is used to access messages received after a
+    /// call to [`process()`], through the [`RecvBuf::last_message()`].
     ///
     /// The returned [`BodyBuf`] is the internal buffer that the client uses to
     /// construct message bodies. It is empty when it's returned.
     ///
     /// [`process()`]: Self::process
+    ///
+    /// This is useful, because it permits using all parts of the connection
+    /// without running into borrowing issues.
+    ///
+    /// For example, this wouldn't work:
+    ///
+    /// ```compile_fail
+    /// use tokio_dbus::{Connection, Message};
+    ///
+    /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
+    /// let mut c = Connection::session_bus().await?;
+    /// c.process().await?;
+    /// let message: Message<'_> = c.last_message()?;
+    /// let m = message.method_return();
+    /// c.send_message(m);
+    /// # Ok(()) }    
+    /// ```
+    ///
+    /// Because calling [`send_message()`] needs mutable access to the
+    /// [`Connection`].
+    ///
+    /// We can address this by using [`buffers()`]:
+    ///
+    /// ```compile_fail
+    /// use tokio_dbus::{Connection, Message};
+    ///
+    /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
+    /// let mut c = Connection::session_bus().await?;
+    /// c.process().await?;
+    ///
+    /// let (recv, send, body) = c.buffers();
+    ///
+    /// let message: Message<'_> = recv.last_message()?;
+    /// let m = message.method_return().with_body(body);
+    ///
+    /// send.send_message(m);
+    /// # Ok(()) }    
+    /// ```
     pub fn buffers(&mut self) -> (&RecvBuf, &mut SendBuf, &mut BodyBuf) {
         self.body.clear();
         (&self.recv, &mut self.send, &mut self.body)

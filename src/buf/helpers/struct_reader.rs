@@ -60,7 +60,7 @@ where
     /// [`Body::read_struct`]: crate::Body::read_struct
     pub fn read_array<E>(&mut self) -> Result<ArrayReader<B::ReadUntil, E>>
     where
-        E: ty::Aligned,
+        E: ty::Marker,
     {
         new_array_reader(self.buf.reborrow())
     }

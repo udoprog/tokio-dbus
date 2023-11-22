@@ -21,7 +21,6 @@ pub struct ArrayReader<B, E> {
 pub(crate) fn new_array_reader<'de, B, E>(mut buf: B) -> Result<ArrayReader<B::ReadUntil, E>>
 where
     B: Buf<'de>,
-    E: ty::Aligned,
 {
     let bytes = buf.load::<u32>()?;
 
@@ -37,7 +36,6 @@ where
 impl<'de, B, E> ArrayReader<B, E>
 where
     B: Buf<'de>,
-    E: ty::Aligned,
 {
     /// Construct a new array reader around a buffer.
     pub(crate) fn new(buf: B) -> Self {
@@ -46,53 +44,69 @@ where
             _marker: PhantomData,
         }
     }
+}
 
+impl<'de, B, E> ArrayReader<B, E>
+where
+    B: Buf<'de>,
+    E: Frame,
+{
     /// Load the next value from the array.
     ///
     /// See [`Body::read_array`].
     ///
     /// [`Body::read_array`]: crate::Body::read_array
-    pub fn load<T>(&mut self) -> Result<Option<T>>
-    where
-        T: Frame,
-    {
+    pub fn load(&mut self) -> Result<Option<E>> {
         if self.buf.is_empty() {
             return Ok(None);
         }
 
         Ok(Some(self.buf.load()?))
     }
+}
 
+impl<'de, B, E> ArrayReader<B, E>
+where
+    B: Buf<'de>,
+    E: ty::Unsized,
+    E::Target: Read,
+{
     /// Read the next value from the array.
     ///
     /// See [`Body::read_array`].
     ///
     /// [`Body::read_array`]: crate::Body::read_array
-    pub fn read<T>(&mut self) -> Result<Option<&'de T>>
-    where
-        T: ?Sized + Read,
-    {
+    pub fn read(&mut self) -> Result<Option<&'de E::Target>> {
         if self.buf.is_empty() {
             return Ok(None);
         }
 
-        Ok(Some(T::read_from(&mut self.buf)?))
+        Ok(Some(E::Target::read_from(&mut self.buf)?))
     }
+}
 
+impl<'de, B, E> ArrayReader<B, ty::Array<E>>
+where
+    B: Buf<'de>,
+    E: ty::Marker,
+{
     /// Read an array from within the array.
     ///
     /// See [`Body::read_struct`].
-    pub fn read_array<U>(&mut self) -> Result<Option<ArrayReader<B::ReadUntil, U>>>
-    where
-        U: ty::Aligned,
-    {
+    pub fn read_array(&mut self) -> Result<Option<ArrayReader<B::ReadUntil, E>>> {
         if self.buf.is_empty() {
             return Ok(None);
         }
 
         Ok(Some(new_array_reader(self.buf.reborrow())?))
     }
+}
 
+impl<'de, B, E> ArrayReader<B, E>
+where
+    B: Buf<'de>,
+    E: ty::Fields,
+{
     /// Read a struct from within the array.
     ///
     /// See [`Body::read_struct`].
