@@ -291,19 +291,13 @@ impl Connection {
 
     async fn io(&mut self, flush: bool) -> Result<bool, Error> {
         loop {
-            let interest = if !flush {
-                let mut interest = Interest::READABLE;
+            let mut interest = Interest::READABLE;
 
-                if !self.send.buf().is_empty() {
-                    interest |= Interest::WRITABLE;
-                }
-
-                interest
-            } else if self.send.buf().is_empty() {
-                Interest::WRITABLE
-            } else {
+            if !self.send.buf().is_empty() {
+                interest |= Interest::WRITABLE;
+            } else if flush {
                 return Ok(false);
-            };
+            }
 
             let mut guard = self.transport.ready_mut(interest).await?;
 
