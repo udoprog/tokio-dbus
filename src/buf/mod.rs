@@ -7,6 +7,9 @@ pub use self::body::{ArrayReader, StructReader, TypedArrayWriter, TypedStructWri
 use self::body::{ArrayWriter, StructWriter};
 mod body;
 
+pub use self::aligned_read_buf::AlignedReadBuf;
+mod aligned_read_buf;
+
 pub use self::read_buf::ReadBuf;
 mod read_buf;
 
