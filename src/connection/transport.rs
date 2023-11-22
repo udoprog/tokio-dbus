@@ -257,7 +257,6 @@ impl Transport {
                         serial,
                         message_type: header.message_type,
                         flags: header.flags,
-                        body_length,
                         headers,
                     };
 

@@ -4,7 +4,7 @@ use crate::error::{Error, ErrorKind, Result};
 use crate::proto;
 use crate::{Endianness, Message, MessageKind, ObjectPath, Signature};
 
-use super::{AlignedBuf, Body};
+use super::{AlignedBuf, ArrayReader, Body};
 
 /// An owned reference to a message in a [`RecvBuf`].
 ///
@@ -19,7 +19,6 @@ pub(crate) struct MessageRef {
     pub(crate) serial: NonZeroU32,
     pub(crate) message_type: proto::MessageType,
     pub(crate) flags: proto::Flags,
-    pub(crate) body_length: usize,
     pub(crate) headers: usize,
 }
 
@@ -86,11 +85,10 @@ impl RecvBuf {
             serial,
             message_type,
             flags,
-            body_length,
             headers,
         } = *message_ref;
 
-        let mut buf = self.buf.peek();
+        let buf = self.buf.peek();
 
         let mut path = None;
         let mut interface = None;
@@ -101,46 +99,45 @@ impl RecvBuf {
         let mut signature = Signature::empty();
         let mut sender = None;
 
+        let mut buf = Body::from_raw_parts(buf, self.endianness, Signature::empty());
+
         // Use a `Body` abstraction here, since we need to adjust the headers by
         // the received endianness.
-        let mut headers =
-            Body::from_raw_parts(buf.read_until(headers), self.endianness, Signature::empty());
+        let mut headers = ArrayReader::<_, u64>::new(buf.read_until(headers));
 
-        while !headers.is_empty() {
-            headers.align::<u64>()?;
-
-            let variant = headers.load::<proto::Variant>()?;
-            let sig = headers.read::<Signature>()?;
+        while let Some(mut st) = headers.read_struct()? {
+            let variant = st.load::<proto::Variant>()?;
+            let sig = st.read::<Signature>()?;
 
             match (variant, sig.as_bytes()) {
                 (proto::Variant::PATH, b"o") => {
-                    path = Some(headers.read::<ObjectPath>()?);
+                    path = Some(st.read::<ObjectPath>()?);
                 }
                 (proto::Variant::INTERFACE, b"s") => {
-                    interface = Some(headers.read::<str>()?);
+                    interface = Some(st.read::<str>()?);
                 }
                 (proto::Variant::MEMBER, b"s") => {
-                    member = Some(headers.read::<str>()?);
+                    member = Some(st.read::<str>()?);
                 }
                 (proto::Variant::ERROR_NAME, b"s") => {
-                    error_name = Some(headers.read::<str>()?);
+                    error_name = Some(st.read::<str>()?);
                 }
                 (proto::Variant::REPLY_SERIAL, b"u") => {
-                    let number = headers.load::<u32>()?;
+                    let number = st.load::<u32>()?;
                     let number = NonZeroU32::new(number).ok_or(ErrorKind::ZeroReplySerial)?;
                     reply_serial = Some(number);
                 }
                 (proto::Variant::DESTINATION, b"s") => {
-                    destination = Some(headers.read::<str>()?);
+                    destination = Some(st.read::<str>()?);
                 }
                 (proto::Variant::SIGNATURE, b"g") => {
-                    signature = headers.read::<Signature>()?;
+                    signature = st.read::<Signature>()?;
                 }
                 (proto::Variant::SENDER, b"s") => {
-                    sender = Some(headers.read::<str>()?);
+                    sender = Some(st.read::<str>()?);
                 }
                 (_, _) => {
-                    sig.skip(&mut headers)?;
+                    sig.skip(st.buf_mut())?;
                 }
             }
         }
@@ -190,8 +187,6 @@ impl RecvBuf {
             _ => return Err(Error::new(ErrorKind::InvalidProtocol)),
         };
 
-        let body = Body::from_raw_parts(buf.read_until(body_length), self.endianness, signature);
-
         Ok(Message {
             kind,
             serial,
@@ -199,7 +194,7 @@ impl RecvBuf {
             interface,
             destination,
             sender,
-            body,
+            body: buf.with_signature(signature),
         })
     }
 }

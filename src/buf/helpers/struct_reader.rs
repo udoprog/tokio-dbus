@@ -23,6 +23,12 @@ where
         Ok(Self { buf })
     }
 
+    /// Reborrow the underlying buffer.
+    #[inline]
+    pub(crate) fn buf_mut(&mut self) -> B::Reborrow<'_> {
+        self.buf.reborrow()
+    }
+
     /// Load a field from the struct.
     ///
     /// See [`Body::read_struct`].

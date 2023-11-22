@@ -57,7 +57,6 @@ where
         T: Frame,
     {
         if self.buf.is_empty() {
-            self.buf.align::<E::Type>()?;
             return Ok(None);
         }
 
@@ -74,7 +73,6 @@ where
         T: ?Sized + Read,
     {
         if self.buf.is_empty() {
-            self.buf.align::<E::Type>()?;
             return Ok(None);
         }
 
@@ -89,7 +87,6 @@ where
         U: ty::Aligned,
     {
         if self.buf.is_empty() {
-            self.buf.align::<E::Type>()?;
             return Ok(None);
         }
 
@@ -101,7 +98,6 @@ where
     /// See [`Body::read_struct`].
     pub fn read_struct(&mut self) -> Result<Option<StructReader<B::Reborrow<'_>>>> {
         if self.buf.is_empty() {
-            self.buf.align::<E::Type>()?;
             return Ok(None);
         }
 
