@@ -1,6 +1,6 @@
 use crate::signature::{SignatureBuilder, SignatureError};
 
-use super::Marker;
+use super::{Aligned, Marker};
 
 mod sealed {
     pub trait Sealed {}
@@ -14,7 +14,7 @@ pub enum Empty {}
 /// Trait indicating the fields of a struct.
 ///
 /// This is implemented by tuples.
-pub trait Fields: self::sealed::Sealed {
+pub trait Fields: self::sealed::Sealed + Aligned {
     /// The target field.
     #[doc(hidden)]
     type First;
@@ -26,6 +26,12 @@ pub trait Fields: self::sealed::Sealed {
     /// Write signature.
     #[doc(hidden)]
     fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError>;
+}
+
+impl super::aligned::sealed::Sealed for () {}
+
+impl Aligned for () {
+    type Type = u64;
 }
 
 impl Fields for () {
@@ -45,6 +51,17 @@ macro_rules! struct_fields {
             $first: Marker,
             $($rest: Marker,)*
         {
+        }
+
+        impl<$first, $($rest),*> super::aligned::sealed::Sealed for ($first, $($rest),*) {
+        }
+
+        impl<$first, $($rest),*> Aligned for ($first, $($rest),*)
+        where
+            $first: Marker,
+            $($rest: Marker,)*
+        {
+            type Type = u64;
         }
 
         impl<$first, $($rest),*> Fields for ($first, $($rest),*)

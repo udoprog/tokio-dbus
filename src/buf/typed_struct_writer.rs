@@ -136,6 +136,7 @@ impl<'a, E> TypedStructWriter<'a, E> {
     where
         W: FnOnce(&mut TypedArrayWriter<'_, T>),
         E: ty::Fields<First = ty::Array<T>>,
+        T: ty::Aligned,
     {
         let mut w = TypedArrayWriter::new(self.inner.write_array());
         writer(&mut w);

@@ -316,6 +316,20 @@ impl BodyBuf {
     /// assert_eq!(buf.get(), &[4, 0, 0, 0, 1, 0, 0, 0]);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
+    ///
+    /// Writing an empty array still enforces element alignment:
+    ///
+    /// ```
+    /// use tokio_dbus::{BodyBuf, Endianness};
+    ///
+    /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
+    /// let mut array = buf.write_array::<u64>()?;
+    /// array.finish();
+    ///
+    /// assert_eq!(buf.signature(), b"at");
+    /// assert_eq!(buf.get(), &[0, 0, 0, 0, 0, 0, 0, 0]);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
     pub fn write_array<E>(&mut self) -> Result<TypedArrayWriter<'_, E>>
     where
         E: ty::Marker,
@@ -339,7 +353,7 @@ impl BodyBuf {
     /// ```
     pub fn write_slice(&mut self, data: &[u8]) -> Result<()> {
         <ty::Array<u8> as ty::Marker>::write_signature(&mut self.signature)?;
-        self.buf.write_array().write_slice(data);
+        self.buf.write_array::<u8>().write_slice(data);
         Ok(())
     }
 

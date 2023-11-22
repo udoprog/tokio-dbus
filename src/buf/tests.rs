@@ -119,7 +119,7 @@ fn write_blob(buf: &mut AlignedBuf) {
         serial: 0x12345678u32,
     });
 
-    let mut array = buf.write_array();
+    let mut array = buf.write_array::<u64>();
 
     let mut st = array.write_struct();
     st.store(Variant::REPLY_SERIAL);
@@ -133,7 +133,6 @@ fn write_blob(buf: &mut AlignedBuf) {
 
     array.finish();
 
-    buf.align_mut::<u64>();
     buf.store(0xdeadbeefu32);
 }
 

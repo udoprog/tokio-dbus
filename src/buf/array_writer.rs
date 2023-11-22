@@ -1,6 +1,8 @@
+use std::marker::PhantomData;
 use std::mem::ManuallyDrop;
 
 use crate::buf::{Alloc, BufMut, StructWriter};
+use crate::ty;
 use crate::{Frame, Write};
 
 /// Write an array into a [`BufMut`].
@@ -8,23 +10,32 @@ use crate::{Frame, Write};
 /// Note that this does not enforce that the elements being written have a
 /// uniform type.
 #[must_use = "Arrays must be finalized using ArrayWriter::finish"]
-pub(super) struct ArrayWriter<'a, O: ?Sized>
+pub(super) struct ArrayWriter<'a, O: ?Sized, A>
 where
     O: BufMut,
+    A: ty::Aligned,
 {
     start: usize,
     len: Alloc<u32>,
     buf: &'a mut O,
+    _marker: PhantomData<A>,
 }
 
-impl<'a, O: ?Sized> ArrayWriter<'a, O>
+impl<'a, O: ?Sized, A> ArrayWriter<'a, O, A>
 where
     O: BufMut,
+    A: ty::Aligned,
 {
     pub(super) fn new(buf: &'a mut O) -> Self {
         let len = buf.alloc();
         let start = buf.len();
-        Self { start, len, buf }
+
+        Self {
+            start,
+            len,
+            buf,
+            _marker: PhantomData,
+        }
     }
 
     /// Finish writing the array.
@@ -52,7 +63,10 @@ where
 
     /// Push an array inside of the array.
     #[inline]
-    pub(super) fn write_array(&mut self) -> ArrayWriter<'_, O> {
+    pub(super) fn write_array<B>(&mut self) -> ArrayWriter<'_, O, B>
+    where
+        B: ty::Aligned,
+    {
         ArrayWriter::new(self.buf)
     }
 
@@ -75,12 +89,14 @@ where
         let end = self.buf.len();
         let len = (end - self.start) as u32;
         self.buf.store_at(self.len, len);
+        self.buf.align_mut::<A::Type>();
     }
 }
 
-impl<O: ?Sized> Drop for ArrayWriter<'_, O>
+impl<O: ?Sized, A> Drop for ArrayWriter<'_, O, A>
 where
     O: BufMut,
+    A: ty::Aligned,
 {
     fn drop(&mut self) {
         self.finalize();

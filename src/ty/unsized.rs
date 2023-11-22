@@ -1,14 +1,15 @@
-use crate::Signature;
+use crate::{ObjectPath, Signature};
 
-use super::{Marker, Sig, Str};
+use super::{Marker, Sig, Str, O};
 
 mod sealed {
-    use super::{Sig, Str};
+    use super::{Sig, Str, O};
 
     pub trait Sealed {}
 
     impl Sealed for Str {}
     impl Sealed for Sig {}
+    impl Sealed for O {}
 }
 
 /// A marker that is unsized.
@@ -24,4 +25,8 @@ impl Unsized for Str {
 
 impl Unsized for Sig {
     type Target = Signature;
+}
+
+impl Unsized for O {
+    type Target = ObjectPath;
 }

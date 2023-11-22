@@ -4,6 +4,7 @@ use std::ptr;
 use std::slice::from_raw_parts;
 
 use crate::buf::{max_size_for_align, padding_to, Alloc, ArrayWriter, BufMut};
+use crate::ty;
 use crate::{Frame, Write};
 
 /// A buffer that can be used for buffering unaligned data.
@@ -35,7 +36,13 @@ impl UnalignedBuf {
     }
 
     /// Write an array into the buffer.
-    pub(super) fn write_array(&mut self) -> ArrayWriter<'_, Self> {
+    ///
+    /// The type parameter `A` indicates the alignment of the elements stored in
+    /// the array.
+    pub(super) fn write_array<A>(&mut self) -> ArrayWriter<'_, Self, A>
+    where
+        A: ty::Aligned,
+    {
         ArrayWriter::new(self)
     }
 

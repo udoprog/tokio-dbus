@@ -112,7 +112,7 @@ impl SendBuf {
             serial: message.serial.get(),
         });
 
-        let mut array = self.buf.write_array();
+        let mut array = self.buf.write_array::<u64>();
 
         match message.kind {
             MessageKind::MethodCall { path, member } => {
@@ -183,7 +183,7 @@ impl SendBuf {
         }
 
         array.finish();
-        self.buf.align_mut::<u64>();
+
         self.buf.extend_from_slice(body.get());
         Ok(())
     }

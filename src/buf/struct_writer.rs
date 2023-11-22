@@ -1,3 +1,4 @@
+use crate::ty;
 use crate::{Arguments, Frame, Write};
 
 use crate::buf::{ArrayWriter, BufMut};
@@ -48,8 +49,14 @@ where
     }
 
     /// Write an array in the struct.
+    ///
+    /// The type parameter `A` indicates the alignment of the elements stored in
+    /// the array.
     #[inline]
-    pub(super) fn write_array(&mut self) -> ArrayWriter<'_, O> {
+    pub(super) fn write_array<A>(&mut self) -> ArrayWriter<'_, O, A>
+    where
+        A: ty::Aligned,
+    {
         ArrayWriter::new(self.buf)
     }
 

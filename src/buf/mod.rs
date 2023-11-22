@@ -52,8 +52,15 @@ use core::mem::align_of;
 /// Calculate padding with the assumption that alignment is a power of two.
 #[inline(always)]
 pub(crate) fn padding_to<T>(len: usize) -> usize {
-    let mask = align_of::<T>() - 1;
-    (align_of::<T>() - (len & mask)) & mask
+    // SAFETY: Alignment of `T` is always valid.
+    unsafe { padding_to_with(align_of::<T>(), len) }
+}
+
+/// Calculate padding with the assumption that alignment is a power of two.
+#[inline(always)]
+unsafe fn padding_to_with(align: usize, len: usize) -> usize {
+    let mask = align - 1;
+    (align - (len & mask)) & mask
 }
 
 #[inline(always)]

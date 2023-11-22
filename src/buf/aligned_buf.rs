@@ -8,6 +8,7 @@ use crate::buf::{
     max_size_for_align, padding_to, Alloc, ArrayWriter, BufMut, ReadBuf, StructWriter,
 };
 use crate::proto::Endianness;
+use crate::ty;
 use crate::{Frame, Write};
 
 /// The type we're basing our alignment on.
@@ -55,7 +56,13 @@ impl AlignedBuf {
     }
 
     /// Write an array into the buffer.
-    pub(super) fn write_array(&mut self) -> ArrayWriter<'_, Self> {
+    ///
+    /// The type parameter `A` indicates the alignment of the elements stored in
+    /// the array.
+    pub(super) fn write_array<A>(&mut self) -> ArrayWriter<'_, Self, A>
+    where
+        A: ty::Aligned,
+    {
         ArrayWriter::new(self)
     }
 

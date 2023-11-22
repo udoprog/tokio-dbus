@@ -1,7 +1,7 @@
 use std::marker::PhantomData;
 
 use crate::buf::{AlignedBuf, ArrayWriter, TypedStructWriter};
-use crate::ty;
+use crate::ty::{self, Aligned};
 use crate::{Frame, Write};
 
 /// Write a typed array.
@@ -9,13 +9,19 @@ use crate::{Frame, Write};
 /// See [`BodyBuf::write_array`].
 ///
 /// [`BodyBuf::write_array`]: crate::BodyBuf::write_array
-pub struct TypedArrayWriter<'a, E> {
-    inner: ArrayWriter<'a, AlignedBuf>,
+pub struct TypedArrayWriter<'a, E>
+where
+    E: Aligned,
+{
+    inner: ArrayWriter<'a, AlignedBuf, E>,
     _marker: PhantomData<E>,
 }
 
-impl<'a, E> TypedArrayWriter<'a, E> {
-    pub(super) fn new(inner: ArrayWriter<'a, AlignedBuf>) -> Self {
+impl<'a, E> TypedArrayWriter<'a, E>
+where
+    E: Aligned,
+{
+    pub(super) fn new(inner: ArrayWriter<'a, AlignedBuf, E>) -> Self {
         Self {
             inner,
             _marker: PhantomData,
@@ -34,7 +40,10 @@ impl<'a, E> TypedArrayWriter<'a, E> {
     }
 }
 
-impl<'a, E> TypedArrayWriter<'a, E> {
+impl<'a, E> TypedArrayWriter<'a, E>
+where
+    E: Aligned,
+{
     /// Store a value and return the builder for the next value to store.
     ///
     /// See [`BodyBuf::write_array`].
@@ -74,7 +83,10 @@ impl<'a, E> TypedArrayWriter<'a, E> {
     }
 }
 
-impl<'a, E> TypedArrayWriter<'a, ty::Array<E>> {
+impl<'a, E> TypedArrayWriter<'a, ty::Array<E>>
+where
+    E: Aligned,
+{
     /// Write an array inside of the array.
     ///
     /// See [`BodyBuf::write_array`].
@@ -94,6 +106,6 @@ impl<'a> TypedArrayWriter<'a, ty::Array<u8>> {
     /// [`BodyBuf::write_array`]: crate::BodyBuf::write_array
     #[inline]
     pub fn write_slice(&mut self, bytes: &[u8]) {
-        self.inner.write_array().write_slice(bytes);
+        self.inner.write_array::<u8>().write_slice(bytes);
     }
 }

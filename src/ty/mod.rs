@@ -34,6 +34,9 @@ mod r#unsized;
 pub use self::marker::Marker;
 mod marker;
 
+pub use self::aligned::Aligned;
+mod aligned;
+
 use std::marker::PhantomData;
 
 /// The [`Marker`] for the [`str`] type.
@@ -47,6 +50,12 @@ pub struct Str;
 /// [`Signature`]: crate::Signature
 #[non_exhaustive]
 pub struct Sig;
+
+/// The [`Marker`] for the [`ObjectPath`] type.
+///
+/// [`ObjectPath`]: crate::ObjectPath
+#[non_exhaustive]
+pub struct O;
 
 /// The [`Marker`] for an array type, like `[u8]`.
 pub struct Array<T>(PhantomData<T>);
