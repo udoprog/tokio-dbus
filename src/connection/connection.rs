@@ -66,10 +66,15 @@ impl Connection {
         ConnectionBuilder::new().system_bus().connect().await
     }
 
-    /// Process the current connection.
+    /// Wait for the next incoming message on this connection.
     ///
     /// This is the main entry of this connection, and is required to call to
     /// have it make progress when passing D-Bus messages.
+    ///
+    /// If you just want to block while sending messages, use [`flush()`]
+    /// instead.
+    ///
+    /// [`flush()`]: Self::flush
     ///
     /// # Examples
     ///
@@ -78,36 +83,17 @@ impl Connection {
     ///
     /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
     /// let mut c = Connection::session_bus().await?;
-    /// c.process().await?;
+    /// c.wait().await?;
     /// let message: Message<'_> = c.last_message()?;
     /// # Ok(()) }    
     /// ```
-    pub async fn process(&mut self) -> Result<(), Error> {
+    pub async fn wait(&mut self) -> Result<()> {
         loop {
             if !self.io(false).await? {
                 continue;
             };
 
-            // Read once for internal processing. Avoid this once borrow checker
-            // allows returning a reference here directly.
-            let message = self.recv.last_message()?;
-
-            if let ConnectionState::HelloSent(serial) = self.state {
-                match message.kind {
-                    MessageKind::MethodReturn { reply_serial } if reply_serial == serial => {
-                        self.name = Some(message.body().read::<str>()?.into());
-                        self.state = ConnectionState::Idle;
-                        continue;
-                    }
-                    _ => {}
-                }
-            }
-
-            // TODO: Ignore freedesktop signals for now, but eventually we might
-            // want to handle internally.
-            if let (Some(org_freedesktop_dbus::INTERFACE), MessageKind::Signal { .. }) =
-                (message.interface, message.kind)
-            {
+            if self.handle_internal()? {
                 continue;
             }
 
@@ -127,9 +113,40 @@ impl Connection {
     /// c.flush().await?;
     /// # Ok(()) }
     /// ```
-    pub async fn flush(&mut self) -> Result<(), Error> {
-        while self.io(true).await? {}
+    pub async fn flush(&mut self) -> Result<()> {
+        while self.io(true).await? {
+            self.handle_internal()?;
+        }
+
         Ok(())
+    }
+
+    /// Handle internal messages, returns `true` if a message was intercepted.
+    fn handle_internal(&mut self) -> Result<bool> {
+        // Read once for internal processing. Avoid this once borrow checker
+        // allows returning a reference here directly.
+        let message = self.recv.last_message()?;
+
+        if let ConnectionState::HelloSent(serial) = self.state {
+            match message.kind {
+                MessageKind::MethodReturn { reply_serial } if reply_serial == serial => {
+                    self.name = Some(message.body().read::<str>()?.into());
+                    self.state = ConnectionState::Idle;
+                    return Ok(true);
+                }
+                _ => {}
+            }
+        }
+
+        // TODO: Ignore freedesktop signals for now, but eventually we might
+        // want to handle internally.
+        if let (Some(org_freedesktop_dbus::INTERFACE), MessageKind::Signal { .. }) =
+            (message.interface, message.kind)
+        {
+            return Ok(true);
+        }
+
+        Ok(false)
     }
 
     /// Construct a new [`Message`] corresponding to a method call.
@@ -140,10 +157,10 @@ impl Connection {
     /// Write a message to the send buffer.
     ///
     /// This can be used to queue messages to be sent during the next call to
-    /// [`process()`]. To both receive and send in parallel, see the
+    /// [`wait()`]. To both receive and send in parallel, see the
     /// [`buffers()`] method.
     ///
-    /// [`process()`]: Self::process
+    /// [`wait()`]: Self::wait
     /// [`buffers()`]: Self::buffers
     pub fn write_message(&mut self, message: Message<'_>) -> Result<()> {
         self.send.write_message(message)
@@ -161,12 +178,12 @@ impl Connection {
     /// Access the underlying buffers of the connection.
     ///
     /// The [`RecvBuf`] instance is used to access messages received after a
-    /// call to [`process()`], through the [`RecvBuf::last_message()`].
+    /// call to [`wait()`], through the [`RecvBuf::last_message()`].
     ///
     /// The returned [`BodyBuf`] is the internal buffer that the client uses to
     /// construct message bodies. It is empty when it's returned.
     ///
-    /// [`process()`]: Self::process
+    /// [`wait()`]: Self::wait
     ///
     /// This is useful, because it permits using all parts of the connection
     /// without running into borrowing issues.
@@ -178,7 +195,7 @@ impl Connection {
     ///
     /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
     /// let mut c = Connection::session_bus().await?;
-    /// c.process().await?;
+    /// c.wait().await?;
     /// let message: Message<'_> = c.last_message()?;
     /// let m = message.method_return();
     /// c.write_message(m);
@@ -199,7 +216,7 @@ impl Connection {
     ///
     /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
     /// let mut c = Connection::session_bus().await?;
-    /// c.process().await?;
+    /// c.wait().await?;
     ///
     /// let (recv, send, body) = c.buffers();
     ///
@@ -296,7 +313,7 @@ impl Connection {
         self.body.clear();
 
         loop {
-            self.process().await?;
+            self.wait().await?;
             let message = self.recv.last_message()?;
 
             match message.kind {
@@ -322,7 +339,7 @@ impl Connection {
         }
     }
 
-    async fn io(&mut self, flush: bool) -> Result<bool, Error> {
+    async fn io(&mut self, flush: bool) -> Result<bool> {
         loop {
             let mut interest = Interest::READABLE;
 

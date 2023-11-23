@@ -24,7 +24,7 @@ async fn main() -> Result<()> {
     send.write_message(m)?;
 
     let reply = loop {
-        c.process().await?;
+        c.wait().await?;
 
         let message = c.last_message()?;
 

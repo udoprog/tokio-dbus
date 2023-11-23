@@ -20,7 +20,7 @@ async fn main() -> Result<()> {
     }
 
     loop {
-        c.process().await?;
+        c.wait().await?;
 
         let (recv, send, body) = c.buffers();
         let message = recv.last_message()?;
