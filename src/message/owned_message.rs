@@ -178,7 +178,7 @@ impl OwnedMessage {
             interface: self.interface.as_deref(),
             destination: self.destination.as_deref(),
             sender: self.sender.as_deref(),
-            body: self.body.peek(),
+            body: self.body.as_body(),
         }
     }
 
@@ -266,7 +266,7 @@ impl OwnedMessage {
     /// ```
     #[must_use]
     pub fn body(&self) -> Body<'_> {
-        self.body.peek()
+        self.body.as_body()
     }
 
     /// Get the serial of the message.

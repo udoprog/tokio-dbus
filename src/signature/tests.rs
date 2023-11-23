@@ -82,7 +82,7 @@ fn signature_skip() -> Result<()> {
 
     let sig = Signature::new_const(b"s");
 
-    let mut read_buf = buf.read_until_end();
+    let mut read_buf = buf.as_body();
 
     sig.skip(&mut read_buf)?;
 
@@ -114,7 +114,7 @@ fn signature_skip_array() -> Result<()> {
     let sig = Signature::new_const(b"aas");
     assert_eq!(sig, buf.signature());
 
-    let mut read_buf = buf.peek();
+    let mut read_buf = buf.as_body();
 
     sig.skip(&mut read_buf)?;
 

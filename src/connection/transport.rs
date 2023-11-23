@@ -221,9 +221,7 @@ impl Transport {
                         size_of::<proto::Header>() + size_of::<u32>(),
                     )?;
 
-                    let mut read_buf = recv
-                        .buf_mut()
-                        .read_until(size_of::<proto::Header>() + size_of::<u32>());
+                    let mut read_buf = recv.buf().as_aligned();
 
                     let mut header = read_buf.load::<proto::Header>()?;
                     let mut headers = read_buf.load::<u32>()?;
@@ -286,7 +284,7 @@ impl Transport {
                 return Err(io::Error::from(io::ErrorKind::UnexpectedEof));
             }
 
-            buf.advance_mut(n);
+            buf.advance(n);
             remaining -= n;
         }
 

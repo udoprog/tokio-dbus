@@ -147,6 +147,8 @@ fn test_read_buf() -> Result<()> {
     buf.store(4u32)?;
     buf.extend_from_slice_nul(b"\x01\x02\x03\x04");
 
+    let mut buf = buf.as_body();
+
     let mut read_buf = buf.read_until(6);
 
     assert_eq!(read_buf.load::<u32>()?, 4);
@@ -162,6 +164,8 @@ fn test_read_buf_load() -> Result<()> {
     buf.store(7u32)?;
     buf.extend_from_slice_nul(b"foo bar");
 
+    let mut buf = buf.as_body();
+
     let mut read_buf = buf.read_until(6);
 
     assert_eq!(read_buf.load::<u32>()?, 7u32);
@@ -176,6 +180,8 @@ fn test_read_buf_read() -> Result<()> {
     let mut buf = BodyBuf::new();
     buf.store(4u32)?;
     buf.extend_from_slice_nul(b"\x01\x02\x03\x04");
+
+    let mut buf = buf.as_body();
 
     let mut read_buf = buf.read_until(6);
 
@@ -195,6 +201,8 @@ fn test_nested_read_buf() -> Result<()> {
     let mut buf = BodyBuf::new();
     buf.store(4u32)?;
     buf.extend_from_slice_nul(b"\x01\x02\x03\x04");
+
+    let mut buf = buf.as_body();
 
     let mut read_buf = buf.read_until(6);
     assert_eq!(read_buf.load::<u32>()?, 4);

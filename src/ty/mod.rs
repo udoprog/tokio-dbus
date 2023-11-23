@@ -62,7 +62,7 @@ use crate::{Body, Error, LoadArray, ObjectPath, Result, Signature, SignatureErro
 ///
 /// assert_eq!(buf.signature(), b"(ys)");
 ///
-/// let mut b = buf.peek();
+/// let mut b = buf.as_body();
 ///
 /// let (n, value) = b.load_struct::<(u8, ty::Str)>()?;
 ///
@@ -94,7 +94,7 @@ impl_trait_unsized_marker!(Str, u32, str, STRING);
 ///
 /// assert_eq!(buf.signature(), b"(yg)");
 ///
-/// let mut b = buf.peek();
+/// let mut b = buf.as_body();
 ///
 /// let (n, value) = b.load_struct::<(u8, ty::Sig)>()?;
 ///
@@ -126,7 +126,7 @@ impl_trait_unsized_marker!(Sig, u8, Signature, SIGNATURE);
 ///
 /// assert_eq!(buf.signature(), b"(yo)");
 ///
-/// let mut b = buf.peek();
+/// let mut b = buf.as_body();
 ///
 /// let (n, value) = b.load_struct::<(u8, ty::ObjPath)>()?;
 ///
@@ -159,7 +159,7 @@ impl_trait_unsized_marker!(ObjPath, u8, ObjectPath, OBJECT_PATH);
 ///
 /// assert_eq!(buf.signature(), b"(yas)");
 ///
-/// let mut b = buf.peek();
+/// let mut b = buf.as_body();
 ///
 /// let (n, mut array) = b.load_struct::<(u8, ty::Array<ty::Str>)>()?;
 ///

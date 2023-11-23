@@ -247,7 +247,7 @@ impl<'a> Message<'a> {
     #[must_use]
     pub fn with_body(self, body: &'a BodyBuf) -> Self {
         Self {
-            body: body.peek(),
+            body: body.as_body(),
             ..self
         }
     }

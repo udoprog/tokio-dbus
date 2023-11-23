@@ -213,22 +213,15 @@ impl BodyBuf {
         self.buf.get()
     }
 
-    /// Read `len` bytes from the buffer and make accessible through a [`Body`]
-    /// instance.
+    /// Access a [`Body`] over the entire contents of the buffer.
     ///
-    /// # Panics
+    /// This is a reader-like abstraction that has a read cursor and endianness,
+    /// allowing convenient read access over the contents of the buffer.
     ///
-    /// This panics if `len` is larger than [`len()`].
+    /// It is also used in combination with [`Message::with_body`] to set the
+    /// message of a body.
     ///
-    /// [`len()`]: Self::len
-    #[inline]
-    #[cfg(test)]
-    pub(crate) fn read_until(&mut self, len: usize) -> Body<'_> {
-        let data = self.buf.read_until(len);
-        Body::from_raw_parts(data, self.endianness, &self.signature)
-    }
-
-    /// Read the whole buffer until its end.
+    /// [`Message::with_body`]: crate::Message::with_body
     ///
     /// # Examples
     ///
@@ -244,9 +237,9 @@ impl BodyBuf {
     ///
     /// assert_eq!(buf.signature(), "(qu)");
     ///
-    /// let mut b = buf.read_until_end();
+    /// let mut buf = buf.as_body();
     ///
-    /// let (a, b) = b.load_struct::<(u16, u32)>()?;
+    /// let (a, b) = buf.load_struct::<(u16, u32)>()?;
     /// assert_eq!(a, 20u16);
     /// assert_eq!(b, 30u32);
     ///
@@ -254,15 +247,8 @@ impl BodyBuf {
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     #[inline]
-    pub fn read_until_end(&mut self) -> Body<'_> {
-        let data = self.buf.read_until_end();
-        Body::from_raw_parts(data, self.endianness, &self.signature)
-    }
-
-    /// Access a read buf which peeks into the buffer without advancing it.
-    #[inline]
-    pub fn peek(&self) -> Body<'_> {
-        let data = self.buf.peek();
+    pub fn as_body(&self) -> Body<'_> {
+        let data = self.buf.as_aligned();
         Body::from_raw_parts(data, self.endianness, &self.signature)
     }
 

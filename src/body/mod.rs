@@ -65,13 +65,13 @@ impl<'a> Body<'a> {
     /// ```
     /// use tokio_dbus::{Body, BodyBuf, Endianness};
     ///
-    /// let body = BodyBuf::new();
+    /// let buf = BodyBuf::new();
     ///
-    /// let body: Body<'_> = body.peek();
-    /// assert_eq!(body.endianness(), Endianness::NATIVE);
+    /// let buf: Body<'_> = buf.as_body();
+    /// assert_eq!(buf.endianness(), Endianness::NATIVE);
     ///
-    /// let body = body.with_endianness(Endianness::BIG);
-    /// assert_eq!(body.endianness(), Endianness::BIG);
+    /// let buf = buf.with_endianness(Endianness::BIG);
+    /// assert_eq!(buf.endianness(), Endianness::BIG);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     pub fn endianness(&self) -> Endianness {
@@ -85,13 +85,13 @@ impl<'a> Body<'a> {
     /// ```
     /// use tokio_dbus::{Body, BodyBuf, Endianness};
     ///
-    /// let body = BodyBuf::new();
+    /// let buf = BodyBuf::new();
     ///
-    /// let body: Body<'_> = body.peek();
-    /// assert_eq!(body.endianness(), Endianness::NATIVE);
+    /// let buf: Body<'_> = buf.as_body();
+    /// assert_eq!(buf.endianness(), Endianness::NATIVE);
     ///
-    /// let body = body.with_endianness(Endianness::BIG);
-    /// assert_eq!(body.endianness(), Endianness::BIG);
+    /// let buf = buf.with_endianness(Endianness::BIG);
+    /// assert_eq!(buf.endianness(), Endianness::BIG);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     pub fn with_endianness(self, endianness: Endianness) -> Self {
@@ -105,14 +105,14 @@ impl<'a> Body<'a> {
     /// ```
     /// use tokio_dbus::{Body, BodyBuf};
     ///
-    /// let mut body = BodyBuf::new();
+    /// let mut buf = BodyBuf::new();
     ///
-    /// body.store(10u16)?;
-    /// body.store(10u32)?;
+    /// buf.store(10u16)?;
+    /// buf.store(10u32)?;
     ///
-    /// let body: Body<'_> = body.peek();
+    /// let buf: Body<'_> = buf.as_body();
     ///
-    /// assert_eq!(body.signature(), "qu");
+    /// assert_eq!(buf.signature(), "qu");
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     pub fn signature(&self) -> &'a Signature {
@@ -151,14 +151,14 @@ impl<'a> Body<'a> {
     /// ```
     /// use tokio_dbus::{Body, BodyBuf, Endianness};
     ///
-    /// let mut body = BodyBuf::with_endianness(Endianness::LITTLE);
-    /// let b: Body<'_> = body.peek();
+    /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
+    /// let b: Body<'_> = buf.as_body();
     /// assert!(b.is_empty());
     ///
-    /// body.store(10u16)?;
-    /// body.store(10u32)?;
+    /// buf.store(10u16)?;
+    /// buf.store(10u32)?;
     ///
-    /// let b: Body<'_> = body.peek();
+    /// let b: Body<'_> = buf.as_body();
     /// assert!(!b.is_empty());
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
@@ -174,13 +174,13 @@ impl<'a> Body<'a> {
     /// ```
     /// use tokio_dbus::{Body, BodyBuf, Endianness};
     ///
-    /// let mut body = BodyBuf::with_endianness(Endianness::LITTLE);
-    /// assert!(body.is_empty());
+    /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
+    /// assert!(buf.is_empty());
     ///
-    /// body.store(10u16)?;
-    /// body.store(10u32)?;
+    /// buf.store(10u16)?;
+    /// buf.store(10u32)?;
     ///
-    /// let b: Body<'_> = body.peek();
+    /// let b: Body<'_> = buf.as_body();
     /// assert_eq!(b.len(), 8);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
@@ -273,7 +273,7 @@ impl<'a> Body<'a> {
     ///
     /// assert_eq!(buf.signature(), b"auaas");
     ///
-    /// let mut buf = buf.read_until_end();
+    /// let mut buf = buf.as_body();
     /// let mut array = buf.load_array::<u32>()?;
     /// assert_eq!(array.load()?, Some(10));
     /// assert_eq!(array.load()?, Some(20));
@@ -322,7 +322,7 @@ impl<'a> Body<'a> {
     ///
     /// assert_eq!(buf.signature(), "y(quays)");
     ///
-    /// let mut buf = buf.peek();
+    /// let mut buf = buf.as_body();
     /// assert_eq!(buf.load::<u8>()?, 10u8);
     ///
     /// let (a, b, mut array, string) = buf.load_struct::<(u16, u32, ty::Array<u8>, ty::Str)>()?;

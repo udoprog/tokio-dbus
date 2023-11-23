@@ -1,3 +1,4 @@
+use std::mem::size_of;
 use std::num::NonZeroU32;
 
 use crate::buf::AlignedBuf;
@@ -43,6 +44,12 @@ impl RecvBuf {
         }
     }
 
+    /// Access the underlying buffer.
+    #[inline]
+    pub(crate) fn buf(&self) -> &AlignedBuf {
+        &self.buf
+    }
+
     /// Access the underlying buffer mutably.
     #[inline]
     pub(crate) fn buf_mut(&mut self) -> &mut AlignedBuf {
@@ -83,7 +90,8 @@ impl RecvBuf {
             headers,
         } = *message_ref;
 
-        let buf = self.buf.peek();
+        let mut buf = self.buf.as_aligned();
+        buf.advance(size_of::<proto::Header>() + size_of::<u32>())?;
 
         let mut path = None;
         let mut interface = None;
