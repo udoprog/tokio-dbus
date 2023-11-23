@@ -38,7 +38,7 @@ impl Marker for () {
     type Return<'de> = ();
 
     #[inline]
-    fn read_struct<'de>(_: &mut Body<'de>) -> Result<Self::Return<'de>> {
+    fn load_struct<'de>(_: &mut Body<'de>) -> Result<Self::Return<'de>> {
         Ok(())
     }
 
@@ -87,8 +87,8 @@ macro_rules! struct_fields {
             type Return<'de> = ($first::Return<'de>, $($rest::Return<'de>,)*);
 
             #[inline]
-            fn read_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>> {
-                Ok((<$first>::read_struct(buf)?, $(<$rest>::read_struct(buf)? ,)*))
+            fn load_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>> {
+                Ok((<$first>::load_struct(buf)?, $(<$rest>::load_struct(buf)? ,)*))
             }
 
             #[inline]

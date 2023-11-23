@@ -323,7 +323,7 @@ impl<'a> Body<'a> {
     /// let mut buf = buf.peek();
     /// assert_eq!(buf.load::<u8>()?, 10u8);
     ///
-    /// let (a, b, mut array, string) = buf.read_struct::<(u16, u32, ty::Array<u8>, ty::Str)>()?;
+    /// let (a, b, mut array, string) = buf.load_struct::<(u16, u32, ty::Array<u8>, ty::Str)>()?;
     /// assert_eq!(a, 20u16);
     /// assert_eq!(b, 30u32);
     ///
@@ -335,12 +335,12 @@ impl<'a> Body<'a> {
     /// assert_eq!(string, "Hello World");
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn read_struct<E>(&mut self) -> Result<E::Return<'a>>
+    pub fn load_struct<E>(&mut self) -> Result<E::Return<'a>>
     where
         E: ty::Fields,
     {
         self.align::<u64>()?;
-        E::read_struct(self)
+        E::load_struct(self)
     }
 
     /// Load a frame of the given type.

@@ -34,7 +34,7 @@ macro_rules! impl_traits_for_frame {
             type Return<'de> = $ty;
 
             #[inline]
-            fn read_struct<'de>(buf: &mut $crate::Body<'de>) -> $crate::Result<Self::Return<'de>> {
+            fn load_struct<'de>(buf: &mut $crate::Body<'de>) -> $crate::Result<Self::Return<'de>> {
                 buf.load()
             }
 
@@ -83,12 +83,27 @@ macro_rules! impl_traits_for_frame {
 }
 
 macro_rules! impl_traits_for_write {
-    ($ty:ty) => {
+    ($ty:ty, $example:expr, $signature:expr $(, $import:ident)?) => {
         impl $crate::storable::sealed::Sealed for &$ty {}
 
-        #[doc = concat!("[`Storable`] implementation for `", stringify!($ty), "`.")]
+        #[doc = concat!("[`Storable`] implementation for `&", stringify!($ty), "`.")]
         ///
         /// [`Storable`]: crate::Storable
+        ///
+        /// # Examples
+        ///
+        /// ```
+        /// use tokio_dbus::BodyBuf;
+        $(#[doc = concat!("use tokio_dbus::", stringify!($import), ";")])*
+        ///
+        /// let mut body = BodyBuf::new();
+        ///
+        /// body.store(10u16)?;
+        #[doc = concat!("body.store(", stringify!($example) ,")?;")]
+        ///
+        #[doc = concat!("assert_eq!(body.signature(), ", stringify!($signature) ,");")]
+        /// # Ok::<_, tokio_dbus::Error>(())
+        /// ```
         impl $crate::storable::Storable for &$ty {
             #[inline]
             fn store_to(self, buf: &mut $crate::BodyBuf) {
@@ -137,7 +152,7 @@ macro_rules! impl_trait_unsized_marker {
             type Return<'de> = &'de $return;
 
             #[inline]
-            fn read_struct<'de>(buf: &mut $crate::Body<'de>) -> $crate::Result<Self::Return<'de>> {
+            fn load_struct<'de>(buf: &mut $crate::Body<'de>) -> $crate::Result<Self::Return<'de>> {
                 buf.read()
             }
 

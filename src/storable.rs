@@ -6,6 +6,20 @@ pub(crate) mod sealed {
 }
 
 /// Trait used for types which can be stored with a `store()` call.
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::BodyBuf;
+///
+/// let mut body = BodyBuf::new();
+///
+/// body.store(10u16)?;
+/// body.store("Hello World")?;
+///
+/// assert_eq!(body.signature(), "qs");
+/// # Ok::<_, tokio_dbus::Error>(())
+/// ```
 pub trait Storable: self::sealed::Sealed {
     /// Store a frame into a buffer body.
     #[doc(hidden)]
@@ -18,6 +32,21 @@ pub trait Storable: self::sealed::Sealed {
 
 impl self::sealed::Sealed for String {}
 
+/// [`Storable`] implementation for [`String`].
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::BodyBuf;
+///
+/// let mut body = BodyBuf::new();
+///
+/// body.store(10u16)?;
+/// body.store(String::from("Hello World"))?;
+///
+/// assert_eq!(body.signature(), "qs");
+/// # Ok::<_, tokio_dbus::Error>(())
+/// ```
 impl Storable for String {
     #[inline]
     fn store_to(self, buf: &mut BodyBuf) {

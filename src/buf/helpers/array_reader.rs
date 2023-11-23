@@ -80,7 +80,7 @@ where
 {
     /// Read an array from within the array.
     ///
-    /// See [`Body::read_struct`].
+    /// See [`Body::load_struct`].
     pub fn read_array(&mut self) -> Result<Option<ArrayReader<'de, T>>> {
         if self.buf.is_empty() {
             return Ok(None);
@@ -96,12 +96,12 @@ where
 {
     /// Read a struct from within the array.
     ///
-    /// See [`Body::read_struct`].
-    pub fn read_struct(&mut self) -> Result<Option<T::Return<'de>>> {
+    /// See [`Body::load_struct`].
+    pub fn load_struct(&mut self) -> Result<Option<T::Return<'de>>> {
         if self.buf.is_empty() {
             return Ok(None);
         }
 
-        Ok(Some(T::read_struct(&mut self.buf)?))
+        Ok(Some(T::load_struct(&mut self.buf)?))
     }
 }

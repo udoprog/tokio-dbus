@@ -55,7 +55,7 @@ impl Write for [u8] {
     }
 }
 
-impl_traits_for_write!([u8]);
+impl_traits_for_write!([u8], &b"abcd"[..], "qay");
 
 impl self::sealed::Sealed for str {}
 
@@ -88,4 +88,4 @@ impl Write for str {
     }
 }
 
-impl_traits_for_write!(str);
+impl_traits_for_write!(str, "Hello World", "qs");

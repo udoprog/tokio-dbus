@@ -422,7 +422,7 @@ impl Write for Signature {
     }
 }
 
-impl_traits_for_write!(Signature);
+impl_traits_for_write!(Signature, Signature::new("us")?, "qg", Signature);
 
 impl crate::read::sealed::Sealed for Signature {}
 

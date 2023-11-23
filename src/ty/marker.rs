@@ -15,7 +15,7 @@ pub trait Marker: self::sealed::Sealed + Aligned {
 
     /// Read the value from a structure.
     #[doc(hidden)]
-    fn read_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>>;
+    fn load_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>>;
 
     /// Writing the signature.
     #[doc(hidden)]

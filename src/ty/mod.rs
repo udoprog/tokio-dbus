@@ -47,6 +47,30 @@ use crate::{Body, Error, ObjectPath, Result, Signature, SignatureError, Variant}
 /// The [`Marker`] for the [`str`] type.
 ///
 /// [`Signature`]: crate::Signature
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::{BodyBuf, Signature};
+/// use tokio_dbus::ty;
+///
+/// let mut buf = BodyBuf::new();
+///
+/// buf.store_struct::<(u8, ty::Str)>()?
+///     .store(42u8)
+///     .store("Hello World!")
+///     .finish();
+///
+/// assert_eq!(buf.signature(), b"(ys)");
+///
+/// let mut b = buf.peek();
+///
+/// let (n, value) = b.load_struct::<(u8, ty::Str)>()?;
+///
+/// assert_eq!(n, 42u8);
+/// assert_eq!(value, "Hello World!");
+/// # Ok::<_, tokio_dbus::Error>(())
+/// ```
 #[non_exhaustive]
 pub struct Str;
 
@@ -55,6 +79,30 @@ impl_trait_unsized_marker!(Str, u32, str, STRING);
 /// The [`Marker`] for the [`Signature`] type.
 ///
 /// [`Signature`]: crate::Signature
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::{BodyBuf, Signature};
+/// use tokio_dbus::ty;
+///
+/// let mut buf = BodyBuf::new();
+///
+/// buf.store_struct::<(u8, ty::Sig)>()?
+///     .store(42u8)
+///     .store(Signature::new("ay")?)
+///     .finish();
+///
+/// assert_eq!(buf.signature(), b"(yg)");
+///
+/// let mut b = buf.peek();
+///
+/// let (n, value) = b.load_struct::<(u8, ty::Sig)>()?;
+///
+/// assert_eq!(n, 42u8);
+/// assert_eq!(value, Signature::new("ay")?);
+/// # Ok::<_, tokio_dbus::Error>(())
+/// ```
 #[non_exhaustive]
 pub struct Sig;
 
@@ -63,12 +111,65 @@ impl_trait_unsized_marker!(Sig, u8, Signature, SIGNATURE);
 /// The [`Marker`] for the [`ObjectPath`] type.
 ///
 /// [`ObjectPath`]: crate::ObjectPath
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::{BodyBuf, ObjectPath};
+/// use tokio_dbus::ty;
+///
+/// let mut buf = BodyBuf::new();
+///
+/// buf.store_struct::<(u8, ty::ObjPath)>()?
+///     .store(42u8)
+///     .store(ObjectPath::new("/se/tedro/DBusExample")?)
+///     .finish();
+///
+/// assert_eq!(buf.signature(), b"(yo)");
+///
+/// let mut b = buf.peek();
+///
+/// let (n, value) = b.load_struct::<(u8, ty::ObjPath)>()?;
+///
+/// assert_eq!(n, 42u8);
+/// assert_eq!(value, ObjectPath::new("/se/tedro/DBusExample")?);
+/// # Ok::<_, tokio_dbus::Error>(())
+/// ```
 #[non_exhaustive]
-pub struct O;
+pub struct ObjPath;
 
-impl_trait_unsized_marker!(O, u8, ObjectPath, OBJECT_PATH);
+impl_trait_unsized_marker!(ObjPath, u8, ObjectPath, OBJECT_PATH);
 
 /// The [`Marker`] for an array type, like `[u8]`.
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::{BodyBuf, Signature};
+/// use tokio_dbus::ty;
+///
+/// let mut buf = BodyBuf::new();
+///
+/// buf.store_struct::<(u8, ty::Array<ty::Str>)>()?
+///     .store(42u8)
+///     .store_array(|w| {
+///         w.store("Hello");
+///         w.store("World");
+///     })
+///     .finish();
+///
+/// assert_eq!(buf.signature(), b"(yas)");
+///
+/// let mut b = buf.peek();
+///
+/// let (n, mut array) = b.load_struct::<(u8, ty::Array<ty::Str>)>()?;
+///
+/// assert_eq!(n, 42u8);
+/// assert_eq!(array.read()?, Some("Hello"));
+/// assert_eq!(array.read()?, Some("World"));
+/// assert_eq!(array.read()?, None);
+/// # Ok::<_, tokio_dbus::Error>(())
+/// ```
 pub struct Array<T>(PhantomData<T>);
 
 impl<T> self::aligned::sealed::Sealed for Array<T> where T: Aligned {}
@@ -89,7 +190,7 @@ where
     type Return<'de> = ArrayReader<'de, T>;
 
     #[inline]
-    fn read_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>> {
+    fn load_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>> {
         buf.read_array::<T>()
     }
 
@@ -118,7 +219,7 @@ impl Marker for Var {
     type Return<'de> = Variant<'de>;
 
     #[inline]
-    fn read_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>> {
+    fn load_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>> {
         let signature: &Signature = buf.read()?;
 
         let variant = match signature.as_bytes() {

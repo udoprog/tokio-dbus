@@ -244,7 +244,7 @@ impl BodyBuf {
     ///
     /// let mut b = buf.read_until_end();
     ///
-    /// let (a, b) = b.read_struct::<(u16, u32)>()?;
+    /// let (a, b) = b.load_struct::<(u16, u32)>()?;
     /// assert_eq!(a, 20u16);
     /// assert_eq!(b, 30u32);
     ///

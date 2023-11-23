@@ -236,7 +236,12 @@ impl Write for ObjectPath {
     }
 }
 
-impl_traits_for_write!(ObjectPath);
+impl_traits_for_write!(
+    ObjectPath,
+    ObjectPath::new("/se/tedro/DBusExample")?,
+    "qo",
+    ObjectPath
+);
 
 impl crate::read::sealed::Sealed for ObjectPath {}
 
