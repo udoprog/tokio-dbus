@@ -58,8 +58,6 @@ impl SendBuf {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Message, OwnedMessage, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
@@ -79,8 +77,6 @@ impl SendBuf {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Message, OwnedMessage, SendBuf};
     ///
     /// let mut send = SendBuf::new();

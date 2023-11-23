@@ -44,7 +44,7 @@ pub use self::body_buf::{BodyBuf, StoreArray, StoreStruct};
 mod body_buf;
 
 #[doc(inline)]
-pub use self::body::{Body, LoadArray};
+pub use self::body::{AsBody, Body, LoadArray};
 mod body;
 
 #[doc(inline)]

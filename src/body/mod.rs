@@ -1,6 +1,9 @@
 pub use self::load_array::LoadArray;
 mod load_array;
 
+pub use self::as_body::AsBody;
+mod as_body;
+
 use std::fmt;
 
 use crate::buf::Aligned;

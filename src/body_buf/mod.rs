@@ -280,9 +280,7 @@ impl BodyBuf {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
-    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf};
+    /// use tokio_dbus::{BodyBuf, MessageKind, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
@@ -303,9 +301,7 @@ impl BodyBuf {
     /// Write unsized types:
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
-    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf};
+    /// use tokio_dbus::{BodyBuf, MessageKind, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
@@ -369,9 +365,7 @@ impl BodyBuf {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
-    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf};
+    /// use tokio_dbus::{BodyBuf, MessageKind, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///

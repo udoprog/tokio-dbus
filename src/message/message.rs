@@ -1,7 +1,7 @@
 use std::num::NonZeroU32;
 
 use crate::proto::{Flags, MessageType};
-use crate::{Body, BodyBuf, MessageKind, ObjectPath, OwnedMessage, Signature};
+use crate::{AsBody, Body, BodyBuf, MessageKind, ObjectPath, OwnedMessage, Signature};
 
 /// A borrowed D-Bus message.
 ///
@@ -31,8 +31,6 @@ impl<'a> Message<'a> {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Message, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
@@ -64,8 +62,6 @@ impl<'a> Message<'a> {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Message, MessageKind, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
@@ -101,8 +97,6 @@ impl<'a> Message<'a> {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Message, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
@@ -133,8 +127,6 @@ impl<'a> Message<'a> {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Message, MessageKind, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
@@ -172,8 +164,6 @@ impl<'a> Message<'a> {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Message, OwnedMessage, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
@@ -202,8 +192,6 @@ impl<'a> Message<'a> {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Message, MessageKind, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
@@ -227,9 +215,7 @@ impl<'a> Message<'a> {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
-    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf, Signature};
+    /// use tokio_dbus::{BodyBuf, MessageKind, ObjectPath, SendBuf, Signature};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
@@ -245,7 +231,7 @@ impl<'a> Message<'a> {
     /// assert_eq!(m.signature(), Signature::STRING);
     /// ```
     #[must_use]
-    pub fn with_body(self, body: &'a BodyBuf) -> Self {
+    pub fn with_body(self, body: impl AsBody<'a>) -> Self {
         Self {
             body: body.as_body(),
             ..self
@@ -257,9 +243,7 @@ impl<'a> Message<'a> {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
-    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf};
+    /// use tokio_dbus::{BodyBuf, MessageKind, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
@@ -338,8 +322,6 @@ impl<'a> Message<'a> {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Flags, Message, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
@@ -362,8 +344,6 @@ impl<'a> Message<'a> {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Flags, Message, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
@@ -386,8 +366,6 @@ impl<'a> Message<'a> {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Message, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
@@ -410,8 +388,6 @@ impl<'a> Message<'a> {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Message, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
@@ -437,8 +413,6 @@ impl<'a> Message<'a> {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Message, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
@@ -461,8 +435,6 @@ impl<'a> Message<'a> {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Message, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
@@ -488,8 +460,6 @@ impl<'a> Message<'a> {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Message, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
@@ -512,8 +482,6 @@ impl<'a> Message<'a> {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Message, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
@@ -539,9 +507,7 @@ impl<'a> Message<'a> {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
-    /// use tokio_dbus::{BodyBuf, Message, ObjectPath, SendBuf, Signature};
+    /// use tokio_dbus::{BodyBuf, ObjectPath, SendBuf, Signature};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
