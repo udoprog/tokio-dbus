@@ -3,9 +3,7 @@
 #[cfg(test)]
 mod tests;
 
-pub use self::helpers::{
-    ArrayReader, ArrayWriter, StructWriter, TypedArrayWriter, TypedStructWriter,
-};
+pub use self::helpers::{ArrayReader, TypedArrayWriter, TypedStructWriter};
 mod helpers;
 
 pub use self::body::Body;

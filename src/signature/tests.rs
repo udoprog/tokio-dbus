@@ -77,8 +77,8 @@ fn signature_tests() {
 #[test]
 fn signature_skip() -> Result<()> {
     let mut buf = BodyBuf::new();
-    buf.write("Hello")?;
-    buf.write("World")?;
+    buf.store("Hello")?;
+    buf.store("World")?;
 
     let sig = Signature::new_const(b"s");
 
@@ -96,17 +96,17 @@ fn signature_skip() -> Result<()> {
 fn signature_skip_array() -> Result<()> {
     let mut buf = BodyBuf::new();
 
-    let mut array = buf.write_array::<ty::Array<ty::Str>>()?;
+    let mut array = buf.store_array::<ty::Array<ty::Str>>()?;
 
-    let mut first = array.write_array();
-    first.write("A");
-    first.write("B");
-    first.write("C");
+    let mut first = array.store_array();
+    first.store("A");
+    first.store("B");
+    first.store("C");
     first.finish();
 
-    let mut second = array.write_array();
-    second.write("D");
-    second.write("E");
+    let mut second = array.store_array();
+    second.store("D");
+    second.store("E");
     second.finish();
 
     array.finish();

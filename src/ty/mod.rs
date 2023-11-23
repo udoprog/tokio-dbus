@@ -9,15 +9,15 @@
 //! let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
 //! buf.store(10u8);
 //!
-//! buf.write_struct::<(u16, u32, ty::Array<u8>, ty::Str)>()?
+//! buf.store_struct::<(u16, u32, ty::Array<u8>, ty::Str)>()?
 //!     .store(10u16)
 //!     .store(10u32)
-//!     .write_array(|w| {
+//!     .store_array(|w| {
 //!         w.store(1u8);
 //!         w.store(2u8);
 //!         w.store(3u8);
 //!     })
-//!     .write("Hello World")
+//!     .store("Hello World")
 //!     .finish();
 //!
 //! assert_eq!(buf.signature(), b"y(quays)");
@@ -59,3 +59,7 @@ pub struct O;
 
 /// The [`Marker`] for an array type, like `[u8]`.
 pub struct Array<T>(PhantomData<T>);
+
+/// The [`Marker`] for the [`Variant`] type.
+#[non_exhaustive]
+pub struct Var;

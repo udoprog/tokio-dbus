@@ -223,7 +223,7 @@ impl Write for ObjectPath {
 
     #[inline]
     fn write_to(&self, buf: &mut BodyBuf) {
-        buf.store_only(self.0.len() as u32);
+        buf.store_frame(self.0.len() as u32);
         buf.extend_from_slice_nul(&self.0);
     }
 

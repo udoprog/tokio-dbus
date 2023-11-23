@@ -1,8 +1,9 @@
 use crate::buf::BodyBuf;
 use crate::error::Result;
-use crate::proto::Header;
-use crate::proto::{Endianness, Flags, MessageType, Variant};
-use crate::Signature;
+use crate::proto::{self, Header};
+use crate::proto::{Endianness, Flags, MessageType};
+use crate::ty;
+use crate::{Signature, Variant};
 
 #[rustfmt::skip]
 const LE_BLOB: [u8; 36] = [
@@ -120,17 +121,19 @@ fn write_blob(buf: &mut BodyBuf) -> Result<()> {
         serial: 0x12345678u32,
     })?;
 
-    let mut array = buf.write_array_raw::<u64>();
+    let mut array = buf.store_array::<(proto::Variant, ty::Var)>()?;
 
-    let mut st = array.write_struct();
-    st.store(Variant::REPLY_SERIAL);
-    st.write(Signature::UINT32);
-    st.store(0xabcdef12u32);
+    array
+        .store_struct()
+        .store(proto::Variant::REPLY_SERIAL)
+        .store(Variant::U32(0xabcdef12u32))
+        .finish();
 
-    let mut st = array.write_struct();
-    st.store(Variant::SIGNATURE);
-    st.write(Signature::SIGNATURE);
-    st.write(Signature::UINT32);
+    array
+        .store_struct()
+        .store(proto::Variant::SIGNATURE)
+        .store(Variant::Signature(Signature::UINT32))
+        .finish();
 
     array.finish();
 

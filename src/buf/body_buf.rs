@@ -3,11 +3,12 @@ use std::fmt;
 use crate::buf::AlignedBuf;
 use crate::error::Result;
 use crate::signature::{SignatureBuilder, SignatureError, SignatureErrorKind};
-use crate::{ty, Endianness, Frame, OwnedSignature, Signature, Write};
+use crate::ty;
+use crate::{Endianness, Frame, OwnedSignature, Signature, Storable, Write};
 
 use crate::arguments::Arguments;
 
-use super::helpers::{ArrayWriter, StructWriter, TypedArrayWriter, TypedStructWriter};
+use super::helpers::{TypedArrayWriter, TypedStructWriter};
 use super::{Alloc, Body};
 
 /// A buffer that can be used to write a body.
@@ -234,7 +235,7 @@ impl BodyBuf {
     ///
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
     ///
-    /// buf.write_struct::<(u16, u32)>()?
+    /// buf.store_struct::<(u16, u32)>()?
     ///     .store(20u16)
     ///     .store(30u32)
     ///     .finish();
@@ -310,20 +311,43 @@ impl BodyBuf {
     /// assert_eq!(m.signature(), Signature::new(b"du")?);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
+    ///
+    /// Write unsized types:
+    ///
+    /// ```
+    /// use std::num::NonZeroU32;
+    ///
+    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf, Signature};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
+    ///
+    /// let mut send = SendBuf::new();
+    /// let mut body = BodyBuf::new();
+    ///
+    /// body.store("Hello World!")?;
+    /// body.store(PATH)?;
+    ///
+    /// let m = send.method_call(PATH, "Hello")
+    ///     .with_body(&body);
+    ///
+    /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
+    /// assert_eq!(m.signature(), Signature::new(b"so")?);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
     pub fn store<T>(&mut self, frame: T) -> Result<()>
     where
-        T: Frame,
+        T: Storable,
     {
-        if !self.signature.extend_from_signature(T::SIGNATURE) {
+        if !T::write_signature(&mut self.signature) {
             return Err(SignatureError::new(SignatureErrorKind::SignatureTooLong).into());
         }
 
-        self.store_only(frame);
+        frame.store_to(self);
         Ok(())
     }
 
     /// Only store the specified value without appending its signature.
-    pub(crate) fn store_only<T>(&mut self, mut frame: T)
+    pub(crate) fn store_frame<T>(&mut self, mut frame: T)
     where
         T: Frame,
     {
@@ -341,40 +365,12 @@ impl BodyBuf {
         self.buf.extend_from_slice_nul(bytes);
     }
 
-    /// Write a type `T` to the buffer and and its signature.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use std::num::NonZeroU32;
-    ///
-    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf, Signature};
-    ///
-    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
-    ///
-    /// let mut send = SendBuf::new();
-    /// let mut body = BodyBuf::new();
-    ///
-    /// body.write("Hello World!")?;
-    /// body.write(PATH)?;
-    ///
-    /// let m = send.method_call(PATH, "Hello")
-    ///     .with_body(&body);
-    ///
-    /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
-    /// assert_eq!(m.signature(), Signature::new(b"so")?);
-    /// # Ok::<_, tokio_dbus::Error>(())
-    /// ```
-    pub fn write<T>(&mut self, value: &T) -> Result<()>
+    /// Only write to the buffer without appending a signature.
+    pub(crate) fn write_only<T>(&mut self, value: &T)
     where
         T: ?Sized + Write,
     {
-        if !self.signature.extend_from_signature(T::SIGNATURE) {
-            return Err(SignatureError::new(SignatureErrorKind::SignatureTooLong).into());
-        }
-
         value.write_to(self);
-        Ok(())
     }
 
     /// Extend the body with multiple arguments.
@@ -411,14 +407,6 @@ impl BodyBuf {
         value.extend_to(self)
     }
 
-    /// Write a raw array into the buffer.
-    pub fn write_array_raw<A>(&mut self) -> ArrayWriter<'_, A>
-    where
-        A: ty::Aligned,
-    {
-        ArrayWriter::new(self)
-    }
-
     /// Write an array into the buffer.
     ///
     /// # Examples
@@ -427,7 +415,7 @@ impl BodyBuf {
     /// use tokio_dbus::{BodyBuf, Endianness};
     ///
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
-    /// let mut array = buf.write_array::<u32>()?;
+    /// let mut array = buf.store_array::<u32>()?;
     /// array.store(1u32);
     /// array.finish();
     ///
@@ -442,21 +430,21 @@ impl BodyBuf {
     /// use tokio_dbus::{BodyBuf, Endianness};
     ///
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
-    /// let mut array = buf.write_array::<u64>()?;
+    /// let mut array = buf.store_array::<u64>()?;
     /// array.finish();
     ///
     /// assert_eq!(buf.signature(), b"at");
     /// assert_eq!(buf.get(), &[0, 0, 0, 0, 0, 0, 0, 0]);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn write_array<E>(&mut self) -> Result<TypedArrayWriter<'_, E>>
+    pub fn store_array<E>(&mut self) -> Result<TypedArrayWriter<'_, E>>
     where
         E: ty::Marker,
     {
         <ty::Array<E> as ty::Marker>::write_signature(&mut self.signature)?;
         // NB: We write directly onto the underlying buffer, because we've
         // already applied the correct signature.
-        Ok(TypedArrayWriter::new(ArrayWriter::new(self)))
+        Ok(TypedArrayWriter::new(self))
     }
 
     /// Write a slice as an byte array.
@@ -474,7 +462,7 @@ impl BodyBuf {
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     pub fn write_slice(&mut self, data: &[u8]) -> Result<()> {
-        self.write_array::<u8>()?.write_slice(data);
+        self.store_array::<u8>()?.write_slice(data);
         Ok(())
     }
 
@@ -489,29 +477,29 @@ impl BodyBuf {
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
     /// buf.store(10u8);
     ///
-    /// buf.write_struct::<(u16, u32, ty::Array<u8>, ty::Str)>()?
+    /// buf.store_struct::<(u16, u32, ty::Array<u8>, ty::Str)>()?
     ///     .store(10u16)
     ///     .store(10u32)
-    ///     .write_array(|w| {
+    ///     .store_array(|w| {
     ///         w.store(1u8);
     ///         w.store(2u8);
     ///         w.store(3u8);
     ///     })
-    ///     .write("Hello World")
+    ///     .store("Hello World")
     ///     .finish();
     ///
     /// assert_eq!(buf.signature(), b"y(quays)");
     /// assert_eq!(buf.get(), &[10, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 3, 0, 0, 0, 1, 2, 3, 0, 11, 0, 0, 0, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 0]);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn write_struct<E>(&mut self) -> Result<TypedStructWriter<'_, E>>
+    pub fn store_struct<E>(&mut self) -> Result<TypedStructWriter<'_, E>>
     where
         E: ty::Fields,
     {
         E::write_signature(&mut self.signature)?;
         // NB: We write directly onto the underlying buffer, because we've
         // already applied the correct signature.
-        Ok(TypedStructWriter::new(StructWriter::new(self)))
+        Ok(TypedStructWriter::new(self))
     }
 }
 

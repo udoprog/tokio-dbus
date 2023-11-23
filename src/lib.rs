@@ -52,6 +52,10 @@ pub use self::frame::Frame;
 mod frame;
 
 #[doc(inline)]
+pub use self::storable::Storable;
+mod storable;
+
+#[doc(inline)]
 pub use self::message::{Message, MessageKind, OwnedMessage};
 mod message;
 
@@ -67,6 +71,10 @@ mod utils;
 #[doc(inline)]
 pub use self::object_path::{ObjectPath, ObjectPathError, OwnedObjectPath};
 mod object_path;
+
+#[doc(inline)]
+pub use self::variant::Variant;
+mod variant;
 
 pub mod ty;
 

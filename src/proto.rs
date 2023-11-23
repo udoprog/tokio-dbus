@@ -1,5 +1,7 @@
 //! Low level details for the D-Bus protocol implementation.
 
+use crate::{signature::SignatureBuilder, BodyBuf, Frame, Signature, Storable};
+
 /// A protocol header.
 #[derive(Debug, Clone, Copy)]
 #[repr(C)]
@@ -14,12 +16,24 @@ pub(crate) struct Header {
 
 impl crate::frame::sealed::Sealed for Header {}
 
-unsafe impl crate::Frame for Header {
-    const SIGNATURE: &'static crate::Signature = crate::Signature::new_const(b"yyyyuu");
+unsafe impl Frame for Header {
+    const SIGNATURE: &'static Signature = Signature::new_const(b"yyyyuu");
 
     fn adjust(&mut self, endianness: Endianness) {
         self.body_length.adjust(endianness);
         self.serial.adjust(endianness);
+    }
+}
+
+impl crate::storable::sealed::Sealed for Header {}
+
+impl Storable for Header {
+    fn store_to(self, buf: &mut BodyBuf) {
+        buf.store_frame(self);
+    }
+
+    fn write_signature(builder: &mut SignatureBuilder) -> bool {
+        builder.extend_from_signature(Header::SIGNATURE)
     }
 }
 
@@ -55,6 +69,20 @@ macro_rules! raw_enum {
             #[inline]
             fn adjust(&mut self, endianness: $crate::Endianness) {
                 self.0.adjust(endianness);
+            }
+        }
+
+        impl $crate::storable::sealed::Sealed for $name {}
+
+        impl $crate::Storable for $name {
+            #[inline]
+            fn store_to(self, buf: &mut $crate::BodyBuf) {
+                self.0.store_to(buf);
+            }
+
+            #[inline]
+            fn write_signature(signature: &mut crate::signature::SignatureBuilder) -> bool {
+                signature.extend_from_signature(<$repr as $crate::Frame>::SIGNATURE)
             }
         }
 
@@ -101,6 +129,20 @@ macro_rules! raw_set {
             #[inline]
             fn adjust(&mut self, endianness: $crate::Endianness) {
                 self.0.adjust(endianness);
+            }
+        }
+
+        impl $crate::storable::sealed::Sealed for $name {}
+
+        impl $crate::Storable for $name {
+            #[inline]
+            fn store_to(self, buf: &mut $crate::BodyBuf) {
+                self.0.store_to(buf);
+            }
+
+            #[inline]
+            fn write_signature(signature: &mut crate::signature::SignatureBuilder) -> bool {
+                signature.extend_from_signature(<$repr as $crate::Frame>::SIGNATURE)
             }
         }
 

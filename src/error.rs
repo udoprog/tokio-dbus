@@ -5,6 +5,7 @@ use std::str::Utf8Error;
 
 use crate::connection::TransportState;
 use crate::ObjectPathError;
+use crate::Signature;
 use crate::SignatureError;
 
 /// Result alias using an [`Error`] as the error type by default.
@@ -104,6 +105,9 @@ impl fmt::Display for Error {
             ErrorKind::ResponseError(error_name, message) => {
                 write!(f, "Response error: {error_name}: {message}")
             }
+            ErrorKind::UnsupportedVariant(signature) => {
+                write!(f, "Unsupported variant {signature:?}")
+            }
         }
     }
 }
@@ -144,5 +148,6 @@ pub(crate) enum ErrorKind {
     BodyTooLong(u32),
     ArrayTooLong(u32),
     MissingMessage,
+    UnsupportedVariant(Box<Signature>),
     ResponseError(Box<str>, Box<str>),
 }

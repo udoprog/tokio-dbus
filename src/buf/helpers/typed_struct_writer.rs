@@ -1,25 +1,30 @@
 use std::marker::PhantomData;
 
-use crate::{ty, Arguments};
-use crate::{Frame, Write};
+use crate::ty;
+use crate::{Arguments, BodyBuf, Storable};
 
-use super::{StructWriter, TypedArrayWriter};
+use super::TypedArrayWriter;
 
 /// Write a typed struct.
 ///
-/// See [`BodyBuf::write_struct`].
+/// See [`BodyBuf::store_struct`].
 ///
-/// [`BodyBuf::write_struct`]: crate::BodyBuf::write_struct
+/// [`BodyBuf::store_struct`]: crate::BodyBuf::store_struct
 #[must_use = "Must call `finish` after writing all related fields"]
 pub struct TypedStructWriter<'a, T> {
-    inner: StructWriter<'a>,
+    buf: &'a mut BodyBuf,
     _marker: PhantomData<T>,
 }
 
 impl<'a, T> TypedStructWriter<'a, T> {
-    pub(crate) fn new(inner: StructWriter<'a>) -> Self {
+    pub(crate) fn new(buf: &'a mut BodyBuf) -> Self {
+        buf.align_mut::<u64>();
+        Self::inner(buf)
+    }
+
+    pub(crate) fn inner(buf: &'a mut BodyBuf) -> Self {
         Self {
-            inner,
+            buf,
             _marker: PhantomData,
         }
     }
@@ -34,7 +39,7 @@ impl<'a, T> TypedStructWriter<'a, T> {
     ///
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
     ///
-    /// buf.write_struct::<(u16, u32)>()?
+    /// buf.store_struct::<(u16, u32)>()?
     ///     .store(10u16)
     ///     .store(10u32)
     ///     .finish();
@@ -43,19 +48,8 @@ impl<'a, T> TypedStructWriter<'a, T> {
     /// assert_eq!(buf.get(), &[10, 0, 0, 0, 10, 0, 0, 0]);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    #[inline]
-    pub fn store(mut self, value: T::First) -> TypedStructWriter<'a, T::Remaining>
-    where
-        T: ty::Fields,
-        T::First: Frame,
-    {
-        self.inner.store(value);
-        TypedStructWriter::new(self.inner)
-    }
-
-    /// Store a value and return the builder for the next value to store.
     ///
-    /// # Examples
+    /// Examples using unsized types:
     ///
     /// ```
     /// use tokio_dbus::{BodyBuf, Endianness};
@@ -63,8 +57,8 @@ impl<'a, T> TypedStructWriter<'a, T> {
     ///
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
     ///
-    /// buf.write_struct::<(ty::Str,)>()?
-    ///     .write("Hello World")
+    /// buf.store_struct::<(ty::Str,)>()?
+    ///     .store("Hello World")
     ///     .finish();
     ///
     /// assert_eq!(buf.signature(), b"(s)");
@@ -72,17 +66,17 @@ impl<'a, T> TypedStructWriter<'a, T> {
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     #[inline]
-    pub fn write(
-        mut self,
-        value: &<T::First as ty::Unsized>::Target,
+    pub fn store(
+        self,
+        value: <T::First as ty::Marker>::Return<'_>,
     ) -> TypedStructWriter<'a, T::Remaining>
     where
         T: ty::Fields,
-        T::First: ty::Unsized,
-        <T::First as ty::Unsized>::Target: Write,
+        T::First: ty::Marker,
+        for<'b> <T::First as ty::Marker>::Return<'b>: Storable,
     {
-        self.inner.write(value);
-        TypedStructWriter::new(self.inner)
+        value.store_to(self.buf);
+        TypedStructWriter::inner(self.buf)
     }
 
     /// Store a value and return the builder for the next value to store.
@@ -95,18 +89,18 @@ impl<'a, T> TypedStructWriter<'a, T> {
     ///
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
     ///
-    /// buf.write_struct::<(u8, u32)>()?.fields((42u8, 42u32));
+    /// buf.store_struct::<(u8, u32)>()?.fields((42u8, 42u32));
     ///
     /// assert_eq!(buf.signature(), b"(yu)");
     /// assert_eq!(buf.get(), &[42, 0, 0, 0, 42, 0, 0, 0]);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     #[inline]
-    pub fn fields(mut self, arguments: T)
+    pub fn fields(self, arguments: T)
     where
         T: Arguments,
     {
-        self.inner.arguments(arguments);
+        arguments.buf_to(self.buf);
     }
 
     /// Store a value and return the builder for the next value to store.
@@ -119,8 +113,8 @@ impl<'a, T> TypedStructWriter<'a, T> {
     ///
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
     ///
-    /// buf.write_struct::<(ty::Array<u32>,)>()?
-    ///     .write_array(|w| {
+    /// buf.store_struct::<(ty::Array<u32>,)>()?
+    ///     .store_array(|w| {
     ///         w.store(1);
     ///         w.store(2);
     ///         w.store(3);
@@ -133,41 +127,41 @@ impl<'a, T> TypedStructWriter<'a, T> {
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     #[inline]
-    pub fn write_array<W, U>(mut self, writer: W) -> TypedStructWriter<'a, T::Remaining>
+    pub fn store_array<W, U>(self, writer: W) -> TypedStructWriter<'a, T::Remaining>
     where
         W: FnOnce(&mut TypedArrayWriter<'_, U>),
         T: ty::Fields<First = ty::Array<U>>,
         U: ty::Aligned,
     {
-        let mut w = TypedArrayWriter::new(self.inner.write_array());
+        let mut w = TypedArrayWriter::new(self.buf);
         writer(&mut w);
         w.finish();
-        TypedStructWriter::new(self.inner)
+        TypedStructWriter::inner(self.buf)
     }
 
     /// Store a value and return the builder for the next value to store.
     ///
-    /// See [`BodyBuf::write_struct`].
+    /// See [`BodyBuf::store_struct`].
     ///
-    /// [`BodyBuf::write_struct`]: crate::BodyBuf::write_struct
+    /// [`BodyBuf::store_struct`]: crate::BodyBuf::store_struct
     #[inline]
-    pub fn write_struct<W>(mut self, writer: W) -> TypedStructWriter<'a, T::Remaining>
+    pub fn store_struct<W>(self, writer: W) -> TypedStructWriter<'a, T::Remaining>
     where
         W: FnOnce(&mut TypedStructWriter<'_, T::First>),
         T: ty::Fields,
         T::First: ty::Fields,
     {
-        let mut w = TypedStructWriter::new(self.inner.write_struct());
+        let mut w = TypedStructWriter::new(self.buf);
         writer(&mut w);
-        TypedStructWriter::new(self.inner)
+        TypedStructWriter::inner(self.buf)
     }
 }
 
 impl TypedStructWriter<'_, ()> {
     /// Finish writing the struct.
     ///
-    /// See [`BodyBuf::write_struct`].
+    /// See [`BodyBuf::store_struct`].
     ///
-    /// [`BodyBuf::write_struct`]: crate::BodyBuf::write_struct
+    /// [`BodyBuf::store_struct`]: crate::BodyBuf::store_struct
     pub fn finish(self) {}
 }

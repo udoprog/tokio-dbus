@@ -34,7 +34,7 @@ async fn main() -> Result<()> {
                     // Clear the body in case handler buffered something before
                     // erroring.
                     body.clear();
-                    body.write(error.to_string().as_str())?;
+                    body.store(error.to_string())?;
 
                     message
                         .error("se.tedro.DBusExample.Error", send.next_serial())

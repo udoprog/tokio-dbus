@@ -172,17 +172,17 @@ impl<'a> Body<'a> {
     /// use tokio_dbus::{ty, BodyBuf, Endianness};
     ///
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
-    /// let mut array = buf.write_array::<u32>()?;
+    /// let mut array = buf.store_array::<u32>()?;
     /// array.store(10u32);
     /// array.store(20u32);
     /// array.store(30u32);
     /// array.finish();
     ///
-    /// let mut array = buf.write_array::<ty::Array<ty::Str>>()?;
-    /// let mut inner = array.write_array();
-    /// inner.write("foo");
-    /// inner.write("bar");
-    /// inner.write("baz");
+    /// let mut array = buf.store_array::<ty::Array<ty::Str>>()?;
+    /// let mut inner = array.store_array();
+    /// inner.store("foo");
+    /// inner.store("bar");
+    /// inner.store("baz");
     /// inner.finish();
     /// array.finish();
     ///
@@ -224,15 +224,15 @@ impl<'a> Body<'a> {
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
     /// buf.store(10u8);
     ///
-    /// buf.write_struct::<(u16, u32, ty::Array<u8>, ty::Str)>()?
+    /// buf.store_struct::<(u16, u32, ty::Array<u8>, ty::Str)>()?
     ///     .store(20u16)
     ///     .store(30u32)
-    ///     .write_array(|w| {
+    ///     .store_array(|w| {
     ///         w.store(1u8);
     ///         w.store(2u8);
     ///         w.store(3u8);
     ///     })
-    ///     .write("Hello World")
+    ///     .store("Hello World")
     ///     .finish();
     ///
     /// assert_eq!(buf.signature(), Signature::new(b"y(quays)")?);

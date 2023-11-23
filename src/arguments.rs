@@ -32,7 +32,7 @@ macro_rules! impl_store {
 
                 #[inline]
                 fn buf_to(&self, buf: &mut BodyBuf) {
-                    buf.store_only(*self);
+                    buf.store_frame(*self);
                 }
             }
         )*
@@ -47,7 +47,7 @@ macro_rules! impl_write {
             impl Arguments for $ty {
                 #[inline]
                 fn extend_to(&self, buf: &mut BodyBuf) -> Result<()> {
-                    buf.write(self)
+                    buf.store(self)
                 }
 
                 #[inline]

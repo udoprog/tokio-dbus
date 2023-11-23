@@ -1,4 +1,5 @@
-use crate::{proto::Endianness, Signature};
+use crate::proto::Endianness;
+use crate::Signature;
 
 pub(crate) mod sealed {
     pub trait Sealed {}

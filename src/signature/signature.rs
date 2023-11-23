@@ -45,7 +45,7 @@ impl Signature {
     /// use tokio_dbus::{BodyBuf, Signature};
     ///
     /// let mut body = BodyBuf::new();
-    /// body.write(Signature::new(b"g")?);
+    /// body.store(Signature::new(b"g")?);
     ///
     /// assert_eq!(body.signature(), Signature::SIGNATURE);
     /// # Ok::<_, tokio_dbus::Error>(())
@@ -60,7 +60,7 @@ impl Signature {
     /// use tokio_dbus::{BodyBuf, Signature, ObjectPath};
     ///
     /// let mut body = BodyBuf::new();
-    /// body.write(ObjectPath::new(b"/org/freedesktop/DBus")?);
+    /// body.store(ObjectPath::new(b"/org/freedesktop/DBus")?);
     ///
     /// assert_eq!(body.signature(), Signature::OBJECT_PATH);
     /// # Ok::<_, tokio_dbus::Error>(())
@@ -75,11 +75,25 @@ impl Signature {
     /// use tokio_dbus::{BodyBuf, Signature};
     ///
     /// let mut body = BodyBuf::new();
-    /// body.write("Hello World!");
+    /// body.store("Hello World!");
     ///
     /// assert_eq!(body.signature(), Signature::STRING);
     /// ```
     pub const STRING: &'static Signature = Signature::new_const(b"s");
+
+    /// The signature of a variant value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{BodyBuf, Signature, Variant};
+    ///
+    /// let mut body = BodyBuf::new();
+    /// body.store(Variant::U32(10u32));
+    ///
+    /// assert_eq!(body.signature(), Signature::VARIANT);
+    /// ```
+    pub const VARIANT: &'static Signature = Signature::new_const(b"v");
 
     /// A single byte.
     ///
@@ -394,7 +408,7 @@ impl Write for Signature {
 
     #[inline]
     fn write_to(&self, buf: &mut BodyBuf) {
-        buf.store_only(self.0.len() as u8);
+        buf.store_frame(self.0.len() as u8);
         buf.extend_from_slice_nul(&self.0);
     }
 
@@ -531,5 +545,13 @@ impl<const N: usize> PartialEq<[u8; N]> for &Signature {
     #[inline]
     fn eq(&self, other: &[u8; N]) -> bool {
         self.0 == other[..]
+    }
+}
+
+impl From<&Signature> for Box<Signature> {
+    #[inline]
+    fn from(signature: &Signature) -> Self {
+        // SAFETY: ObjectPath is repr(transparent) over [u8].
+        unsafe { Box::from_raw(Box::into_raw(Box::<[u8]>::from(&signature.0)) as *mut Signature) }
     }
 }

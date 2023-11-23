@@ -236,7 +236,7 @@ impl<'a> Message<'a> {
     /// let mut send = SendBuf::new();
     /// let mut body = BodyBuf::new();
     ///
-    /// body.write("Hello World!");
+    /// body.store("Hello World!");
     ///
     /// let m = send.method_call(PATH, "Hello")
     ///     .with_body(&body);
@@ -267,7 +267,7 @@ impl<'a> Message<'a> {
     /// let mut body = BodyBuf::new();
     ///
     /// body.store(42u32);
-    /// body.write("Hello World!");
+    /// body.store("Hello World!");
     ///
     /// let m = send.method_call(PATH, "Hello")
     ///     .with_body(&body);
@@ -551,7 +551,7 @@ impl<'a> Message<'a> {
     /// assert_eq!(m.signature(), Signature::EMPTY);
     ///
     /// let mut body = BodyBuf::new();
-    /// body.write("Hello World!");
+    /// body.store("Hello World!");
     ///
     /// let m2 = m.with_body(&body);
     /// assert_eq!(m2.signature(), Signature::STRING);

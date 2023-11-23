@@ -278,7 +278,7 @@ impl Connection {
 
     /// Request the given well-known name.
     pub async fn request_name(&mut self, name: &str, flags: NameFlag) -> Result<NameReply> {
-        self.body.write(name)?;
+        self.body.store(name)?;
         self.body.store(flags)?;
 
         let m = self

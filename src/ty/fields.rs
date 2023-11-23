@@ -15,7 +15,7 @@ pub enum Empty {}
 /// Trait indicating the fields of a struct.
 ///
 /// This is implemented by tuples.
-pub trait Fields: self::sealed::Sealed + Aligned {
+pub trait Fields: self::sealed::Sealed + Marker {
     /// The target field.
     #[doc(hidden)]
     type First;
@@ -23,18 +23,6 @@ pub trait Fields: self::sealed::Sealed + Aligned {
     /// The next struct fields to write.
     #[doc(hidden)]
     type Remaining;
-
-    /// The return value of the struct.
-    #[doc(hidden)]
-    type Return<'de>;
-
-    /// Read a struct.
-    #[doc(hidden)]
-    fn read_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>>;
-
-    /// Write signature.
-    #[doc(hidden)]
-    fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError>;
 }
 
 impl super::aligned::sealed::Sealed for () {}
@@ -43,9 +31,9 @@ impl Aligned for () {
     type Type = u64;
 }
 
-impl Fields for () {
-    type First = Empty;
-    type Remaining = ();
+impl super::marker::sealed::Sealed for () {}
+
+impl Marker for () {
     type Return<'de> = ();
 
     #[inline]
@@ -57,6 +45,11 @@ impl Fields for () {
     fn write_signature(_: &mut SignatureBuilder) -> Result<(), SignatureError> {
         Ok(())
     }
+}
+
+impl Fields for () {
+    type First = Empty;
+    type Remaining = ();
 }
 
 macro_rules! struct_fields {
@@ -79,13 +72,17 @@ macro_rules! struct_fields {
             type Type = u64;
         }
 
-        impl<$first, $($rest),*> Fields for ($first, $($rest),*)
+        impl<$first, $($rest),*> super::marker::sealed::Sealed for ($first, $($rest),*)
+        where
+            $first: Marker,
+            $($rest: Marker,)* {
+        }
+
+        impl<$first, $($rest),*> Marker for ($first, $($rest),*)
         where
             $first: Marker,
             $($rest: Marker,)*
         {
-            type First = A;
-            type Remaining = ($($rest,)*);
             type Return<'de> = ($first::Return<'de>, $($rest::Return<'de>,)*);
 
             #[inline]
@@ -101,6 +98,15 @@ macro_rules! struct_fields {
                 signature.close_struct()?;
                 Ok(())
             }
+        }
+
+        impl<$first, $($rest),*> Fields for ($first, $($rest),*)
+        where
+            $first: Marker,
+            $($rest: Marker,)*
+        {
+            type First = A;
+            type Remaining = ($($rest,)*);
         }
     }
 }

@@ -40,7 +40,7 @@ pub trait Write: self::sealed::Sealed {
 /// use tokio_dbus::{BodyBuf, Signature};;
 ///
 /// let mut buf = BodyBuf::new();
-/// buf.write(&b"foo"[..]);
+/// buf.store(&b"foo"[..]);
 ///
 /// assert_eq!(buf.signature(), Signature::new(b"ay")?);
 /// assert_eq!(buf.get(), &[3, 0, 0, 0, 102, 111, 111]);
@@ -51,7 +51,7 @@ impl Write for [u8] {
 
     #[inline]
     fn write_to(&self, buf: &mut BodyBuf) {
-        buf.store_only(self.len() as u32);
+        buf.store_frame(self.len() as u32);
         buf.extend_from_slice(self);
     }
 
@@ -70,7 +70,7 @@ impl Write for [u8] {
 /// use tokio_dbus::{BodyBuf, Signature};;
 ///
 /// let mut buf = BodyBuf::new();
-/// buf.write("foo");
+/// buf.store("foo");
 ///
 /// assert_eq!(buf.signature(), Signature::STRING);
 /// assert_eq!(buf.get(), &[3, 0, 0, 0, 102, 111, 111, 0])
@@ -80,7 +80,7 @@ impl Write for str {
 
     #[inline]
     fn write_to(&self, buf: &mut BodyBuf) {
-        buf.store_only(self.len() as u32);
+        buf.store_frame(self.len() as u32);
         buf.extend_from_slice_nul(self.as_bytes());
     }
 
