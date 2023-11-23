@@ -23,9 +23,6 @@ mod unaligned_buf;
 pub use self::body_buf::BodyBuf;
 mod body_buf;
 
-pub use self::buf::Buf;
-mod buf;
-
 pub use self::buf_mut::{Alloc, BufMut};
 mod buf_mut;
 

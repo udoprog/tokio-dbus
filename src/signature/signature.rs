@@ -1,11 +1,10 @@
 use std::fmt;
 use std::str::from_utf8_unchecked;
 
-use crate::buf::{Buf, BufMut};
+use crate::buf::BufMut;
 use crate::error::Result;
 use crate::proto::Type;
-use crate::OwnedSignature;
-use crate::{Read, Write};
+use crate::{Body, OwnedSignature, Read, Write};
 
 use super::stack::Stack;
 use super::{validate, SignatureError, MAX_DEPTH};
@@ -288,10 +287,7 @@ impl Signature {
     }
 
     /// Return the stride needed to skip over read buffer.
-    pub(crate) fn skip<'de, B>(&self, mut read: B) -> Result<()>
-    where
-        B: Buf<'de>,
-    {
+    pub(crate) fn skip<'de>(&self, read: &mut Body<'_>) -> Result<()> {
         #[derive(Debug, Clone, Copy)]
         enum Step {
             Fixed(usize),
@@ -377,7 +373,7 @@ impl Signature {
                 Step::Variant => {
                     let _ = read.load::<u8>()?;
                     let sig = read.read::<Signature>()?;
-                    sig.skip(read.reborrow())?;
+                    sig.skip(read)?;
                 }
             }
         }
@@ -409,10 +405,7 @@ impl Write for Signature {
 
 impl Read for Signature {
     #[inline]
-    fn read_from<'de, B>(mut buf: B) -> Result<&'de Self>
-    where
-        B: Buf<'de>,
-    {
+    fn read_from<'de>(buf: &mut Body<'de>) -> Result<&'de Self> {
         let len = buf.load::<u8>()? as usize;
         let bytes = buf.load_slice_nul(len)?;
         Ok(Signature::new(bytes)?)

@@ -4,8 +4,7 @@ use crate::error::Result;
 use crate::ty;
 use crate::{Endianness, Frame, Read, Signature};
 
-use super::helpers::new_array_reader;
-use super::{Aligned, ArrayReader, BodyBuf, Buf, StructReader};
+use super::{Aligned, ArrayReader, BodyBuf, StructReader};
 
 /// A read-only view into a buffer.
 ///
@@ -129,7 +128,7 @@ impl<'a> Body<'a> {
     where
         T: ?Sized + Read,
     {
-        self.data.read()
+        T::read_from(self)
     }
 
     /// Read `len` bytes from the buffer and make accessible through a
@@ -208,11 +207,11 @@ impl<'a> Body<'a> {
     /// assert_eq!(inner.read()?, None);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn read_array<E>(&mut self) -> Result<ArrayReader<Self, E>>
+    pub fn read_array<E>(&mut self) -> Result<ArrayReader<'a, E>>
     where
         E: ty::Marker,
     {
-        new_array_reader(self)
+        ArrayReader::from_mut(self)
     }
 
     /// Read a struct from the buffer.
@@ -255,7 +254,7 @@ impl<'a> Body<'a> {
     /// assert_eq!(st.read::<str>()?, "Hello World");
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn read_struct(&mut self) -> Result<StructReader<&mut Self>> {
+    pub fn read_struct(&mut self) -> Result<StructReader<'_, 'a>> {
         StructReader::new(self)
     }
 
@@ -357,64 +356,3 @@ impl PartialEq<BodyBuf> for Body<'_> {
 }
 
 impl<'a> Eq for Body<'a> {}
-
-impl<'de> Buf<'de> for Body<'de> {
-    type Reborrow<'this> = &'this mut Body<'de> where Self: 'this;
-    type ReadUntil = Body<'de>;
-
-    #[inline]
-    fn reborrow(&mut self) -> Self::Reborrow<'_> {
-        self
-    }
-
-    #[inline]
-    fn advance(&mut self, n: usize) -> Result<()> {
-        Body::advance(self, n)
-    }
-
-    #[inline]
-    fn read_until(&mut self, len: usize) -> Self::ReadUntil {
-        Body::read_until(self, len)
-    }
-
-    #[inline]
-    fn len(&self) -> usize {
-        Body::len(self)
-    }
-
-    #[inline]
-    fn is_empty(&self) -> bool {
-        Body::is_empty(self)
-    }
-
-    #[inline]
-    fn align<T>(&mut self) -> Result<()> {
-        Body::align::<T>(self)
-    }
-
-    #[inline]
-    fn load<T>(&mut self) -> Result<T>
-    where
-        T: Frame,
-    {
-        Body::load(self)
-    }
-
-    #[inline]
-    fn read<T>(&mut self) -> Result<&'de T>
-    where
-        T: ?Sized + Read,
-    {
-        Body::read(self)
-    }
-
-    #[inline]
-    fn load_slice(&mut self, len: usize) -> Result<&'de [u8]> {
-        Body::load_slice(self, len)
-    }
-
-    #[inline]
-    fn load_slice_nul(&mut self, len: usize) -> Result<&'de [u8]> {
-        Body::load_slice_nul(self, len)
-    }
-}

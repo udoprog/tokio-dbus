@@ -99,7 +99,7 @@ impl RecvBuf {
 
         // Use a `Body` abstraction here, since we need to adjust the headers by
         // the received endianness.
-        let mut headers = ArrayReader::<_, (u64,)>::new(buf.read_until(headers));
+        let mut headers = ArrayReader::<(u64,)>::new(buf.read_until(headers));
 
         while let Some(mut st) = headers.read_struct()? {
             let variant = st.load::<proto::Variant>()?;

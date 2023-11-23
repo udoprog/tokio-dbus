@@ -6,11 +6,9 @@ use std::ptr;
 use std::slice::from_raw_parts;
 
 use crate::error::{ErrorKind, Result};
-use crate::ty;
-use crate::{Error, Frame, Read};
+use crate::{Error, Frame};
 
-use super::helpers::new_array_reader;
-use super::{padding_to, AlignedBuf, ArrayReader, Buf, StructReader};
+use super::{padding_to, AlignedBuf};
 
 /// A read-only view into a buffer.
 ///
@@ -84,33 +82,6 @@ impl<'a> Aligned<'a> {
         self.written - self.read
     }
 
-    /// Read a reference from the buffer.
-    ///
-    /// This is possible for unaligned types such as `str` and `[u8]` which
-    /// implement [`Read`].
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tokio_dbus::{Result, Aligned};
-    ///
-    /// fn read(buf: &mut Aligned<'_>) -> Result<()> {
-    ///     assert_eq!(buf.load::<u32>()?, 4);
-    ///     assert_eq!(buf.load::<u8>()?, 1);
-    ///     assert_eq!(buf.load::<u8>()?, 2);
-    ///     assert!(buf.load::<u8>().is_err());
-    ///     assert!(buf.is_empty());
-    ///     Ok(())
-    /// }
-    /// # Ok::<_, tokio_dbus::Error>(())
-    /// ````
-    pub fn read<T>(&mut self) -> Result<&'a T>
-    where
-        T: ?Sized + Read,
-    {
-        T::read_from(self)
-    }
-
     /// Read `len` bytes from the buffer and make accessible through a
     /// [`Aligned`].
     ///
@@ -145,100 +116,6 @@ impl<'a> Aligned<'a> {
         let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
         self.read += n;
         Aligned::new(data, n)
-    }
-
-    /// Read an array from the buffer.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tokio_dbus::{ty, BodyBuf, Endianness};
-    ///
-    /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
-    /// let mut array = buf.write_array::<u32>()?;
-    /// array.store(10u32)?;
-    /// array.store(20u32)?;
-    /// array.store(30u32)?;
-    /// array.finish();
-    ///
-    /// let mut array = buf.write_array::<ty::Array<ty::Str>>()?;
-    /// let mut inner = array.write_array();
-    /// inner.write("foo")?;
-    /// inner.write("bar")?;
-    /// inner.write("baz")?;
-    /// inner.finish();
-    /// array.finish();
-    ///
-    /// assert_eq!(buf.signature(), b"auaas");
-    ///
-    /// let mut buf = buf.read_until_end();
-    /// let mut array = buf.read_array::<u32>()?;
-    /// assert_eq!(array.load()?, Some(10));
-    /// assert_eq!(array.load()?, Some(20));
-    /// assert_eq!(array.load()?, Some(30));
-    /// assert_eq!(array.load()?, None);
-    ///
-    /// let mut array = buf.read_array::<ty::Array<ty::Str>>()?;
-    ///
-    /// let Some(mut inner) = array.read_array()? else {
-    ///     panic!("Missing inner array");
-    /// };
-    ///
-    /// assert_eq!(inner.read()?, Some("foo"));
-    /// assert_eq!(inner.read()?, Some("bar"));
-    /// assert_eq!(inner.read()?, Some("baz"));
-    /// assert_eq!(inner.read()?, None);
-    /// # Ok::<_, tokio_dbus::Error>(())
-    /// ```
-    pub fn read_array<E>(&mut self) -> Result<ArrayReader<Self, E>>
-    where
-        E: ty::Marker,
-    {
-        new_array_reader(self)
-    }
-
-    /// Read a struct from the buffer.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tokio_dbus::{ty, BodyBuf, Endianness, Signature};
-    ///
-    /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
-    /// buf.store(10u8);
-    ///
-    /// buf.write_struct::<(u16, u32, ty::Array<u8>, ty::Str)>()?
-    ///     .store(20u16)?
-    ///     .store(30u32)?
-    ///     .write_array(|w| {
-    ///         w.store(1u8)?;
-    ///         w.store(2u8)?;
-    ///         w.store(3u8)?;
-    ///         Ok(())
-    ///     })?
-    ///     .write("Hello World")?
-    ///     .finish();
-    ///
-    /// assert_eq!(buf.signature(), Signature::new(b"y(quays)")?);
-    ///
-    /// let mut buf = buf.peek();
-    /// assert_eq!(buf.load::<u8>()?, 10u8);
-    ///
-    /// let mut st = buf.read_struct()?;
-    /// assert_eq!(st.load::<u16>()?, 20u16);
-    /// assert_eq!(st.load::<u32>()?, 30u32);
-    ///
-    /// let mut array = st.read_array::<u8>()?;
-    /// assert_eq!(array.load()?, Some(1));
-    /// assert_eq!(array.load()?, Some(2));
-    /// assert_eq!(array.load()?, Some(3));
-    /// assert_eq!(array.load()?, None);
-    ///
-    /// assert_eq!(st.read::<str>()?, "Hello World");
-    /// # Ok::<_, tokio_dbus::Error>(())
-    /// ```
-    pub fn read_struct(&mut self) -> Result<StructReader<&mut Self>> {
-        StructReader::new(self)
     }
 
     /// Load a frame of the given type.
@@ -389,64 +266,3 @@ impl PartialEq<AlignedBuf> for Aligned<'_> {
 }
 
 impl<'a> Eq for Aligned<'a> {}
-
-impl<'de> Buf<'de> for Aligned<'de> {
-    type Reborrow<'this> = &'this mut Aligned<'de> where Self: 'this;
-    type ReadUntil = Aligned<'de>;
-
-    #[inline]
-    fn reborrow(&mut self) -> Self::Reborrow<'_> {
-        self
-    }
-
-    #[inline]
-    fn advance(&mut self, n: usize) -> Result<()> {
-        Aligned::advance(self, n)
-    }
-
-    #[inline]
-    fn read_until(&mut self, len: usize) -> Self::ReadUntil {
-        Aligned::read_until(self, len)
-    }
-
-    #[inline]
-    fn len(&self) -> usize {
-        Aligned::len(self)
-    }
-
-    #[inline]
-    fn is_empty(&self) -> bool {
-        Aligned::is_empty(self)
-    }
-
-    #[inline]
-    fn align<T>(&mut self) -> Result<()> {
-        Aligned::align::<T>(self)
-    }
-
-    #[inline]
-    fn load<T>(&mut self) -> Result<T>
-    where
-        T: Frame,
-    {
-        Aligned::load(self)
-    }
-
-    #[inline]
-    fn read<T>(&mut self) -> Result<&'de T>
-    where
-        T: ?Sized + Read,
-    {
-        Aligned::read(self)
-    }
-
-    #[inline]
-    fn load_slice(&mut self, len: usize) -> Result<&'de [u8]> {
-        Aligned::load_slice(self, len)
-    }
-
-    #[inline]
-    fn load_slice_nul(&mut self, len: usize) -> Result<&'de [u8]> {
-        Aligned::load_slice_nul(self, len)
-    }
-}
