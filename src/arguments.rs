@@ -1,7 +1,7 @@
 use crate::error::Result;
-use crate::{BodyBuf, ObjectPath, Signature, Write};
+use crate::BodyBuf;
 
-mod sealed {
+pub(crate) mod sealed {
     pub trait Sealed {}
 }
 
@@ -18,49 +18,6 @@ pub trait Arguments: self::sealed::Sealed {
     #[doc(hidden)]
     fn buf_to(&self, buf: &mut BodyBuf);
 }
-
-macro_rules! impl_store {
-    ($($ty:ty),*) => {
-        $(
-            impl self::sealed::Sealed for $ty {}
-
-            impl Arguments for $ty {
-                #[inline]
-                fn extend_to(&self, buf: &mut BodyBuf) -> Result<()> {
-                    buf.store(*self)
-                }
-
-                #[inline]
-                fn buf_to(&self, buf: &mut BodyBuf) {
-                    buf.store_frame(*self);
-                }
-            }
-        )*
-    }
-}
-
-macro_rules! impl_write {
-    ($($ty:ty),*) => {
-        $(
-            impl self::sealed::Sealed for $ty {}
-
-            impl Arguments for $ty {
-                #[inline]
-                fn extend_to(&self, buf: &mut BodyBuf) -> Result<()> {
-                    buf.store(self)
-                }
-
-                #[inline]
-                fn buf_to(&self, buf: &mut BodyBuf) {
-                    Write::write_to(self, buf);
-                }
-            }
-        )*
-    }
-}
-
-impl_store!(u8, u16, u32, u64, i16, i32, i64, f64);
-impl_write!(str, [u8], ObjectPath, Signature);
 
 impl<T: ?Sized> self::sealed::Sealed for &T where T: Arguments {}
 

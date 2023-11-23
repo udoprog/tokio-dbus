@@ -5,7 +5,6 @@ use super::{Aligned, Marker};
 
 mod sealed {
     pub trait Sealed {}
-    impl Sealed for () {}
 }
 
 /// The [`Marker`] for the empty type.
@@ -25,13 +24,15 @@ pub trait Fields: self::sealed::Sealed + Marker {
     type Remaining;
 }
 
-impl super::aligned::sealed::Sealed for () {}
+impl self::sealed::Sealed for () {}
+
+impl crate::ty::aligned::sealed::Sealed for () {}
 
 impl Aligned for () {
-    type Type = u64;
+    type Alignment = u64;
 }
 
-impl super::marker::sealed::Sealed for () {}
+impl crate::ty::marker::sealed::Sealed for () {}
 
 impl Marker for () {
     type Return<'de> = ();
@@ -69,7 +70,7 @@ macro_rules! struct_fields {
             $first: Marker,
             $($rest: Marker,)*
         {
-            type Type = u64;
+            type Alignment = u64;
         }
 
         impl<$first, $($rest),*> super::marker::sealed::Sealed for ($first, $($rest),*)

@@ -1,6 +1,6 @@
 //! Low level details for the D-Bus protocol implementation.
 
-use crate::{signature::SignatureBuilder, BodyBuf, Frame, Signature, Storable};
+use crate::{Frame, Signature};
 
 /// A protocol header.
 #[derive(Debug, Clone, Copy)]
@@ -25,17 +25,7 @@ unsafe impl Frame for Header {
     }
 }
 
-impl crate::storable::sealed::Sealed for Header {}
-
-impl Storable for Header {
-    fn store_to(self, buf: &mut BodyBuf) {
-        buf.store_frame(self);
-    }
-
-    fn write_signature(builder: &mut SignatureBuilder) -> bool {
-        builder.extend_from_signature(Header::SIGNATURE)
-    }
-}
+impl_traits_for_frame!(Header);
 
 macro_rules! raw_enum {
     (
@@ -72,19 +62,7 @@ macro_rules! raw_enum {
             }
         }
 
-        impl $crate::storable::sealed::Sealed for $name {}
-
-        impl $crate::Storable for $name {
-            #[inline]
-            fn store_to(self, buf: &mut $crate::BodyBuf) {
-                self.0.store_to(buf);
-            }
-
-            #[inline]
-            fn write_signature(signature: &mut crate::signature::SignatureBuilder) -> bool {
-                signature.extend_from_signature(<$repr as $crate::Frame>::SIGNATURE)
-            }
-        }
+        impl_traits_for_frame!($name);
 
         impl ::core::fmt::Debug for $name {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {
@@ -132,19 +110,7 @@ macro_rules! raw_set {
             }
         }
 
-        impl $crate::storable::sealed::Sealed for $name {}
-
-        impl $crate::Storable for $name {
-            #[inline]
-            fn store_to(self, buf: &mut $crate::BodyBuf) {
-                self.0.store_to(buf);
-            }
-
-            #[inline]
-            fn write_signature(signature: &mut crate::signature::SignatureBuilder) -> bool {
-                signature.extend_from_signature(<$repr as $crate::Frame>::SIGNATURE)
-            }
-        }
+        impl_traits_for_frame!($name);
 
         impl ::core::fmt::Debug for $name {
             fn fmt(&self, f: &mut ::core::fmt::Formatter<'_>) -> ::core::fmt::Result {

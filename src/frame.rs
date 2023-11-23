@@ -3,14 +3,6 @@ use crate::Signature;
 
 pub(crate) mod sealed {
     pub trait Sealed {}
-    impl Sealed for u8 {}
-    impl Sealed for i16 {}
-    impl Sealed for i32 {}
-    impl Sealed for i64 {}
-    impl Sealed for u16 {}
-    impl Sealed for u32 {}
-    impl Sealed for u64 {}
-    impl Sealed for f64 {}
 }
 
 /// A verbatim frame that can be stored and loaded from a buffer.
@@ -33,12 +25,18 @@ pub unsafe trait Frame: self::sealed::Sealed {
     fn adjust(&mut self, endianness: Endianness);
 }
 
+impl self::sealed::Sealed for u8 {}
+
 unsafe impl Frame for u8 {
     const SIGNATURE: &'static Signature = Signature::BYTE;
 
     #[inline]
     fn adjust(&mut self, _: Endianness) {}
 }
+
+impl_traits_for_frame!(u8);
+
+impl self::sealed::Sealed for f64 {}
 
 unsafe impl Frame for f64 {
     const SIGNATURE: &'static Signature = Signature::DOUBLE;
@@ -51,9 +49,13 @@ unsafe impl Frame for f64 {
     }
 }
 
+impl_traits_for_frame!(f64);
+
 macro_rules! impl_number {
     ($($ty:ty, $signature:ident),* $(,)?) => {
         $(
+            impl self::sealed::Sealed for $ty {}
+
             unsafe impl Frame for $ty {
                 const SIGNATURE: &'static Signature = Signature::$signature;
 
@@ -64,6 +66,8 @@ macro_rules! impl_number {
                     }
                 }
             }
+
+            impl_traits_for_frame!($ty);
         )*
     }
 }

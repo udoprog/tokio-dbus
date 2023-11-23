@@ -55,7 +55,7 @@ where
         let end = self.buf.len();
         let len = (end - self.start) as u32;
         self.buf.store_at(self.len, len);
-        self.buf.align_mut::<T::Type>();
+        self.buf.align_mut::<T::Alignment>();
     }
 }
 

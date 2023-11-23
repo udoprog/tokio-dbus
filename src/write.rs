@@ -1,16 +1,7 @@
 use crate::{buf::UnalignedBuf, BodyBuf, Signature};
 
-mod sealed {
-    use crate::sasl::SaslRequest;
-    use crate::{ObjectPath, Signature};
-
+pub(crate) mod sealed {
     pub trait Sealed {}
-
-    impl Sealed for Signature {}
-    impl Sealed for SaslRequest<'_> {}
-    impl Sealed for [u8] {}
-    impl Sealed for str {}
-    impl Sealed for ObjectPath {}
 }
 
 /// A type who's reference can be written directly to a buffer.
@@ -31,6 +22,8 @@ pub trait Write: self::sealed::Sealed {
     #[doc(hidden)]
     fn write_to_unaligned(&self, buf: &mut UnalignedBuf);
 }
+
+impl self::sealed::Sealed for [u8] {}
 
 /// Write a byte array to the buffer.
 ///
@@ -62,6 +55,10 @@ impl Write for [u8] {
     }
 }
 
+impl_traits_for_write!([u8]);
+
+impl self::sealed::Sealed for str {}
+
 /// Write a length-prefixed string to the buffer.
 ///
 /// # Examples
@@ -90,3 +87,5 @@ impl Write for str {
         buf.extend_from_slice_nul(self.as_bytes());
     }
 }
+
+impl_traits_for_write!(str);

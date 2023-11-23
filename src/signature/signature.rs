@@ -403,6 +403,8 @@ impl fmt::Debug for Signature {
     }
 }
 
+impl crate::write::sealed::Sealed for Signature {}
+
 impl Write for Signature {
     const SIGNATURE: &'static Signature = Signature::SIGNATURE;
 
@@ -418,6 +420,10 @@ impl Write for Signature {
         buf.extend_from_slice_nul(&self.0);
     }
 }
+
+impl_traits_for_write!(Signature);
+
+impl crate::read::sealed::Sealed for Signature {}
 
 impl Read for Signature {
     #[inline]

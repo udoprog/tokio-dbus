@@ -218,6 +218,8 @@ impl<'a> IntoIterator for &'a ObjectPath {
     }
 }
 
+impl crate::write::sealed::Sealed for ObjectPath {}
+
 impl Write for ObjectPath {
     const SIGNATURE: &'static Signature = Signature::OBJECT_PATH;
 
@@ -233,6 +235,10 @@ impl Write for ObjectPath {
         buf.extend_from_slice_nul(&self.0);
     }
 }
+
+impl_traits_for_write!(ObjectPath);
+
+impl crate::read::sealed::Sealed for ObjectPath {}
 
 impl Read for ObjectPath {
     #[inline]
