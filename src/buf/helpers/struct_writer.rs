@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use crate::ty;
 use crate::{Arguments, BodyBuf, Storable};
 
-use super::TypedArrayWriter;
+use super::ArrayWriter;
 
 /// Write a typed struct.
 ///
@@ -11,12 +11,12 @@ use super::TypedArrayWriter;
 ///
 /// [`BodyBuf::store_struct`]: crate::BodyBuf::store_struct
 #[must_use = "Must call `finish` after writing all related fields"]
-pub struct TypedStructWriter<'a, T> {
+pub struct StructWriter<'a, T> {
     buf: &'a mut BodyBuf,
     _marker: PhantomData<T>,
 }
 
-impl<'a, T> TypedStructWriter<'a, T> {
+impl<'a, T> StructWriter<'a, T> {
     pub(crate) fn new(buf: &'a mut BodyBuf) -> Self {
         buf.align_mut::<u64>();
         Self::inner(buf)
@@ -69,14 +69,14 @@ impl<'a, T> TypedStructWriter<'a, T> {
     pub fn store(
         self,
         value: <T::First as ty::Marker>::Return<'_>,
-    ) -> TypedStructWriter<'a, T::Remaining>
+    ) -> StructWriter<'a, T::Remaining>
     where
         T: ty::Fields,
         T::First: ty::Marker,
         for<'b> <T::First as ty::Marker>::Return<'b>: Storable,
     {
         value.store_to(self.buf);
-        TypedStructWriter::inner(self.buf)
+        StructWriter::inner(self.buf)
     }
 
     /// Store a value and return the builder for the next value to store.
@@ -127,16 +127,16 @@ impl<'a, T> TypedStructWriter<'a, T> {
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     #[inline]
-    pub fn store_array<W, U>(self, writer: W) -> TypedStructWriter<'a, T::Remaining>
+    pub fn store_array<W, U>(self, writer: W) -> StructWriter<'a, T::Remaining>
     where
-        W: FnOnce(&mut TypedArrayWriter<'_, U>),
+        W: FnOnce(&mut ArrayWriter<'_, U>),
         T: ty::Fields<First = ty::Array<U>>,
         U: ty::Aligned,
     {
-        let mut w = TypedArrayWriter::new(self.buf);
+        let mut w = ArrayWriter::new(self.buf);
         writer(&mut w);
         w.finish();
-        TypedStructWriter::inner(self.buf)
+        StructWriter::inner(self.buf)
     }
 
     /// Store a value and return the builder for the next value to store.
@@ -145,19 +145,19 @@ impl<'a, T> TypedStructWriter<'a, T> {
     ///
     /// [`BodyBuf::store_struct`]: crate::BodyBuf::store_struct
     #[inline]
-    pub fn store_struct<W>(self, writer: W) -> TypedStructWriter<'a, T::Remaining>
+    pub fn store_struct<W>(self, writer: W) -> StructWriter<'a, T::Remaining>
     where
-        W: FnOnce(&mut TypedStructWriter<'_, T::First>),
+        W: FnOnce(&mut StructWriter<'_, T::First>),
         T: ty::Fields,
         T::First: ty::Fields,
     {
-        let mut w = TypedStructWriter::new(self.buf);
+        let mut w = StructWriter::new(self.buf);
         writer(&mut w);
-        TypedStructWriter::inner(self.buf)
+        StructWriter::inner(self.buf)
     }
 }
 
-impl TypedStructWriter<'_, ()> {
+impl StructWriter<'_, ()> {
     /// Finish writing the struct.
     ///
     /// See [`BodyBuf::store_struct`].

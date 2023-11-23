@@ -8,7 +8,7 @@ use crate::{Endianness, Frame, OwnedSignature, Signature, Storable, Write};
 
 use crate::arguments::Arguments;
 
-use super::helpers::{TypedArrayWriter, TypedStructWriter};
+use super::helpers::{ArrayWriter, StructWriter};
 use super::{Alloc, Body};
 
 /// A buffer that can be used to write a body.
@@ -437,14 +437,14 @@ impl BodyBuf {
     /// assert_eq!(buf.get(), &[0, 0, 0, 0, 0, 0, 0, 0]);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn store_array<E>(&mut self) -> Result<TypedArrayWriter<'_, E>>
+    pub fn store_array<E>(&mut self) -> Result<ArrayWriter<'_, E>>
     where
         E: ty::Marker,
     {
         <ty::Array<E> as ty::Marker>::write_signature(&mut self.signature)?;
         // NB: We write directly onto the underlying buffer, because we've
         // already applied the correct signature.
-        Ok(TypedArrayWriter::new(self))
+        Ok(ArrayWriter::new(self))
     }
 
     /// Write a slice as an byte array.
@@ -492,14 +492,14 @@ impl BodyBuf {
     /// assert_eq!(buf.get(), &[10, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 3, 0, 0, 0, 1, 2, 3, 0, 11, 0, 0, 0, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 0]);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn store_struct<E>(&mut self) -> Result<TypedStructWriter<'_, E>>
+    pub fn store_struct<E>(&mut self) -> Result<StructWriter<'_, E>>
     where
         E: ty::Fields,
     {
         E::write_signature(&mut self.signature)?;
         // NB: We write directly onto the underlying buffer, because we've
         // already applied the correct signature.
-        Ok(TypedStructWriter::new(self))
+        Ok(StructWriter::new(self))
     }
 }
 

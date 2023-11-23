@@ -5,14 +5,14 @@ use crate::buf::Alloc;
 use crate::ty;
 use crate::{BodyBuf, Storable};
 
-use super::TypedStructWriter;
+use super::StructWriter;
 
 /// Write a typed array.
 ///
 /// See [`BodyBuf::store_array`].
 ///
 /// [`BodyBuf::store_array`]: crate::BodyBuf::store_array
-pub struct TypedArrayWriter<'a, T>
+pub struct ArrayWriter<'a, T>
 where
     T: ty::Aligned,
 {
@@ -22,7 +22,7 @@ where
     _marker: PhantomData<T>,
 }
 
-impl<'a, T> TypedArrayWriter<'a, T>
+impl<'a, T> ArrayWriter<'a, T>
 where
     T: ty::Aligned,
 {
@@ -59,7 +59,7 @@ where
     }
 }
 
-impl<'a, T> TypedArrayWriter<'a, T>
+impl<'a, T> ArrayWriter<'a, T>
 where
     T: ty::Aligned,
 {
@@ -82,15 +82,15 @@ where
     ///
     /// [`BodyBuf::store_array`]: crate::BodyBuf::store_array
     #[inline]
-    pub fn store_struct(&mut self) -> TypedStructWriter<'_, T>
+    pub fn store_struct(&mut self) -> StructWriter<'_, T>
     where
         T: ty::Fields,
     {
-        TypedStructWriter::new(self.buf)
+        StructWriter::new(self.buf)
     }
 }
 
-impl<'a, T> TypedArrayWriter<'a, ty::Array<T>>
+impl<'a, T> ArrayWriter<'a, ty::Array<T>>
 where
     T: ty::Aligned,
 {
@@ -100,12 +100,12 @@ where
     ///
     /// [`BodyBuf::store_array`]: crate::BodyBuf::store_array
     #[inline]
-    pub fn store_array(&mut self) -> TypedArrayWriter<'_, T> {
-        TypedArrayWriter::new(self.buf)
+    pub fn store_array(&mut self) -> ArrayWriter<'_, T> {
+        ArrayWriter::new(self.buf)
     }
 }
 
-impl<'a> TypedArrayWriter<'a, u8> {
+impl<'a> ArrayWriter<'a, u8> {
     /// Write a byte array inside of the array.
     ///
     /// See [`BodyBuf::store_array`].

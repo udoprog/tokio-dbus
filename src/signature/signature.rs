@@ -301,7 +301,7 @@ impl Signature {
     }
 
     /// Return the stride needed to skip over read buffer.
-    pub(crate) fn skip<'de>(&self, read: &mut Body<'_>) -> Result<()> {
+    pub(crate) fn skip(&self, read: &mut Body<'_>) -> Result<()> {
         #[derive(Debug, Clone, Copy)]
         enum Step {
             Fixed(usize),
