@@ -39,10 +39,9 @@ pub(crate) mod aligned;
 
 use std::marker::PhantomData;
 
-use crate::buf::ArrayReader;
 use crate::error::ErrorKind;
 use crate::signature::{SignatureBuilder, SignatureErrorKind};
-use crate::{Body, Error, ObjectPath, Result, Signature, SignatureError, Variant};
+use crate::{Body, Error, LoadArray, ObjectPath, Result, Signature, SignatureError, Variant};
 
 /// The [`Marker`] for the [`str`] type.
 ///
@@ -187,11 +186,11 @@ impl<T> Marker for Array<T>
 where
     T: Marker,
 {
-    type Return<'de> = ArrayReader<'de, T>;
+    type Return<'de> = LoadArray<'de, T>;
 
     #[inline]
     fn load_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>> {
-        buf.read_array::<T>()
+        buf.load_array::<T>()
     }
 
     #[inline]

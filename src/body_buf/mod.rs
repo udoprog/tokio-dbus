@@ -1,15 +1,17 @@
+pub use self::store_array::StoreArray;
+mod store_array;
+
+pub use self::store_struct::StoreStruct;
+mod store_struct;
+
 use std::fmt;
 
-use crate::buf::AlignedBuf;
+use crate::arguments::Arguments;
+use crate::buf::{AlignedBuf, Alloc};
 use crate::error::Result;
 use crate::signature::{SignatureBuilder, SignatureError, SignatureErrorKind};
 use crate::ty;
-use crate::{Endianness, Frame, OwnedSignature, Signature, Storable, Write};
-
-use crate::arguments::Arguments;
-
-use super::helpers::{ArrayWriter, StructWriter};
-use super::{Alloc, Body};
+use crate::{Body, Endianness, Frame, OwnedSignature, Signature, Storable, Write};
 
 /// A buffer that can be used to write a body.
 ///
@@ -437,14 +439,14 @@ impl BodyBuf {
     /// assert_eq!(buf.get(), &[0, 0, 0, 0, 0, 0, 0, 0]);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn store_array<E>(&mut self) -> Result<ArrayWriter<'_, E>>
+    pub fn store_array<E>(&mut self) -> Result<StoreArray<'_, E>>
     where
         E: ty::Marker,
     {
         <ty::Array<E> as ty::Marker>::write_signature(&mut self.signature)?;
         // NB: We write directly onto the underlying buffer, because we've
         // already applied the correct signature.
-        Ok(ArrayWriter::new(self))
+        Ok(StoreArray::new(self))
     }
 
     /// Write a slice as an byte array.
@@ -492,14 +494,14 @@ impl BodyBuf {
     /// assert_eq!(buf.get(), &[10, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 3, 0, 0, 0, 1, 2, 3, 0, 11, 0, 0, 0, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 0]);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn store_struct<E>(&mut self) -> Result<StructWriter<'_, E>>
+    pub fn store_struct<E>(&mut self) -> Result<StoreStruct<'_, E>>
     where
         E: ty::Fields,
     {
         E::write_signature(&mut self.signature)?;
         // NB: We write directly onto the underlying buffer, because we've
         // already applied the correct signature.
-        Ok(StructWriter::new(self))
+        Ok(StoreStruct::new(self))
     }
 }
 

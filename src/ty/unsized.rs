@@ -1,4 +1,4 @@
-use super::Marker;
+use crate::ty::Marker;
 
 pub(crate) mod sealed {
     pub trait Sealed {}

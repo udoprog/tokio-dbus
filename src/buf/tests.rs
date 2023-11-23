@@ -1,9 +1,8 @@
-use crate::buf::BodyBuf;
 use crate::error::Result;
 use crate::proto::{self, Header};
 use crate::proto::{Endianness, Flags, MessageType};
 use crate::ty;
-use crate::{Signature, Variant};
+use crate::{BodyBuf, Signature, Variant};
 
 #[rustfmt::skip]
 const LE_BLOB: [u8; 36] = [

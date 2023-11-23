@@ -10,11 +10,10 @@ use std::os::fd::RawFd;
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::net::UnixStream;
 
-use crate::buf::{
-    padding_to, AlignedBuf, MessageRef, UnalignedBuf, MAX_ARRAY_LENGTH, MAX_BODY_LENGTH,
-};
+use crate::buf::{padding_to, AlignedBuf, UnalignedBuf, MAX_ARRAY_LENGTH, MAX_BODY_LENGTH};
 use crate::error::{Error, ErrorKind, Result};
 use crate::proto;
+use crate::recv_buf::MessageRef;
 use crate::sasl::Auth;
 use crate::sasl::{Guid, SaslRequest, SaslResponse};
 use crate::{Frame, RecvBuf};

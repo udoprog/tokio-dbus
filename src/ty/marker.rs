@@ -1,7 +1,6 @@
 use crate::signature::{SignatureBuilder, SignatureError};
+use crate::ty::Aligned;
 use crate::{Body, Result};
-
-use super::Aligned;
 
 pub(crate) mod sealed {
     pub trait Sealed {}

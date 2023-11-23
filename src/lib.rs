@@ -37,9 +37,23 @@ mod read;
 pub use self::error::{Error, Result};
 mod error;
 
+pub(crate) mod buf;
+
 #[doc(inline)]
-pub use self::buf::{Aligned, Body, BodyBuf, RecvBuf, SendBuf};
-pub mod buf;
+pub use self::body_buf::{BodyBuf, StoreArray, StoreStruct};
+mod body_buf;
+
+#[doc(inline)]
+pub use self::body::{Body, LoadArray};
+mod body;
+
+#[doc(inline)]
+pub use self::send_buf::SendBuf;
+mod send_buf;
+
+#[doc(inline)]
+pub use self::recv_buf::RecvBuf;
+mod recv_buf;
 
 mod sasl;
 

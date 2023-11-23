@@ -7,17 +7,17 @@ use crate::{Error, Frame, Read, Result};
 
 /// Read an array from a buffer.
 ///
-/// See [`Body::read_array`].
+/// See [`Body::load_array`].
 ///
-/// [`Body::read_array`]: crate::Body::read_array
-pub struct ArrayReader<'de, T> {
+/// [`Body::load_array`]: crate::Body::load_array
+pub struct LoadArray<'de, T> {
     buf: Body<'de>,
     _marker: PhantomData<T>,
 }
 
-impl<'de, T> ArrayReader<'de, T> {
+impl<'de, T> LoadArray<'de, T> {
     #[inline]
-    pub(crate) fn from_mut(buf: &mut Body<'de>) -> Result<ArrayReader<'de, T>> {
+    pub(crate) fn from_mut(buf: &mut Body<'de>) -> Result<LoadArray<'de, T>> {
         let bytes = buf.load::<u32>()?;
 
         if bytes > MAX_ARRAY_LENGTH {
@@ -25,27 +25,27 @@ impl<'de, T> ArrayReader<'de, T> {
         }
 
         let buf = buf.read_until(bytes as usize);
-        Ok(ArrayReader::new(buf))
+        Ok(LoadArray::new(buf))
     }
 
     /// Construct a new array reader around a buffer.
     pub(crate) fn new(buf: Body<'de>) -> Self {
-        ArrayReader {
+        LoadArray {
             buf,
             _marker: PhantomData,
         }
     }
 }
 
-impl<'de, T> ArrayReader<'de, T>
+impl<'de, T> LoadArray<'de, T>
 where
     T: Frame,
 {
     /// Load the next value from the array.
     ///
-    /// See [`Body::read_array`].
+    /// See [`Body::load_array`].
     ///
-    /// [`Body::read_array`]: crate::Body::read_array
+    /// [`Body::load_array`]: crate::Body::load_array
     pub fn load(&mut self) -> Result<Option<T>> {
         if self.buf.is_empty() {
             return Ok(None);
@@ -55,16 +55,16 @@ where
     }
 }
 
-impl<'de, T> ArrayReader<'de, T>
+impl<'de, T> LoadArray<'de, T>
 where
     T: ty::Unsized,
     T::Target: Read,
 {
     /// Read the next value from the array.
     ///
-    /// See [`Body::read_array`].
+    /// See [`Body::load_array`].
     ///
-    /// [`Body::read_array`]: crate::Body::read_array
+    /// [`Body::load_array`]: crate::Body::load_array
     pub fn read(&mut self) -> Result<Option<&'de T::Target>> {
         if self.buf.is_empty() {
             return Ok(None);
@@ -74,23 +74,23 @@ where
     }
 }
 
-impl<'de, T> ArrayReader<'de, ty::Array<T>>
+impl<'de, T> LoadArray<'de, ty::Array<T>>
 where
     T: ty::Marker,
 {
     /// Read an array from within the array.
     ///
     /// See [`Body::load_struct`].
-    pub fn read_array(&mut self) -> Result<Option<ArrayReader<'de, T>>> {
+    pub fn load_array(&mut self) -> Result<Option<LoadArray<'de, T>>> {
         if self.buf.is_empty() {
             return Ok(None);
         }
 
-        Ok(Some(ArrayReader::from_mut(&mut self.buf)?))
+        Ok(Some(LoadArray::from_mut(&mut self.buf)?))
     }
 }
 
-impl<'de, T> ArrayReader<'de, T>
+impl<'de, T> LoadArray<'de, T>
 where
     T: ty::Fields,
 {

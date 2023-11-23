@@ -1,10 +1,12 @@
+pub use self::load_array::LoadArray;
+mod load_array;
+
 use std::fmt;
 
+use crate::buf::Aligned;
 use crate::error::Result;
 use crate::ty;
-use crate::{Endianness, Frame, Read, Signature};
-
-use super::{Aligned, ArrayReader, BodyBuf};
+use crate::{BodyBuf, Endianness, Frame, Read, Signature};
 
 /// A read-only view into a buffer suitable for use as a body in a [`Message`].
 ///
@@ -272,15 +274,15 @@ impl<'a> Body<'a> {
     /// assert_eq!(buf.signature(), b"auaas");
     ///
     /// let mut buf = buf.read_until_end();
-    /// let mut array = buf.read_array::<u32>()?;
+    /// let mut array = buf.load_array::<u32>()?;
     /// assert_eq!(array.load()?, Some(10));
     /// assert_eq!(array.load()?, Some(20));
     /// assert_eq!(array.load()?, Some(30));
     /// assert_eq!(array.load()?, None);
     ///
-    /// let mut array = buf.read_array::<ty::Array<ty::Str>>()?;
+    /// let mut array = buf.load_array::<ty::Array<ty::Str>>()?;
     ///
-    /// let Some(mut inner) = array.read_array()? else {
+    /// let Some(mut inner) = array.load_array()? else {
     ///     panic!("Missing inner array");
     /// };
     ///
@@ -290,11 +292,11 @@ impl<'a> Body<'a> {
     /// assert_eq!(inner.read()?, None);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn read_array<E>(&mut self) -> Result<ArrayReader<'a, E>>
+    pub fn load_array<E>(&mut self) -> Result<LoadArray<'a, E>>
     where
         E: ty::Marker,
     {
-        ArrayReader::from_mut(self)
+        LoadArray::from_mut(self)
     }
 
     /// Read a struct from the buffer.

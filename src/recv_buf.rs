@@ -1,10 +1,9 @@
 use std::num::NonZeroU32;
 
+use crate::buf::AlignedBuf;
 use crate::error::{Error, ErrorKind, Result};
 use crate::proto;
-use crate::{Endianness, Message, MessageKind, ObjectPath, Signature};
-
-use super::{AlignedBuf, Body};
+use crate::{Body, Endianness, Message, MessageKind, ObjectPath, Signature};
 
 /// An owned reference to a message in a [`RecvBuf`].
 ///
