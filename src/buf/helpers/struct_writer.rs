@@ -5,7 +5,7 @@ use crate::{Arguments, BodyBuf, Storable};
 
 use super::ArrayWriter;
 
-/// Write a typed struct.
+/// Write a struct.
 ///
 /// See [`BodyBuf::store_struct`].
 ///
