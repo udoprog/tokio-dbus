@@ -181,16 +181,20 @@ impl Connection {
     /// c.process().await?;
     /// let message: Message<'_> = c.last_message()?;
     /// let m = message.method_return();
-    /// c.send_message(m);
+    /// c.write_message(m);
     /// # Ok(()) }    
     /// ```
     ///
-    /// Because calling [`send_message()`] needs mutable access to the
+    /// Because calling [`write_message()`] needs mutable access to the
     /// [`Connection`].
+    ///
+    /// [`write_message()`]: Self::write_message
     ///
     /// We can address this by using [`buffers()`]:
     ///
-    /// ```compile_fail
+    /// [`buffers()`]: Self::buffers
+    ///
+    /// ```no_run
     /// use tokio_dbus::{Connection, Message};
     ///
     /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
@@ -200,9 +204,9 @@ impl Connection {
     /// let (recv, send, body) = c.buffers();
     ///
     /// let message: Message<'_> = recv.last_message()?;
-    /// let m = message.method_return().with_body(body);
+    /// let m = message.method_return(send.next_serial()).with_body(body);
     ///
-    /// send.send_message(m);
+    /// send.write_message(m);
     /// # Ok(()) }    
     /// ```
     pub fn buffers(&mut self) -> (&RecvBuf, &mut SendBuf, &mut BodyBuf) {

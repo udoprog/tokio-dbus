@@ -6,9 +6,9 @@ pub(crate) mod sealed {
 
 /// A type who's reference can be written directly to a buffer.
 ///
-/// These types are written using methods such as [`BodyBuf::write`].
+/// These types are written using methods such as [`BodyBuf::store`].
 ///
-/// [`BodyBuf::write`]: crate::BodyBuf::write
+/// [`BodyBuf::store`]: crate::BodyBuf::store
 pub trait Write: self::sealed::Sealed {
     /// The signature of the type.
     #[doc(hidden)]
@@ -30,12 +30,12 @@ impl self::sealed::Sealed for [u8] {}
 /// # Examples
 ///
 /// ```
-/// use tokio_dbus::{BodyBuf, Signature};;
+/// use tokio_dbus::BodyBuf;
 ///
 /// let mut buf = BodyBuf::new();
 /// buf.store(&b"foo"[..]);
 ///
-/// assert_eq!(buf.signature(), Signature::new(b"ay")?);
+/// assert_eq!(buf.signature(), "ay");
 /// assert_eq!(buf.get(), &[3, 0, 0, 0, 102, 111, 111]);
 /// # Ok::<_, tokio_dbus::Error>(())
 /// ```
@@ -64,7 +64,7 @@ impl self::sealed::Sealed for str {}
 /// # Examples
 ///
 /// ```
-/// use tokio_dbus::{BodyBuf, Signature};;
+/// use tokio_dbus::{BodyBuf, Signature};
 ///
 /// let mut buf = BodyBuf::new();
 /// buf.store("foo");

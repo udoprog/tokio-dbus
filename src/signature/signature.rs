@@ -269,11 +269,12 @@ impl Signature {
 
     /// Try to construct a new signature with validation.
     #[inline]
-    pub const fn new(signature: &[u8]) -> Result<&Signature, SignatureError> {
-        if let Err(error) = validate(signature) {
-            return Err(error);
-        };
-
+    pub fn new<S>(signature: &S) -> Result<&Signature, SignatureError>
+    where
+        S: ?Sized + AsRef<[u8]>,
+    {
+        let signature = signature.as_ref();
+        validate(signature)?;
         // SAFETY: The byte slice is repr transparent over this type.
         unsafe { Ok(Self::new_unchecked(signature)) }
     }
@@ -551,6 +552,57 @@ impl<const N: usize> PartialEq<[u8; N]> for &Signature {
     #[inline]
     fn eq(&self, other: &[u8; N]) -> bool {
         self.0 == other[..]
+    }
+}
+
+/// Equality check between [`str`] and a [`Signature`].
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::{Signature, OwnedSignature};
+///
+/// assert_eq!(*Signature::EMPTY, *"");
+/// assert_eq!(*Signature::STRING, *"s");
+/// ```
+impl PartialEq<str> for Signature {
+    #[inline]
+    fn eq(&self, other: &str) -> bool {
+        self.0 == *other.as_bytes()
+    }
+}
+
+/// Equality check between [`str`] and a borrowed [`Signature`].
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::{Signature, OwnedSignature};
+///
+/// assert_eq!(Signature::EMPTY, *"");
+/// assert_eq!(Signature::STRING, *"s");
+/// ```
+impl PartialEq<str> for &Signature {
+    #[inline]
+    fn eq(&self, other: &str) -> bool {
+        self.0 == *other.as_bytes()
+    }
+}
+
+/// Equality check between [`str`] and a [`Signature`].
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::{Signature, OwnedSignature};
+///
+/// assert_eq!(*Signature::EMPTY, *"");
+/// assert_eq!(*Signature::STRING, *"s");
+/// ```
+impl PartialEq<&str> for Signature {
+    #[inline]
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other.as_bytes()
     }
 }
 

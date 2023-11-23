@@ -87,6 +87,8 @@ macro_rules! impl_traits_for_write {
         impl $crate::storable::sealed::Sealed for &$ty {}
 
         #[doc = concat!("[`Storable`] implementation for `", stringify!($ty), "`.")]
+        ///
+        /// [`Storable`]: crate::Storable
         impl $crate::storable::Storable for &$ty {
             #[inline]
             fn store_to(self, buf: &mut $crate::BodyBuf) {

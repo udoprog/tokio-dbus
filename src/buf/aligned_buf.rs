@@ -11,7 +11,7 @@ use crate::Frame;
 pub(crate) type AlignType = u64;
 
 /// An owned buffer which is aligned per the specification of D-Bus messages.
-pub struct AlignedBuf {
+pub(crate) struct AlignedBuf {
     /// Pointed to data of the buffer.
     data: ptr::NonNull<u8>,
     /// The initialized capacity of the buffer.

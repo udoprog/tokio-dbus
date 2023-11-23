@@ -242,7 +242,7 @@ impl OwnedMessage {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf, Signature};
+    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
@@ -257,7 +257,7 @@ impl OwnedMessage {
     ///     .with_body(body);
     ///
     /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
-    /// assert_eq!(m.signature(), Signature::new(b"us")?);
+    /// assert_eq!(m.signature(), "us");
     ///
     /// let mut r = m.body();
     /// assert_eq!(r.load::<u32>()?, 42);

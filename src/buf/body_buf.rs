@@ -16,14 +16,14 @@ use super::{Alloc, Body};
 /// # Examples
 ///
 /// ```
-/// use tokio_dbus::{BodyBuf, Signature};
+/// use tokio_dbus::BodyBuf;
 ///
 /// let mut body = BodyBuf::new();
 ///
 /// body.store(10u16)?;
 /// body.store(10u32)?;
 ///
-/// assert_eq!(body.signature(), Signature::new(b"qu")?);
+/// assert_eq!(body.signature(), "qu");
 /// # Ok::<_, tokio_dbus::Error>(())
 /// ```
 #[derive(Clone, PartialEq, Eq)]
@@ -39,14 +39,14 @@ impl BodyBuf {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{BodyBuf, Signature};
+    /// use tokio_dbus::BodyBuf;
     ///
     /// let mut body = BodyBuf::new();
     ///
     /// body.store(10u16)?;
     /// body.store(10u32)?;
     ///
-    /// assert_eq!(body.signature(), Signature::new(b"qu")?);
+    /// assert_eq!(body.signature(), "qu");
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     pub fn new() -> Self {
@@ -88,16 +88,16 @@ impl BodyBuf {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{BodyBuf, Signature};
+    /// use tokio_dbus::BodyBuf;
     ///
     /// let mut body = BodyBuf::new();
     ///
     /// body.store(10u16)?;
     /// body.store(10u32)?;
     ///
-    /// assert_eq!(body.signature(), Signature::new(b"qu")?);
+    /// assert_eq!(body.signature(), "qu");
     /// body.clear();
-    /// assert_eq!(body.signature(), Signature::empty());
+    /// assert_eq!(body.signature(), "");
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     pub fn clear(&mut self) {
@@ -110,14 +110,14 @@ impl BodyBuf {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{BodyBuf, Signature};
+    /// use tokio_dbus::BodyBuf;
     ///
     /// let mut body = BodyBuf::new();
     ///
     /// body.store(10u16)?;
     /// body.store(10u32)?;
     ///
-    /// assert_eq!(body.signature(), Signature::new(b"qu")?);
+    /// assert_eq!(body.signature(), "qu");
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     pub fn signature(&self) -> &Signature {
@@ -147,7 +147,7 @@ impl BodyBuf {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{BodyBuf, Signature, Endianness};
+    /// use tokio_dbus::{BodyBuf, Endianness};
     ///
     /// let mut body = BodyBuf::with_endianness(Endianness::LITTLE);
     /// assert!(body.is_empty());
@@ -168,7 +168,7 @@ impl BodyBuf {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{BodyBuf, Signature, Endianness};
+    /// use tokio_dbus::{BodyBuf, Endianness};
     ///
     /// let mut body = BodyBuf::with_endianness(Endianness::LITTLE);
     /// assert!(body.is_empty());
@@ -195,14 +195,14 @@ impl BodyBuf {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{BodyBuf, Signature, Endianness};
+    /// use tokio_dbus::{BodyBuf, Endianness};
     ///
     /// let mut body = BodyBuf::with_endianness(Endianness::LITTLE);
     ///
     /// body.store(10u16)?;
     /// body.store(10u32)?;
     ///
-    /// assert_eq!(body.signature(), Signature::new(b"qu")?);
+    /// assert_eq!(body.signature(), "qu");
     /// assert_eq!(body.get(), &[10, 0, 0, 0, 10, 0, 0, 0]);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
@@ -231,7 +231,7 @@ impl BodyBuf {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{ty, BodyBuf, Endianness, Signature};
+    /// use tokio_dbus::{ty, BodyBuf, Endianness};
     ///
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
     ///
@@ -240,7 +240,7 @@ impl BodyBuf {
     ///     .store(30u32)
     ///     .finish();
     ///
-    /// assert_eq!(buf.signature(), Signature::new(b"(qu)")?);
+    /// assert_eq!(buf.signature(), "(qu)");
     ///
     /// let mut b = buf.read_until_end();
     ///
@@ -294,7 +294,7 @@ impl BodyBuf {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf, Signature};
+    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
@@ -308,7 +308,7 @@ impl BodyBuf {
     ///     .with_body(&body);
     ///
     /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
-    /// assert_eq!(m.signature(), Signature::new(b"du")?);
+    /// assert_eq!(m.signature(), "du");
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     ///
@@ -317,7 +317,7 @@ impl BodyBuf {
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf, Signature};
+    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
@@ -331,7 +331,7 @@ impl BodyBuf {
     ///     .with_body(&body);
     ///
     /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
-    /// assert_eq!(m.signature(), Signature::new(b"so")?);
+    /// assert_eq!(m.signature(), "so");
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     pub fn store<T>(&mut self, frame: T) -> Result<()>
@@ -376,14 +376,14 @@ impl BodyBuf {
     /// Extend the body with multiple arguments.
     ///
     /// This can be a more convenient variant compared with subsequent calls to
-    /// type-dependent calls to [`BodyBuf::store`] or [`BodyBuf::write`].
+    /// type-dependent calls to [`BodyBuf::store`].
     ///
     /// # Examples
     ///
     /// ```
     /// use std::num::NonZeroU32;
     ///
-    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf, Signature};
+    /// use tokio_dbus::{BodyBuf, Message, MessageKind, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
@@ -396,7 +396,7 @@ impl BodyBuf {
     ///     .with_body(&body);
     ///
     /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
-    /// assert_eq!(m.signature(), Signature::new(b"sou")?);
+    /// assert_eq!(m.signature(), "sou");
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     #[inline]
@@ -452,12 +452,12 @@ impl BodyBuf {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{BodyBuf, Endianness, Signature};
+    /// use tokio_dbus::{BodyBuf, Endianness};
     ///
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
     /// buf.write_slice(&[1, 2, 3, 4])?;
     ///
-    /// assert_eq!(buf.signature(), Signature::new(b"ay")?);
+    /// assert_eq!(buf.signature(), "ay");
     /// assert_eq!(buf.get(), &[4, 0, 0, 0, 1, 2, 3, 4]);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```

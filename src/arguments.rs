@@ -7,9 +7,9 @@ pub(crate) mod sealed {
 
 /// Types which can be conveniently used as arguments when extending buffers.
 ///
-/// See for example [`BodyBuf::extend`].
+/// See for example [`BodyBuf::arguments`].
 ///
-/// [`BodyBuf::extend`]: crate::BodyBuf::extend
+/// [`BodyBuf::arguments`]: crate::BodyBuf::arguments
 pub trait Arguments: self::sealed::Sealed {
     /// Write `self` into `buf`.
     #[doc(hidden)]
@@ -19,11 +19,11 @@ pub trait Arguments: self::sealed::Sealed {
     fn buf_to(&self, buf: &mut BodyBuf);
 }
 
-impl<T: ?Sized> self::sealed::Sealed for &T where T: Arguments {}
+impl<T> self::sealed::Sealed for &T where T: ?Sized + Arguments {}
 
-impl<T: ?Sized> Arguments for &T
+impl<T> Arguments for &T
 where
-    T: Arguments,
+    T: ?Sized + Arguments,
 {
     #[inline]
     fn extend_to(&self, buf: &mut BodyBuf) -> Result<()> {

@@ -10,22 +10,7 @@ use crate::{Error, Frame};
 
 use super::{padding_to, AlignedBuf};
 
-/// A read-only view into a buffer.
-///
-/// # Examples
-///
-/// ```
-/// use tokio_dbus::{Result, Aligned};
-///
-/// fn read(buf: &mut Aligned<'_>) -> Result<()> {
-///     assert_eq!(buf.load::<u32>()?, 7u32);
-///     assert_eq!(buf.load::<u8>()?, b'f');
-///     assert_eq!(buf.load::<u8>()?, b'o');
-///     assert_eq!(buf.get(), &[b'o', b' ', b'b', b'a', b'r', 0]);
-///     Ok(())
-/// }
-/// # Ok::<_, tokio_dbus::Error>(())
-/// ```
+/// A read-only view into an aligned buffer.
 pub struct Aligned<'a> {
     data: ptr::NonNull<u8>,
     read: usize,
@@ -50,22 +35,7 @@ impl<'a> Aligned<'a> {
     }
 
     /// Get a slice out of the buffer that has ben written to.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tokio_dbus::{Result, Aligned};
-    ///
-    /// fn read(buf: &mut Aligned<'_>) -> Result<()> {
-    ///     assert_eq!(buf.load::<u32>()?, 7u32);
-    ///     assert_eq!(buf.load::<u8>()?, b'f');
-    ///     assert_eq!(buf.load::<u8>()?, b'o');
-    ///     assert_eq!(buf.get(), &[b'o', b' ', b'b', b'a', b'r', 0]);
-    ///     Ok(())
-    /// }
-    /// # Ok::<_, tokio_dbus::Error>(())
-    /// ```
-    pub fn get(&self) -> &'a [u8] {
+    pub(crate) fn get(&self) -> &'a [u8] {
         unsafe {
             let at = self.data.as_ptr().add(self.read);
             from_raw_parts(at, self.len())
@@ -73,45 +43,20 @@ impl<'a> Aligned<'a> {
     }
 
     /// Test if the slice is empty.
-    pub fn is_empty(&self) -> bool {
+    #[inline]
+    pub(crate) fn is_empty(&self) -> bool {
         self.read == self.written
     }
 
     /// Get the length of the slice.
-    pub fn len(&self) -> usize {
+    #[inline]
+    pub(crate) fn len(&self) -> usize {
         self.written - self.read
     }
 
-    /// Read `len` bytes from the buffer and make accessible through a
-    /// [`Aligned`].
-    ///
-    /// # Panics
-    ///
-    /// This panics if `len` is larger than [`len()`].
-    ///
-    /// [`len()`]: Self::len
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tokio_dbus::{Result, Aligned};
-    ///
-    /// fn read(buf: &mut Aligned<'_>) -> Result<()> {
-    ///     let mut read_buf = buf.read_until(6);
-    ///     assert_eq!(read_buf.load::<u32>()?, 4);
-    ///
-    ///     let mut read_buf2 = read_buf.read_until(2);
-    ///     assert_eq!(read_buf2.load::<u8>()?, 1);
-    ///     assert_eq!(read_buf2.load::<u8>()?, 2);
-    ///
-    ///     assert!(read_buf.is_empty());
-    ///     assert!(read_buf2.is_empty());
-    ///
-    ///     assert_eq!(buf.get(), &[3, 4, 0]);
-    ///     Ok(())
-    /// }
-    /// ```
-    pub fn read_until(&mut self, n: usize) -> Aligned<'a> {
+    /// Read `len` bytes from the buffer and make accessible through another
+    /// [`Aligned`] instance constituting that sub-slice.
+    pub(crate) fn read_until(&mut self, n: usize) -> Aligned<'a> {
         assert!(n <= self.len(), "requested: {n} > length: {}", self.len());
         let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
         self.read += n;
@@ -119,33 +64,7 @@ impl<'a> Aligned<'a> {
     }
 
     /// Load a frame of the given type.
-    ///
-    /// This advances the read cursor of the buffer by the alignment and size of
-    /// the type. The return value has been endian-adjusted as per
-    /// [`endianness()`].
-    ///
-    /// [`endianness()`]: Self::endianness
-    ///
-    /// # Error
-    ///
-    /// Errors if the underlying buffer does not have enough space to represent
-    /// the type `T`.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tokio_dbus::{Result, Aligned};
-    ///
-    /// fn read(buf: &mut Aligned<'_>) -> Result<()> {
-    ///     assert_eq!(buf.load::<u32>()?, 7u32);
-    ///     assert_eq!(buf.load::<u8>()?, b'f');
-    ///     assert_eq!(buf.load::<u8>()?, b'o');
-    ///     assert_eq!(buf.get(), &[b'o', b' ', b'b', b'a', b'r', 0]);
-    ///     Ok(())
-    /// }
-    /// # Ok::<_, tokio_dbus::Error>(())
-    /// ```
-    pub fn load<T>(&mut self) -> Result<T>
+    pub(crate) fn load<T>(&mut self) -> Result<T>
     where
         T: Frame,
     {

@@ -6,7 +6,9 @@ use crate::{Endianness, Frame, Read, Signature};
 
 use super::{Aligned, ArrayReader, BodyBuf};
 
-/// A read-only view into a buffer.
+/// A read-only view into a buffer suitable for use as a body in a [`Message`].
+///
+/// [`Message`]: crate::Message
 ///
 /// # Examples
 ///
@@ -29,12 +31,12 @@ pub struct Body<'a> {
 }
 
 impl<'a> Body<'a> {
-    /// Construct an empty read buffer.
+    /// Construct an empty buffer.
     pub(crate) const fn empty() -> Self {
         Self::from_raw_parts(Aligned::empty(), Endianness::NATIVE, Signature::EMPTY)
     }
 
-    /// Construct a new read buffer wrapping pointed to data.
+    /// Construct a new buffer wrapping pointed to data.
     #[inline]
     pub(crate) const fn from_raw_parts(
         data: Aligned<'a>,
@@ -55,22 +57,68 @@ impl<'a> Body<'a> {
     }
 
     /// Get the endianness of the buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{Body, BodyBuf, Endianness};
+    ///
+    /// let body = BodyBuf::new();
+    ///
+    /// let body: Body<'_> = body.peek();
+    /// assert_eq!(body.endianness(), Endianness::NATIVE);
+    ///
+    /// let body = body.with_endianness(Endianness::BIG);
+    /// assert_eq!(body.endianness(), Endianness::BIG);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
     pub fn endianness(&self) -> Endianness {
         self.endianness
     }
 
-    /// Adjust endianness of read buffer.
+    /// Adjust endianness of buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{Body, BodyBuf, Endianness};
+    ///
+    /// let body = BodyBuf::new();
+    ///
+    /// let body: Body<'_> = body.peek();
+    /// assert_eq!(body.endianness(), Endianness::NATIVE);
+    ///
+    /// let body = body.with_endianness(Endianness::BIG);
+    /// assert_eq!(body.endianness(), Endianness::BIG);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
     pub fn with_endianness(self, endianness: Endianness) -> Self {
         Self { endianness, ..self }
     }
 
     /// Get the signature of the buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{Body, BodyBuf};
+    ///
+    /// let mut body = BodyBuf::new();
+    ///
+    /// body.store(10u16)?;
+    /// body.store(10u32)?;
+    ///
+    /// let body: Body<'_> = body.peek();
+    ///
+    /// assert_eq!(body.signature(), "qu");
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
     pub fn signature(&self) -> &'a Signature {
         self.signature
     }
 
-    /// Adjust signature of read buffer.
-    pub fn with_signature(self, signature: &'a Signature) -> Self {
+    /// Adjust the signature of buffer.
+    pub(crate) fn with_signature(self, signature: &'a Signature) -> Self {
         Self { signature, ..self }
     }
 
@@ -94,12 +142,47 @@ impl<'a> Body<'a> {
         self.data.get()
     }
 
-    /// Test if the slice is empty.
+    /// Test if the buffer is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{Body, BodyBuf, Endianness};
+    ///
+    /// let mut body = BodyBuf::with_endianness(Endianness::LITTLE);
+    /// let b: Body<'_> = body.peek();
+    /// assert!(b.is_empty());
+    ///
+    /// body.store(10u16)?;
+    /// body.store(10u32)?;
+    ///
+    /// let b: Body<'_> = body.peek();
+    /// assert!(!b.is_empty());
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
 
-    /// Get the length of the slice.
+    /// Remaining data to be read from the buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{Body, BodyBuf, Endianness};
+    ///
+    /// let mut body = BodyBuf::with_endianness(Endianness::LITTLE);
+    /// assert!(body.is_empty());
+    ///
+    /// body.store(10u16)?;
+    /// body.store(10u32)?;
+    ///
+    /// let b: Body<'_> = body.peek();
+    /// assert_eq!(b.len(), 8);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    #[inline]
     pub fn len(&self) -> usize {
         self.data.len()
     }
@@ -131,8 +214,8 @@ impl<'a> Body<'a> {
         T::read_from(self)
     }
 
-    /// Read `len` bytes from the buffer and make accessible through a
-    /// [`Body`].
+    /// Read `len` bytes from the buffer and make accessible through another
+    /// [`Body`] instance constituting that sub-slice.
     ///
     /// # Panics
     ///
@@ -219,7 +302,7 @@ impl<'a> Body<'a> {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{ty, BodyBuf, Endianness, Signature};
+    /// use tokio_dbus::{ty, BodyBuf, Endianness};
     ///
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
     /// buf.store(10u8);
@@ -235,7 +318,7 @@ impl<'a> Body<'a> {
     ///     .store("Hello World")
     ///     .finish();
     ///
-    /// assert_eq!(buf.signature(), Signature::new(b"y(quays)")?);
+    /// assert_eq!(buf.signature(), "y(quays)");
     ///
     /// let mut buf = buf.peek();
     /// assert_eq!(buf.load::<u8>()?, 10u8);
@@ -297,21 +380,25 @@ impl<'a> Body<'a> {
     }
 
     /// Advance the read cursor by `n`.
+    #[inline]
     pub(crate) fn advance(&mut self, n: usize) -> Result<()> {
         self.data.advance(n)
     }
 
     /// Align the read side of the buffer.
+    #[inline]
     pub(crate) fn align<T>(&mut self) -> Result<()> {
         self.data.align::<T>()
     }
 
     /// Load a slice.
+    #[inline]
     pub(crate) fn load_slice(&mut self, len: usize) -> Result<&'a [u8]> {
         self.data.load_slice(len)
     }
 
     /// Load a slice ending with a NUL byte, excluding the null byte.
+    #[inline]
     pub(crate) fn load_slice_nul(&mut self, len: usize) -> Result<&'a [u8]> {
         self.data.load_slice_nul(len)
     }
