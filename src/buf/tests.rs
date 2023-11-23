@@ -123,14 +123,14 @@ fn write_blob(buf: &mut BodyBuf) -> Result<()> {
     let mut array = buf.write_array_raw::<u64>();
 
     let mut st = array.write_struct();
-    st.store(Variant::REPLY_SERIAL)?;
-    st.write(Signature::UINT32)?;
-    st.store(0xabcdef12u32)?;
+    st.store(Variant::REPLY_SERIAL);
+    st.write(Signature::UINT32);
+    st.store(0xabcdef12u32);
 
     let mut st = array.write_struct();
-    st.store(Variant::SIGNATURE)?;
-    st.write(Signature::SIGNATURE)?;
-    st.write(Signature::UINT32)?;
+    st.store(Variant::SIGNATURE);
+    st.write(Signature::SIGNATURE);
+    st.write(Signature::UINT32);
 
     array.finish();
 

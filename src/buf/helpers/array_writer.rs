@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 use std::mem::ManuallyDrop;
 
-use crate::buf::{Alloc, BufMut};
-use crate::ty;
-use crate::{Frame, Result, Write};
+use crate::buf::Alloc;
+use crate::{ty, BodyBuf};
+use crate::{Frame, Write};
 
 use super::StructWriter;
 
@@ -11,24 +11,22 @@ use super::StructWriter;
 ///
 /// Note that this does not enforce that the elements being written have a
 /// uniform type.
-#[must_use = "Arrays must be finalized using ArrayWriter::finish"]
-pub struct ArrayWriter<'a, O: ?Sized, A>
+#[must_use = "arrays must be finalized using ArrayWriter::finish"]
+pub struct ArrayWriter<'a, A>
 where
-    O: BufMut,
     A: ty::Aligned,
 {
     start: usize,
     len: Alloc<u32>,
-    buf: &'a mut O,
+    buf: &'a mut BodyBuf,
     _marker: PhantomData<A>,
 }
 
-impl<'a, O: ?Sized, A> ArrayWriter<'a, O, A>
+impl<'a, A> ArrayWriter<'a, A>
 where
-    O: BufMut,
     A: ty::Aligned,
 {
-    pub(crate) fn new(buf: &'a mut O) -> Self {
+    pub(crate) fn new(buf: &'a mut BodyBuf) -> Self {
         let len = buf.alloc();
         let start = buf.len();
 
@@ -47,25 +45,25 @@ where
 
     /// Store a [`Frame`] value into the array.
     #[inline]
-    pub(super) fn store<T>(&mut self, value: T) -> Result<()>
+    pub(super) fn store<T>(&mut self, value: T)
     where
         T: Frame,
     {
-        self.buf.store(value)
+        self.buf.store_only(value);
     }
 
     /// Write a value into the array.
     #[inline]
-    pub(super) fn write<T>(&mut self, value: &T) -> Result<()>
+    pub(super) fn write<T>(&mut self, value: &T)
     where
         T: ?Sized + Write,
     {
-        value.write_to(self.buf)
+        value.write_to(self.buf);
     }
 
     /// Push an array inside of the array.
     #[inline]
-    pub(super) fn write_array<B>(&mut self) -> ArrayWriter<'_, O, B>
+    pub(super) fn write_array<B>(&mut self) -> ArrayWriter<'_, B>
     where
         B: ty::Aligned,
     {
@@ -74,7 +72,7 @@ where
 
     /// Push an array inside of the array.
     #[inline]
-    pub(crate) fn write_struct(&mut self) -> StructWriter<'_, O> {
+    pub(crate) fn write_struct(&mut self) -> StructWriter<'_> {
         StructWriter::new(self.buf)
     }
 
@@ -95,9 +93,8 @@ where
     }
 }
 
-impl<O: ?Sized, A> Drop for ArrayWriter<'_, O, A>
+impl<A> Drop for ArrayWriter<'_, A>
 where
-    O: BufMut,
     A: ty::Aligned,
 {
     fn drop(&mut self) {

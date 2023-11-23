@@ -1,5 +1,4 @@
-use crate::buf::BufMut;
-use crate::{Result, Signature};
+use crate::{buf::UnalignedBuf, BodyBuf, Signature};
 
 mod sealed {
     use crate::sasl::SaslRequest;
@@ -26,9 +25,11 @@ pub trait Write: self::sealed::Sealed {
 
     /// Write `self` into `buf`.
     #[doc(hidden)]
-    fn write_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
-    where
-        O: BufMut;
+    fn write_to(&self, buf: &mut BodyBuf);
+
+    /// Write `self` into `buf`.
+    #[doc(hidden)]
+    fn write_to_unaligned(&self, buf: &mut UnalignedBuf);
 }
 
 /// Write a byte array to the buffer.
@@ -49,13 +50,15 @@ impl Write for [u8] {
     const SIGNATURE: &'static Signature = Signature::new_const(b"ay");
 
     #[inline]
-    fn write_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
-    where
-        O: BufMut,
-    {
-        buf.store(self.len() as u32)?;
+    fn write_to(&self, buf: &mut BodyBuf) {
+        buf.store_only(self.len() as u32);
         buf.extend_from_slice(self);
-        Ok(())
+    }
+
+    #[inline]
+    fn write_to_unaligned(&self, buf: &mut UnalignedBuf) {
+        buf.store(self.len() as u32);
+        buf.extend_from_slice(self);
     }
 }
 
@@ -76,12 +79,14 @@ impl Write for str {
     const SIGNATURE: &'static Signature = Signature::STRING;
 
     #[inline]
-    fn write_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
-    where
-        O: BufMut,
-    {
-        buf.store(self.len() as u32)?;
+    fn write_to(&self, buf: &mut BodyBuf) {
+        buf.store_only(self.len() as u32);
         buf.extend_from_slice_nul(self.as_bytes());
-        Ok(())
+    }
+
+    #[inline]
+    fn write_to_unaligned(&self, buf: &mut UnalignedBuf) {
+        buf.store(self.len() as u32);
+        buf.extend_from_slice_nul(self.as_bytes());
     }
 }

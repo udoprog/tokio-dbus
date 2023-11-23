@@ -1,8 +1,8 @@
 use std::fmt;
 use std::str::from_utf8_unchecked;
 
-use crate::buf::BufMut;
-use crate::Body;
+use crate::buf::UnalignedBuf;
+use crate::{Body, BodyBuf};
 use crate::{OwnedObjectPath, Read, Result, Signature, Write};
 
 use super::{validate, Iter, ObjectPathError};
@@ -222,13 +222,15 @@ impl Write for ObjectPath {
     const SIGNATURE: &'static Signature = Signature::OBJECT_PATH;
 
     #[inline]
-    fn write_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
-    where
-        O: BufMut,
-    {
-        buf.store(self.0.len() as u32)?;
+    fn write_to(&self, buf: &mut BodyBuf) {
+        buf.store_only(self.0.len() as u32);
         buf.extend_from_slice_nul(&self.0);
-        Ok(())
+    }
+
+    #[inline]
+    fn write_to_unaligned(&self, buf: &mut UnalignedBuf) {
+        buf.store(self.0.len() as u32);
+        buf.extend_from_slice_nul(&self.0);
     }
 }
 

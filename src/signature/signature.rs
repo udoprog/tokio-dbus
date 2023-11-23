@@ -1,10 +1,10 @@
 use std::fmt;
 use std::str::from_utf8_unchecked;
 
-use crate::buf::BufMut;
+use crate::buf::UnalignedBuf;
 use crate::error::Result;
 use crate::proto::Type;
-use crate::{Body, OwnedSignature, Read, Write};
+use crate::{Body, BodyBuf, OwnedSignature, Read, Write};
 
 use super::stack::Stack;
 use super::{validate, SignatureError, MAX_DEPTH};
@@ -393,13 +393,15 @@ impl Write for Signature {
     const SIGNATURE: &'static Signature = Signature::SIGNATURE;
 
     #[inline]
-    fn write_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
-    where
-        O: BufMut,
-    {
-        buf.store(self.0.len() as u8)?;
+    fn write_to(&self, buf: &mut BodyBuf) {
+        buf.store_only(self.0.len() as u8);
         buf.extend_from_slice_nul(&self.0);
-        Ok(())
+    }
+
+    #[inline]
+    fn write_to_unaligned(&self, buf: &mut UnalignedBuf) {
+        buf.store(self.0.len() as u8);
+        buf.extend_from_slice_nul(&self.0);
     }
 }
 

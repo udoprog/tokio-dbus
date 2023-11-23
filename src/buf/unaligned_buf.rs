@@ -3,12 +3,13 @@ use std::mem::size_of;
 use std::ptr;
 use std::slice::{from_raw_parts, from_raw_parts_mut};
 
-use crate::buf::{max_size_for_align, padding_to, Alloc, ArrayWriter, BufMut};
-use crate::ty;
-use crate::{Frame, Result, Write};
+use crate::buf::{max_size_for_align, padding_to};
+use crate::{Frame, Write};
+
+use super::Alloc;
 
 /// A buffer that can be used for buffering unaligned data.
-pub(crate) struct UnalignedBuf {
+pub struct UnalignedBuf {
     /// Pointed to data of the buffer.
     data: ptr::NonNull<u8>,
     /// The initialized capacity of the buffer.
@@ -33,17 +34,6 @@ impl UnalignedBuf {
             read: 0,
             base: 0,
         }
-    }
-
-    /// Write an array into the buffer.
-    ///
-    /// The type parameter `A` indicates the alignment of the elements stored in
-    /// the array.
-    pub(super) fn write_array<A>(&mut self) -> ArrayWriter<'_, Self, A>
-    where
-        A: ty::Aligned,
-    {
-        ArrayWriter::new(self)
     }
 
     /// Update alignment basis to match the write location.
@@ -78,11 +68,15 @@ impl UnalignedBuf {
         let at = at.into_usize();
         assert!(at + size_of::<T>() <= self.written, "write underflow");
 
-        // SAFETY: We've just asserted that the write is in bounds above.
+        // SAFETY: We've just asserted that the write is in bounds above and
+        // this buffer ensures that all types that implement `Frame` are written
+        // to aligned location.
         unsafe {
-            let src = (&frame as *const T).cast::<u8>();
-            let dst = self.data.as_ptr().add(at);
-            ptr::copy_nonoverlapping(src, dst, size_of::<T>());
+            let from = (&frame as *const T).cast::<u8>();
+            self.data
+                .as_ptr()
+                .add(at)
+                .copy_from_nonoverlapping(from, size_of::<T>());
         }
     }
 
@@ -107,11 +101,11 @@ impl UnalignedBuf {
     }
 
     /// Write a type to the buffer.
-    pub(crate) fn write<T>(&mut self, value: &T) -> Result<()>
+    pub(crate) fn write<T>(&mut self, value: &T)
     where
         T: ?Sized + Write,
     {
-        value.write_to(self)
+        value.write_to_unaligned(self);
     }
 
     /// Extend the buffer with a slice.
@@ -293,65 +287,5 @@ impl Drop for UnalignedBuf {
                 self.capacity = 0;
             }
         }
-    }
-}
-
-impl BufMut for UnalignedBuf {
-    #[inline]
-    fn align_mut<T>(&mut self) {
-        UnalignedBuf::align_mut::<T>(self)
-    }
-
-    #[inline]
-    fn len(&self) -> usize {
-        UnalignedBuf::len(self)
-    }
-
-    #[inline]
-    fn is_empty(&self) -> bool {
-        UnalignedBuf::is_empty(self)
-    }
-
-    #[inline]
-    fn write<T>(&mut self, value: &T) -> Result<()>
-    where
-        T: ?Sized + Write,
-    {
-        UnalignedBuf::write(self, value)
-    }
-
-    #[inline]
-    fn store<T>(&mut self, frame: T) -> Result<()>
-    where
-        T: Frame,
-    {
-        UnalignedBuf::store(self, frame);
-        Ok(())
-    }
-
-    #[inline]
-    fn alloc<T>(&mut self) -> Alloc<T>
-    where
-        T: Frame,
-    {
-        UnalignedBuf::alloc(self)
-    }
-
-    #[inline]
-    fn store_at<T>(&mut self, at: Alloc<T>, frame: T)
-    where
-        T: Frame,
-    {
-        UnalignedBuf::store_at(self, at, frame)
-    }
-
-    #[inline]
-    fn extend_from_slice(&mut self, bytes: &[u8]) {
-        UnalignedBuf::extend_from_slice(self, bytes);
-    }
-
-    #[inline]
-    fn extend_from_slice_nul(&mut self, bytes: &[u8]) {
-        UnalignedBuf::extend_from_slice_nul(self, bytes);
     }
 }

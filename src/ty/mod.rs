@@ -10,15 +10,14 @@
 //! buf.store(10u8);
 //!
 //! buf.write_struct::<(u16, u32, ty::Array<u8>, ty::Str)>()?
-//!     .store(10u16)?
-//!     .store(10u32)?
+//!     .store(10u16)
+//!     .store(10u32)
 //!     .write_array(|w| {
-//!         w.store(1u8)?;
-//!         w.store(2u8)?;
-//!         w.store(3u8)?;
-//!         Ok(())
-//!     })?
-//!     .write("Hello World")?
+//!         w.store(1u8);
+//!         w.store(2u8);
+//!         w.store(3u8);
+//!     })
+//!     .write("Hello World")
 //!     .finish();
 //!
 //! assert_eq!(buf.signature(), b"y(quays)");

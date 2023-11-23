@@ -1,6 +1,5 @@
-use crate::buf::BufMut;
 use crate::error::Result;
-use crate::{ObjectPath, Signature};
+use crate::{BodyBuf, ObjectPath, Signature, Write};
 
 use super::ExtendBuf;
 
@@ -21,9 +20,7 @@ pub trait Arguments: self::sealed::Sealed {
         O: ExtendBuf;
 
     #[doc(hidden)]
-    fn buf_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
-    where
-        O: BufMut;
+    fn buf_to(&self, buf: &mut BodyBuf);
 }
 
 macro_rules! impl_store {
@@ -41,11 +38,8 @@ macro_rules! impl_store {
                 }
 
                 #[inline]
-                fn buf_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
-                where
-                    O: BufMut
-                {
-                    buf.store(*self)
+                fn buf_to(&self, buf: &mut BodyBuf) {
+                    buf.store_only(*self);
                 }
             }
         )*
@@ -67,11 +61,8 @@ macro_rules! impl_write {
                 }
 
                 #[inline]
-                fn buf_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
-                where
-                    O: BufMut
-                {
-                    buf.write(self)
+                fn buf_to(&self, buf: &mut BodyBuf) {
+                    Write::write_to(self, buf);
                 }
             }
         )*
@@ -96,11 +87,8 @@ where
     }
 
     #[inline]
-    fn buf_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
-    where
-        O: BufMut,
-    {
-        (**self).buf_to(buf)
+    fn buf_to(&self, buf: &mut BodyBuf) {
+        (**self).buf_to(buf);
     }
 }
 
@@ -122,13 +110,9 @@ macro_rules! impl_tuple {
 
             #[inline]
             #[allow(non_snake_case)]
-            fn buf_to<_O: ?Sized>(&self, buf: &mut _O) -> Result<()>
-            where
-                _O: BufMut
-            {
+            fn buf_to(&self, buf: &mut BodyBuf) {
                 let ($($ty,)*) = self;
-                $(<$ty as Arguments>::buf_to($ty, buf)?;)*
-                Ok(())
+                $(<$ty as Arguments>::buf_to($ty, buf);)*
             }
         }
     }

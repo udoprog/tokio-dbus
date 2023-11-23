@@ -99,14 +99,14 @@ fn signature_skip_array() -> Result<()> {
     let mut array = buf.write_array::<ty::Array<ty::Str>>()?;
 
     let mut first = array.write_array();
-    first.write("A")?;
-    first.write("B")?;
-    first.write("C")?;
+    first.write("A");
+    first.write("B");
+    first.write("C");
     first.finish();
 
     let mut second = array.write_array();
-    second.write("D")?;
-    second.write("E")?;
+    second.write("D");
+    second.write("E");
     second.finish();
 
     array.finish();

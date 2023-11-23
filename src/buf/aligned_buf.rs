@@ -4,8 +4,8 @@ use std::mem::{align_of, size_of};
 use std::ptr;
 use std::slice::{from_raw_parts, from_raw_parts_mut};
 
-use crate::buf::{max_size_for_align, padding_to, Aligned, Alloc, BufMut};
-use crate::{Frame, Result, Write};
+use crate::buf::{max_size_for_align, padding_to, Aligned, Alloc};
+use crate::Frame;
 
 /// The type we're basing our alignment on.
 pub(crate) type AlignType = u64;
@@ -117,14 +117,6 @@ impl AlignedBuf {
         }
     }
 
-    /// Write a type to the buffer.
-    pub(crate) fn write<T>(&mut self, value: &T) -> Result<()>
-    where
-        T: ?Sized + Write,
-    {
-        value.write_to(self)
-    }
-
     /// Extend the buffer with a slice.
     pub(crate) fn extend_from_slice(&mut self, bytes: &[u8]) {
         let requested = self.written + bytes.len();
@@ -164,6 +156,7 @@ impl AlignedBuf {
 
     /// Test if the buffer is empty.
     #[inline]
+    #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
         self.read == self.written
     }
@@ -306,66 +299,6 @@ impl Drop for AlignedBuf {
                 self.capacity = 0;
             }
         }
-    }
-}
-
-impl BufMut for AlignedBuf {
-    #[inline]
-    fn align_mut<T>(&mut self) {
-        AlignedBuf::align_mut::<T>(self)
-    }
-
-    #[inline]
-    fn len(&self) -> usize {
-        AlignedBuf::len(self)
-    }
-
-    #[inline]
-    fn is_empty(&self) -> bool {
-        AlignedBuf::is_empty(self)
-    }
-
-    #[inline]
-    fn write<T>(&mut self, value: &T) -> Result<()>
-    where
-        T: ?Sized + Write,
-    {
-        AlignedBuf::write(self, value)
-    }
-
-    #[inline]
-    fn store<T>(&mut self, frame: T) -> Result<()>
-    where
-        T: Frame,
-    {
-        AlignedBuf::store(self, frame);
-        Ok(())
-    }
-
-    #[inline]
-    fn alloc<T>(&mut self) -> Alloc<T>
-    where
-        T: Frame,
-    {
-        AlignedBuf::alloc(self)
-    }
-
-    #[inline]
-    fn store_at<T>(&mut self, at: Alloc<T>, frame: T)
-    where
-        T: Frame,
-    {
-        AlignedBuf::store_at(self, at, frame)
-    }
-
-    #[inline]
-    fn extend_from_slice(&mut self, bytes: &[u8]) {
-        AlignedBuf::extend_from_slice(self, bytes);
-    }
-
-    #[inline]
-    fn extend_from_slice_nul(&mut self, bytes: &[u8]) {
-        AlignedBuf::extend_from_slice_nul(self, bytes);
     }
 }
 

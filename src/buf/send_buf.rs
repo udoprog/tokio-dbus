@@ -103,6 +103,10 @@ impl SendBuf {
             return Err(Error::new(ErrorKind::BodyTooLong(u32::MAX)));
         };
 
+        // The following is a section which performs manual header mangling.
+        // It's simply easier to do it like this than make sure that all
+        // message-writing abstractions are compatible with an unaligned buffer.
+
         self.buf.store(proto::Header {
             endianness: Endianness::NATIVE,
             message_type: message.message_type(),
@@ -112,78 +116,80 @@ impl SendBuf {
             serial: message.serial.get(),
         });
 
-        let mut array = self.buf.write_array::<u64>();
+        let length = self.buf.alloc::<u32>();
+        let start = self.buf.len();
 
         match message.kind {
             MessageKind::MethodCall { path, member } => {
-                let mut st = array.write_struct();
-                st.store(proto::Variant::PATH)?;
-                st.write(Signature::OBJECT_PATH)?;
-                st.write(path)?;
+                self.buf.align_mut::<u64>();
+                self.buf.store(proto::Variant::PATH);
+                self.buf.write(Signature::OBJECT_PATH);
+                self.buf.write(path);
 
-                let mut st = array.write_struct();
-                st.store(proto::Variant::MEMBER)?;
-                st.write(Signature::STRING)?;
-                st.write(member)?;
+                self.buf.align_mut::<u64>();
+                self.buf.store(proto::Variant::MEMBER);
+                self.buf.write(Signature::STRING);
+                self.buf.write(member);
             }
             MessageKind::MethodReturn { reply_serial } => {
-                let mut st = array.write_struct();
-                st.store(proto::Variant::REPLY_SERIAL)?;
-                st.write(Signature::UINT32)?;
-                st.store(reply_serial.get())?;
+                self.buf.align_mut::<u64>();
+                self.buf.store(proto::Variant::REPLY_SERIAL);
+                self.buf.write(Signature::UINT32);
+                self.buf.store(reply_serial.get());
             }
             MessageKind::Error {
                 error_name,
                 reply_serial,
             } => {
-                let mut st = array.write_struct();
-                st.store(proto::Variant::ERROR_NAME)?;
-                st.write(Signature::STRING)?;
-                st.write(error_name)?;
+                self.buf.align_mut::<u64>();
+                self.buf.store(proto::Variant::ERROR_NAME);
+                self.buf.write(Signature::STRING);
+                self.buf.write(error_name);
 
-                let mut st = array.write_struct();
-                st.store(proto::Variant::REPLY_SERIAL)?;
-                st.write(Signature::UINT32)?;
-                st.store(reply_serial.get())?;
+                self.buf.align_mut::<u64>();
+                self.buf.store(proto::Variant::REPLY_SERIAL);
+                self.buf.write(Signature::UINT32);
+                self.buf.store(reply_serial.get());
             }
             MessageKind::Signal { member } => {
-                let mut st = array.write_struct();
-                st.store(proto::Variant::MEMBER)?;
-                st.write(Signature::STRING)?;
-                st.write(member)?;
+                self.buf.align_mut::<u64>();
+                self.buf.store(proto::Variant::MEMBER);
+                self.buf.write(Signature::STRING);
+                self.buf.write(member);
             }
         }
 
         if let Some(interface) = message.interface {
-            let mut st = array.write_struct();
-            st.store(proto::Variant::INTERFACE)?;
-            st.write(Signature::STRING)?;
-            st.write(interface)?;
+            self.buf.align_mut::<u64>();
+            self.buf.store(proto::Variant::INTERFACE);
+            self.buf.write(Signature::STRING);
+            self.buf.write(interface);
         }
 
         if let Some(destination) = message.destination {
-            let mut st = array.write_struct();
-            st.store(proto::Variant::DESTINATION)?;
-            st.write(Signature::STRING)?;
-            st.write(destination)?;
+            self.buf.align_mut::<u64>();
+            self.buf.store(proto::Variant::DESTINATION);
+            self.buf.write(Signature::STRING);
+            self.buf.write(destination);
         }
 
         if let Some(sender) = message.sender {
-            let mut st = array.write_struct();
-            st.store(proto::Variant::SENDER)?;
-            st.write(Signature::STRING)?;
-            st.write(sender)?;
+            self.buf.align_mut::<u64>();
+            self.buf.store(proto::Variant::SENDER);
+            self.buf.write(Signature::STRING);
+            self.buf.write(sender);
         }
 
         if !body.signature().is_empty() {
-            let mut st = array.write_struct();
-            st.store(proto::Variant::SIGNATURE)?;
-            st.write(Signature::SIGNATURE)?;
-            st.write(body.signature())?;
+            self.buf.align_mut::<u64>();
+            self.buf.store(proto::Variant::SIGNATURE);
+            self.buf.write(Signature::SIGNATURE);
+            self.buf.write(body.signature());
         }
 
-        array.finish();
+        self.buf.store_at(length, (self.buf.len() - start) as u32);
 
+        self.buf.align_mut::<u64>();
         self.buf.extend_from_slice(body.get());
         Ok(())
     }

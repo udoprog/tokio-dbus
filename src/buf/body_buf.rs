@@ -8,7 +8,7 @@ use crate::{ty, Endianness, Frame, OwnedSignature, Signature, Write};
 use crate::arguments::{Arguments, ExtendBuf};
 
 use super::helpers::{ArrayWriter, StructWriter, TypedArrayWriter, TypedStructWriter};
-use super::{Alloc, Body, BufMut};
+use super::{Alloc, Body};
 
 /// A buffer that can be used to write a body.
 ///
@@ -143,6 +143,7 @@ impl BodyBuf {
 
     /// Test if the buffer is empty.
     #[inline]
+    #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
         self.buf.is_empty()
     }
@@ -278,7 +279,7 @@ impl BodyBuf {
     /// assert_eq!(m.signature(), Signature::new(b"du")?);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn store<T>(&mut self, mut frame: T) -> Result<()>
+    pub fn store<T>(&mut self, frame: T) -> Result<()>
     where
         T: Frame,
     {
@@ -286,9 +287,17 @@ impl BodyBuf {
             return Err(SignatureError::new(SignatureErrorKind::SignatureTooLong).into());
         }
 
+        self.store_only(frame);
+        Ok(())
+    }
+
+    /// Only store the specified value without appending its signature.
+    pub(crate) fn store_only<T>(&mut self, mut frame: T)
+    where
+        T: Frame,
+    {
         frame.adjust(self.endianness);
         self.buf.store(frame);
-        Ok(())
     }
 
     /// Extend the buffer with a slice.
@@ -333,7 +342,7 @@ impl BodyBuf {
             return Err(SignatureError::new(SignatureErrorKind::SignatureTooLong).into());
         }
 
-        self.buf.write(value)?;
+        value.write_to(self);
         Ok(())
     }
 
@@ -372,7 +381,7 @@ impl BodyBuf {
     }
 
     /// Write a raw array into the buffer.
-    pub fn write_array_raw<A>(&mut self) -> ArrayWriter<'_, Self, A>
+    pub fn write_array_raw<A>(&mut self) -> ArrayWriter<'_, A>
     where
         A: ty::Aligned,
     {
@@ -388,7 +397,7 @@ impl BodyBuf {
     ///
     /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
     /// let mut array = buf.write_array::<u32>()?;
-    /// array.store(1u32)?;
+    /// array.store(1u32);
     /// array.finish();
     ///
     /// assert_eq!(buf.signature(), b"au");
@@ -409,14 +418,14 @@ impl BodyBuf {
     /// assert_eq!(buf.get(), &[0, 0, 0, 0, 0, 0, 0, 0]);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn write_array<E>(&mut self) -> Result<TypedArrayWriter<'_, AlignedBuf, E>>
+    pub fn write_array<E>(&mut self) -> Result<TypedArrayWriter<'_, E>>
     where
         E: ty::Marker,
     {
         <ty::Array<E> as ty::Marker>::write_signature(&mut self.signature)?;
         // NB: We write directly onto the underlying buffer, because we've
         // already applied the correct signature.
-        Ok(TypedArrayWriter::new(ArrayWriter::new(&mut self.buf)))
+        Ok(TypedArrayWriter::new(ArrayWriter::new(self)))
     }
 
     /// Write a slice as an byte array.
@@ -450,29 +459,28 @@ impl BodyBuf {
     /// buf.store(10u8);
     ///
     /// buf.write_struct::<(u16, u32, ty::Array<u8>, ty::Str)>()?
-    ///     .store(10u16)?
-    ///     .store(10u32)?
+    ///     .store(10u16)
+    ///     .store(10u32)
     ///     .write_array(|w| {
-    ///         w.store(1u8)?;
-    ///         w.store(2u8)?;
-    ///         w.store(3u8)?;
-    ///         Ok(())
-    ///     })?
-    ///     .write("Hello World")?
+    ///         w.store(1u8);
+    ///         w.store(2u8);
+    ///         w.store(3u8);
+    ///     })
+    ///     .write("Hello World")
     ///     .finish();
     ///
     /// assert_eq!(buf.signature(), b"y(quays)");
     /// assert_eq!(buf.get(), &[10, 0, 0, 0, 0, 0, 0, 0, 10, 0, 0, 0, 10, 0, 0, 0, 3, 0, 0, 0, 1, 2, 3, 0, 11, 0, 0, 0, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 0]);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn write_struct<E>(&mut self) -> Result<TypedStructWriter<'_, AlignedBuf, E>>
+    pub fn write_struct<E>(&mut self) -> Result<TypedStructWriter<'_, E>>
     where
         E: ty::Fields,
     {
         E::write_signature(&mut self.signature)?;
         // NB: We write directly onto the underlying buffer, because we've
         // already applied the correct signature.
-        Ok(TypedStructWriter::new(StructWriter::new(&mut self.buf)))
+        Ok(TypedStructWriter::new(StructWriter::new(self)))
     }
 }
 
@@ -490,65 +498,6 @@ impl Default for BodyBuf {
     #[inline]
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl BufMut for BodyBuf {
-    #[inline]
-    fn align_mut<T>(&mut self) {
-        BodyBuf::align_mut::<T>(self)
-    }
-
-    #[inline]
-    fn len(&self) -> usize {
-        BodyBuf::len(self)
-    }
-
-    #[inline]
-    fn is_empty(&self) -> bool {
-        BodyBuf::is_empty(self)
-    }
-
-    #[inline]
-    fn write<T>(&mut self, value: &T) -> Result<()>
-    where
-        T: ?Sized + Write,
-    {
-        BodyBuf::write(self, value)
-    }
-
-    #[inline]
-    fn store<T>(&mut self, frame: T) -> Result<()>
-    where
-        T: Frame,
-    {
-        BodyBuf::store(self, frame)
-    }
-
-    #[inline]
-    fn alloc<T>(&mut self) -> Alloc<T>
-    where
-        T: Frame,
-    {
-        BodyBuf::alloc(self)
-    }
-
-    #[inline]
-    fn store_at<T>(&mut self, at: Alloc<T>, frame: T)
-    where
-        T: Frame,
-    {
-        BodyBuf::store_at(self, at, frame)
-    }
-
-    #[inline]
-    fn extend_from_slice(&mut self, bytes: &[u8]) {
-        BodyBuf::extend_from_slice(self, bytes);
-    }
-
-    #[inline]
-    fn extend_from_slice_nul(&mut self, bytes: &[u8]) {
-        BodyBuf::extend_from_slice_nul(self, bytes);
     }
 }
 
