@@ -12,6 +12,3 @@ mod struct_writer;
 
 pub use self::array_reader::ArrayReader;
 mod array_reader;
-
-pub use self::struct_reader::StructReader;
-mod struct_reader;

@@ -4,7 +4,7 @@ use crate::error::Result;
 use crate::ty;
 use crate::{Endianness, Frame, Read, Signature};
 
-use super::{Aligned, ArrayReader, BodyBuf, StructReader};
+use super::{Aligned, ArrayReader, BodyBuf};
 
 /// A read-only view into a buffer.
 ///
@@ -237,24 +237,27 @@ impl<'a> Body<'a> {
     ///
     /// assert_eq!(buf.signature(), Signature::new(b"y(quays)")?);
     ///
-    /// let mut buf = buf.read_until_end();
+    /// let mut buf = buf.peek();
     /// assert_eq!(buf.load::<u8>()?, 10u8);
     ///
-    /// let mut st = buf.read_struct()?;
-    /// assert_eq!(st.load::<u16>()?, 20u16);
-    /// assert_eq!(st.load::<u32>()?, 30u32);
+    /// let (a, b, mut array, string) = buf.read_struct::<(u16, u32, ty::Array<u8>, ty::Str)>()?;
+    /// assert_eq!(a, 20u16);
+    /// assert_eq!(b, 30u32);
     ///
-    /// let mut array = st.read_array::<u8>()?;
     /// assert_eq!(array.load()?, Some(1));
     /// assert_eq!(array.load()?, Some(2));
     /// assert_eq!(array.load()?, Some(3));
     /// assert_eq!(array.load()?, None);
     ///
-    /// assert_eq!(st.read::<str>()?, "Hello World");
+    /// assert_eq!(string, "Hello World");
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    pub fn read_struct(&mut self) -> Result<StructReader<'_, 'a>> {
-        StructReader::new(self)
+    pub fn read_struct<E>(&mut self) -> Result<E::Return<'a>>
+    where
+        E: ty::Fields,
+    {
+        self.align::<u64>()?;
+        E::read_struct(self)
     }
 
     /// Load a frame of the given type.

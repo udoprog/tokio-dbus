@@ -1,4 +1,5 @@
 use crate::signature::{SignatureBuilder, SignatureError};
+use crate::{Body, Result};
 
 use super::{Aligned, Marker};
 
@@ -23,6 +24,14 @@ pub trait Fields: self::sealed::Sealed + Aligned {
     #[doc(hidden)]
     type Remaining;
 
+    /// The return value of the struct.
+    #[doc(hidden)]
+    type Return<'de>;
+
+    /// Read a struct.
+    #[doc(hidden)]
+    fn read_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>>;
+
     /// Write signature.
     #[doc(hidden)]
     fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError>;
@@ -37,6 +46,12 @@ impl Aligned for () {
 impl Fields for () {
     type First = Empty;
     type Remaining = ();
+    type Return<'de> = ();
+
+    #[inline]
+    fn read_struct<'de>(_: &mut Body<'de>) -> Result<Self::Return<'de>> {
+        Ok(())
+    }
 
     #[inline]
     fn write_signature(_: &mut SignatureBuilder) -> Result<(), SignatureError> {
@@ -71,6 +86,12 @@ macro_rules! struct_fields {
         {
             type First = A;
             type Remaining = ($($rest,)*);
+            type Return<'de> = ($first::Return<'de>, $($rest::Return<'de>,)*);
+
+            #[inline]
+            fn read_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>> {
+                Ok((<$first>::read_struct(buf)?, $(<$rest>::read_struct(buf)? ,)*))
+            }
 
             #[inline]
             fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError> {

@@ -5,7 +5,7 @@ use crate::error::Result;
 use crate::signature::{SignatureBuilder, SignatureError, SignatureErrorKind};
 use crate::{ty, Endianness, Frame, OwnedSignature, Signature, Write};
 
-use crate::arguments::{Arguments, ExtendBuf};
+use crate::arguments::Arguments;
 
 use super::helpers::{ArrayWriter, StructWriter, TypedArrayWriter, TypedStructWriter};
 use super::{Alloc, Body};
@@ -130,10 +130,10 @@ impl BodyBuf {
     /// ```
     /// use tokio_dbus::{BodyBuf, Endianness};
     ///
-    /// let mut body = BodyBuf::new();
+    /// let body = BodyBuf::new();
     /// assert_eq!(body.endianness(), Endianness::NATIVE);
     ///
-    /// body.set_endianness(Endianness::BIG);
+    /// let body = BodyBuf::with_endianness(Endianness::BIG);
     /// assert_eq!(body.endianness(), Endianness::BIG);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
@@ -142,15 +142,44 @@ impl BodyBuf {
     }
 
     /// Test if the buffer is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{BodyBuf, Signature, Endianness};
+    ///
+    /// let mut body = BodyBuf::with_endianness(Endianness::LITTLE);
+    /// assert!(body.is_empty());
+    ///
+    /// body.store(10u16)?;
+    /// body.store(10u32)?;
+    ///
+    /// assert!(!body.is_empty());
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
     #[inline]
-    #[cfg(test)]
-    pub(crate) fn is_empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.buf.is_empty()
     }
 
     /// Remaining data to be read from the buffer.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{BodyBuf, Signature, Endianness};
+    ///
+    /// let mut body = BodyBuf::with_endianness(Endianness::LITTLE);
+    /// assert!(body.is_empty());
+    ///
+    /// body.store(10u16)?;
+    /// body.store(10u32)?;
+    ///
+    /// assert_eq!(body.len(), 8);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
     #[inline]
-    pub(crate) fn len(&self) -> usize {
+    pub fn len(&self) -> usize {
         self.buf.len()
     }
 
@@ -197,6 +226,30 @@ impl BodyBuf {
     }
 
     /// Read the whole buffer until its end.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{ty, BodyBuf, Endianness, Signature};
+    ///
+    /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
+    ///
+    /// buf.write_struct::<(u16, u32)>()?
+    ///     .store(20u16)
+    ///     .store(30u32)
+    ///     .finish();
+    ///
+    /// assert_eq!(buf.signature(), Signature::new(b"(qu)")?);
+    ///
+    /// let mut b = buf.read_until_end();
+    ///
+    /// let (a, b) = b.read_struct::<(u16, u32)>()?;
+    /// assert_eq!(a, 20u16);
+    /// assert_eq!(b, 30u32);
+    ///
+    /// assert!(buf.is_empty());
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
     #[inline]
     pub fn read_until_end(&mut self) -> Body<'_> {
         let data = self.buf.read_until_end();
@@ -227,28 +280,6 @@ impl BodyBuf {
     {
         frame.adjust(self.endianness);
         self.buf.store_at(at, frame);
-    }
-
-    /// Set the endianness of the buffer.
-    ///
-    /// Note that this will not affect any data that has already been written to
-    /// the buffer.
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tokio_dbus::{BodyBuf, Endianness};
-    ///
-    /// let mut body = BodyBuf::new();
-    /// assert_eq!(body.endianness(), Endianness::NATIVE);
-    ///
-    /// body.set_endianness(Endianness::BIG);
-    /// assert_eq!(body.endianness(), Endianness::BIG);
-    /// # Ok::<_, tokio_dbus::Error>(())
-    /// ```
-    #[inline]
-    pub fn set_endianness(&mut self, endianness: Endianness) {
-        self.endianness = endianness;
     }
 
     /// Store a [`Frame`] of type `T` in the buffer and add its signature.
@@ -363,7 +394,7 @@ impl BodyBuf {
     /// let mut send = SendBuf::new();
     /// let mut body = BodyBuf::new();
     ///
-    /// body.extend(("Hello World!", PATH, 10u32));
+    /// body.arguments(("Hello World!", PATH, 10u32));
     ///
     /// let m = send.method_call(PATH, "Hello")
     ///     .with_body(&body);
@@ -373,7 +404,7 @@ impl BodyBuf {
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     #[inline]
-    pub fn extend<T>(&mut self, value: T) -> Result<()>
+    pub fn arguments<T>(&mut self, value: T) -> Result<()>
     where
         T: Arguments,
     {
@@ -498,24 +529,6 @@ impl Default for BodyBuf {
     #[inline]
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl ExtendBuf for BodyBuf {
-    #[inline]
-    fn write<T>(&mut self, value: &T) -> Result<()>
-    where
-        T: ?Sized + Write,
-    {
-        BodyBuf::write(self, value)
-    }
-
-    #[inline]
-    fn store<T>(&mut self, frame: T) -> Result<()>
-    where
-        T: Frame,
-    {
-        BodyBuf::store(self, frame)
     }
 }
 

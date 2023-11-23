@@ -1,5 +1,7 @@
+use crate::buf::ArrayReader;
 use crate::frame::Frame;
 use crate::signature::{Signature, SignatureBuilder, SignatureError, SignatureErrorKind};
+use crate::{Body, ObjectPath, Result};
 
 use super::{Aligned, Array, Sig, Str, O};
 
@@ -16,6 +18,14 @@ mod sealed {
 
 /// The trait implementation for a type marker.
 pub trait Marker: self::sealed::Sealed + Aligned {
+    /// Return type used for the marker.
+    #[doc(hidden)]
+    type Return<'de>;
+
+    /// Read the value from a structure.
+    #[doc(hidden)]
+    fn read_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>>;
+
     /// Writing the signature.
     #[doc(hidden)]
     fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError>;
@@ -32,6 +42,13 @@ impl<T> Marker for T
 where
     T: Frame,
 {
+    type Return<'de> = T;
+
+    #[inline]
+    fn read_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>> {
+        buf.load()
+    }
+
     #[inline]
     fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError> {
         if !signature.extend_from_signature(T::SIGNATURE) {
@@ -47,6 +64,13 @@ impl Aligned for Str {
 }
 
 impl Marker for Str {
+    type Return<'de> = &'de str;
+
+    #[inline]
+    fn read_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>> {
+        buf.read()
+    }
+
     #[inline]
     fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError> {
         if !signature.extend_from_signature(Signature::STRING) {
@@ -62,6 +86,13 @@ impl Aligned for Sig {
 }
 
 impl Marker for Sig {
+    type Return<'de> = &'de Signature;
+
+    #[inline]
+    fn read_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>> {
+        buf.read()
+    }
+
     #[inline]
     fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError> {
         if !signature.extend_from_signature(Signature::SIGNATURE) {
@@ -77,6 +108,13 @@ impl Aligned for O {
 }
 
 impl Marker for O {
+    type Return<'de> = &'de ObjectPath;
+
+    #[inline]
+    fn read_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>> {
+        buf.read()
+    }
+
     #[inline]
     fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError> {
         if !signature.extend_from_signature(Signature::OBJECT_PATH) {
@@ -98,6 +136,14 @@ impl<T> Marker for Array<T>
 where
     T: Marker,
 {
+    type Return<'de> = ArrayReader<'de, T>;
+
+    #[inline]
+    fn read_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>> {
+        buf.read_array::<T>()
+    }
+
+    #[inline]
     fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError> {
         signature.open_array()?;
         T::write_signature(signature)?;

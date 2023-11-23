@@ -4,7 +4,7 @@
 mod tests;
 
 pub use self::helpers::{
-    ArrayReader, ArrayWriter, StructReader, StructWriter, TypedArrayWriter, TypedStructWriter,
+    ArrayReader, ArrayWriter, StructWriter, TypedArrayWriter, TypedStructWriter,
 };
 mod helpers;
 

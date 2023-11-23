@@ -1,8 +1,6 @@
 use crate::error::Result;
 use crate::{BodyBuf, ObjectPath, Signature, Write};
 
-use super::ExtendBuf;
-
 mod sealed {
     pub trait Sealed {}
 }
@@ -15,9 +13,7 @@ mod sealed {
 pub trait Arguments: self::sealed::Sealed {
     /// Write `self` into `buf`.
     #[doc(hidden)]
-    fn extend_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
-    where
-        O: ExtendBuf;
+    fn extend_to(&self, buf: &mut BodyBuf) -> Result<()>;
 
     #[doc(hidden)]
     fn buf_to(&self, buf: &mut BodyBuf);
@@ -30,10 +26,7 @@ macro_rules! impl_store {
 
             impl Arguments for $ty {
                 #[inline]
-                fn extend_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
-                where
-                    O: ExtendBuf
-                {
+                fn extend_to(&self, buf: &mut BodyBuf) -> Result<()> {
                     buf.store(*self)
                 }
 
@@ -53,10 +46,7 @@ macro_rules! impl_write {
 
             impl Arguments for $ty {
                 #[inline]
-                fn extend_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
-                where
-                    O: ExtendBuf
-                {
+                fn extend_to(&self, buf: &mut BodyBuf) -> Result<()> {
                     buf.write(self)
                 }
 
@@ -79,10 +69,7 @@ where
     T: Arguments,
 {
     #[inline]
-    fn extend_to<O: ?Sized>(&self, buf: &mut O) -> Result<()>
-    where
-        O: ExtendBuf,
-    {
+    fn extend_to(&self, buf: &mut BodyBuf) -> Result<()> {
         (**self).extend_to(buf)
     }
 
@@ -99,10 +86,7 @@ macro_rules! impl_tuple {
         impl<$($ty,)*> Arguments for ($($ty,)*) where $($ty: Arguments,)* {
             #[inline]
             #[allow(non_snake_case)]
-            fn extend_to<_O: ?Sized>(&self, buf: &mut _O) -> Result<()>
-            where
-                _O: ExtendBuf
-            {
+            fn extend_to(&self, buf: &mut BodyBuf) -> Result<()> {
                 let ($($ty,)*) = self;
                 $(<$ty as Arguments>::extend_to($ty, buf)?;)*
                 Ok(())

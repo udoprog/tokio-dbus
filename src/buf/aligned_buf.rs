@@ -156,7 +156,6 @@ impl AlignedBuf {
 
     /// Test if the buffer is empty.
     #[inline]
-    #[cfg(test)]
     pub(crate) fn is_empty(&self) -> bool {
         self.read == self.written
     }

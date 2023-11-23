@@ -10,19 +10,19 @@ use super::{ArrayWriter, TypedStructWriter};
 /// See [`BodyBuf::write_array`].
 ///
 /// [`BodyBuf::write_array`]: crate::BodyBuf::write_array
-pub struct TypedArrayWriter<'a, E>
+pub struct TypedArrayWriter<'a, T>
 where
-    E: Aligned,
+    T: Aligned,
 {
-    inner: ArrayWriter<'a, E>,
-    _marker: PhantomData<E>,
+    inner: ArrayWriter<'a, T>,
+    _marker: PhantomData<T>,
 }
 
-impl<'a, E> TypedArrayWriter<'a, E>
+impl<'a, T> TypedArrayWriter<'a, T>
 where
-    E: Aligned,
+    T: Aligned,
 {
-    pub(crate) fn new(inner: ArrayWriter<'a, E>) -> Self {
+    pub(crate) fn new(inner: ArrayWriter<'a, T>) -> Self {
         Self {
             inner,
             _marker: PhantomData,
@@ -42,18 +42,18 @@ where
     }
 }
 
-impl<'a, E> TypedArrayWriter<'a, E>
+impl<'a, T> TypedArrayWriter<'a, T>
 where
-    E: Aligned,
+    T: Aligned,
 {
     /// Store a value and return the builder for the next value to store.
     ///
     /// See [`BodyBuf::write_array`].
     ///
     /// [`BodyBuf::write_array`]: crate::BodyBuf::write_array
-    pub fn store(&mut self, value: E)
+    pub fn store(&mut self, value: T)
     where
-        E: Frame,
+        T: Frame,
     {
         self.inner.store(value);
     }
@@ -63,10 +63,10 @@ where
     /// See [`BodyBuf::write_array`].
     ///
     /// [`BodyBuf::write_array`]: crate::BodyBuf::write_array
-    pub fn write(&mut self, value: &E::Target)
+    pub fn write(&mut self, value: &T::Target)
     where
-        E: ty::Unsized,
-        E::Target: Write,
+        T: ty::Unsized,
+        T::Target: Write,
     {
         self.inner.write(value);
     }
@@ -77,17 +77,17 @@ where
     ///
     /// [`BodyBuf::write_array`]: crate::BodyBuf::write_array
     #[inline]
-    pub fn write_struct(&mut self) -> TypedStructWriter<'_, E>
+    pub fn write_struct(&mut self) -> TypedStructWriter<'_, T>
     where
-        E: ty::Fields,
+        T: ty::Fields,
     {
         TypedStructWriter::new(self.inner.write_struct())
     }
 }
 
-impl<'a, E> TypedArrayWriter<'a, ty::Array<E>>
+impl<'a, T> TypedArrayWriter<'a, ty::Array<T>>
 where
-    E: Aligned,
+    T: Aligned,
 {
     /// Write an array inside of the array.
     ///
@@ -95,7 +95,7 @@ where
     ///
     /// [`BodyBuf::write_array`]: crate::BodyBuf::write_array
     #[inline]
-    pub fn write_array(&mut self) -> TypedArrayWriter<'_, E> {
+    pub fn write_array(&mut self) -> TypedArrayWriter<'_, T> {
         TypedArrayWriter::new(self.inner.write_array())
     }
 }

@@ -4,7 +4,7 @@ use crate::error::{Error, ErrorKind, Result};
 use crate::proto;
 use crate::{Endianness, Message, MessageKind, ObjectPath, Signature};
 
-use super::{AlignedBuf, ArrayReader, Body};
+use super::{AlignedBuf, Body};
 
 /// An owned reference to a message in a [`RecvBuf`].
 ///
@@ -95,13 +95,15 @@ impl RecvBuf {
         let mut signature = Signature::empty();
         let mut sender = None;
 
-        let mut buf = Body::from_raw_parts(buf, self.endianness, Signature::empty());
-
         // Use a `Body` abstraction here, since we need to adjust the headers by
         // the received endianness.
-        let mut headers = ArrayReader::<(u64,)>::new(buf.read_until(headers));
+        let mut buf = Body::from_raw_parts(buf, self.endianness, Signature::empty());
 
-        while let Some(mut st) = headers.read_struct()? {
+        let mut st = buf.read_until(headers);
+
+        while !st.is_empty() {
+            // NB: Structs are aligned to 8 bytes.
+            st.align::<u64>()?;
             let variant = st.load::<proto::Variant>()?;
             let sig = st.read::<Signature>()?;
 
@@ -133,7 +135,7 @@ impl RecvBuf {
                     sender = Some(st.read::<str>()?);
                 }
                 (_, _) => {
-                    sig.skip(st.buf_mut())?;
+                    sig.skip(&mut st)?;
                 }
             }
         }

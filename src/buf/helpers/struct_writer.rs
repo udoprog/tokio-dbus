@@ -35,7 +35,7 @@ impl<'a> StructWriter<'a> {
 
     /// Extend the current struct with the given arguments as fields.
     #[inline]
-    pub(super) fn extend<T>(&mut self, value: T)
+    pub(super) fn arguments<T>(&mut self, value: T)
     where
         T: Arguments,
     {

@@ -11,12 +11,12 @@ use super::{StructWriter, TypedArrayWriter};
 ///
 /// [`BodyBuf::write_struct`]: crate::BodyBuf::write_struct
 #[must_use = "Must call `finish` after writing all related fields"]
-pub struct TypedStructWriter<'a, E> {
+pub struct TypedStructWriter<'a, T> {
     inner: StructWriter<'a>,
-    _marker: PhantomData<E>,
+    _marker: PhantomData<T>,
 }
 
-impl<'a, E> TypedStructWriter<'a, E> {
+impl<'a, T> TypedStructWriter<'a, T> {
     pub(crate) fn new(inner: StructWriter<'a>) -> Self {
         Self {
             inner,
@@ -44,10 +44,10 @@ impl<'a, E> TypedStructWriter<'a, E> {
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     #[inline]
-    pub fn store(mut self, value: E::First) -> TypedStructWriter<'a, E::Remaining>
+    pub fn store(mut self, value: T::First) -> TypedStructWriter<'a, T::Remaining>
     where
-        E: ty::Fields,
-        E::First: Frame,
+        T: ty::Fields,
+        T::First: Frame,
     {
         self.inner.store(value);
         TypedStructWriter::new(self.inner)
@@ -74,12 +74,12 @@ impl<'a, E> TypedStructWriter<'a, E> {
     #[inline]
     pub fn write(
         mut self,
-        value: &<E::First as ty::Unsized>::Target,
-    ) -> TypedStructWriter<'a, E::Remaining>
+        value: &<T::First as ty::Unsized>::Target,
+    ) -> TypedStructWriter<'a, T::Remaining>
     where
-        E: ty::Fields,
-        E::First: ty::Unsized,
-        <E::First as ty::Unsized>::Target: Write,
+        T: ty::Fields,
+        T::First: ty::Unsized,
+        <T::First as ty::Unsized>::Target: Write,
     {
         self.inner.write(value);
         TypedStructWriter::new(self.inner)
@@ -102,11 +102,11 @@ impl<'a, E> TypedStructWriter<'a, E> {
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     #[inline]
-    pub fn fields(mut self, arguments: E)
+    pub fn fields(mut self, arguments: T)
     where
-        E: Arguments,
+        T: Arguments,
     {
-        self.inner.extend(arguments);
+        self.inner.arguments(arguments);
     }
 
     /// Store a value and return the builder for the next value to store.
@@ -133,11 +133,11 @@ impl<'a, E> TypedStructWriter<'a, E> {
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
     #[inline]
-    pub fn write_array<W, T>(mut self, writer: W) -> TypedStructWriter<'a, E::Remaining>
+    pub fn write_array<W, U>(mut self, writer: W) -> TypedStructWriter<'a, T::Remaining>
     where
-        W: FnOnce(&mut TypedArrayWriter<'_, T>),
-        E: ty::Fields<First = ty::Array<T>>,
-        T: ty::Aligned,
+        W: FnOnce(&mut TypedArrayWriter<'_, U>),
+        T: ty::Fields<First = ty::Array<U>>,
+        U: ty::Aligned,
     {
         let mut w = TypedArrayWriter::new(self.inner.write_array());
         writer(&mut w);
@@ -151,11 +151,11 @@ impl<'a, E> TypedStructWriter<'a, E> {
     ///
     /// [`BodyBuf::write_struct`]: crate::BodyBuf::write_struct
     #[inline]
-    pub fn write_struct<W>(mut self, writer: W) -> TypedStructWriter<'a, E::Remaining>
+    pub fn write_struct<W>(mut self, writer: W) -> TypedStructWriter<'a, T::Remaining>
     where
-        W: FnOnce(&mut TypedStructWriter<'_, E::First>),
-        E: ty::Fields,
-        E::First: ty::Fields,
+        W: FnOnce(&mut TypedStructWriter<'_, T::First>),
+        T: ty::Fields,
+        T::First: ty::Fields,
     {
         let mut w = TypedStructWriter::new(self.inner.write_struct());
         writer(&mut w);

@@ -56,6 +56,7 @@ pub use self::message::{Message, MessageKind, OwnedMessage};
 mod message;
 
 #[cfg(feature = "tokio")]
+#[doc(inline)]
 pub use self::connection::{Connection, ConnectionBuilder};
 mod connection;
 
@@ -63,10 +64,12 @@ mod lossy_str;
 
 mod utils;
 
+#[doc(inline)]
 pub use self::object_path::{ObjectPath, ObjectPathError, OwnedObjectPath};
 mod object_path;
 
 pub mod ty;
 
-pub use self::arguments::{Arguments, ExtendBuf};
+#[doc(inline)]
+pub use self::arguments::Arguments;
 mod arguments;
