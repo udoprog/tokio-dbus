@@ -1,13 +1,7 @@
 use std::fmt;
 use std::str::from_utf8_unchecked;
 
-use crate::buf::UnalignedBuf;
-use crate::error::Result;
-use crate::proto::Type;
-use crate::{Body, BodyBuf, Read, SignatureBuf, Write};
-
-use super::stack::Stack;
-use super::{validate, SignatureError, MAX_DEPTH};
+use super::{validate, SignatureError, SignatureBuf};
 
 /// A D-Bus signature.
 ///
@@ -239,6 +233,11 @@ impl Signature {
         self.0.is_empty()
     }
 
+    /// Get the length of the signature in bytes.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
     /// Construct a new signature with validation inside of a constant context.
     ///
     /// This will panic in case the signature is invalid.
@@ -286,114 +285,19 @@ impl Signature {
     ///
     /// The caller must ensure that the signature is a valid signature.
     #[inline]
-    pub(crate) const unsafe fn new_unchecked(signature: &[u8]) -> &Self {
+    pub const unsafe fn new_unchecked(signature: &[u8]) -> &Self {
         &*(signature as *const _ as *const Signature)
     }
 
     /// Get the signature as a string.
-    pub(crate) fn as_str(&self) -> &str {
+    pub fn as_str(&self) -> &str {
         // SAFETY: Validation indirectly ensures that the signature is valid UTF-8.
         unsafe { from_utf8_unchecked(&self.0) }
     }
 
     /// Get the signature as a byte slice.
-    pub(crate) fn as_bytes(&self) -> &[u8] {
+    pub fn as_bytes(&self) -> &[u8] {
         &self.0
-    }
-
-    /// Return the stride needed to skip over read buffer.
-    pub(crate) fn skip(&self, read: &mut Body<'_>) -> Result<()> {
-        #[derive(Debug, Clone, Copy)]
-        enum Step {
-            Fixed(usize),
-            StringNul,
-            Variant,
-            ByteNul,
-        }
-
-        let mut stack = Stack::<bool, MAX_DEPTH>::new();
-        let mut arrays = 0;
-
-        for &b in self.0.iter() {
-            let t = Type(b);
-
-            let step = match t {
-                Type::BYTE => Step::Fixed(1),
-                Type::BOOLEAN => Step::Fixed(1),
-                Type::INT16 => Step::Fixed(2),
-                Type::UINT16 => Step::Fixed(2),
-                Type::INT32 => Step::Fixed(4),
-                Type::UINT32 => Step::Fixed(4),
-                Type::INT64 => Step::Fixed(8),
-                Type::UINT64 => Step::Fixed(8),
-                Type::DOUBLE => Step::Fixed(8),
-                Type::STRING => Step::StringNul,
-                Type::OBJECT_PATH => Step::StringNul,
-                Type::SIGNATURE => Step::ByteNul,
-                Type::VARIANT => Step::Variant,
-                Type::UNIX_FD => Step::Fixed(4),
-                Type::ARRAY => {
-                    if arrays == 0 {
-                        let n = read.load::<u32>()? as usize;
-                        read.advance(n)?;
-                    }
-
-                    arrays += 1;
-                    stack.try_push(true);
-                    continue;
-                }
-                Type::OPEN_PAREN => {
-                    stack.try_push(false);
-                    continue;
-                }
-                Type::CLOSE_PAREN => {
-                    stack.pop();
-                    Step::Fixed(0)
-                }
-                Type::OPEN_BRACE => {
-                    stack.try_push(false);
-                    continue;
-                }
-                Type::CLOSE_BRACE => {
-                    stack.pop();
-                    Step::Fixed(0)
-                }
-                _ => unreachable!(),
-            };
-
-            let in_array = arrays > 0;
-
-            // Unwind arrays.
-            while let Some(true) = stack.peek() {
-                arrays -= 1;
-                stack.pop();
-            }
-
-            if in_array {
-                continue;
-            }
-
-            match step {
-                Step::Fixed(n) => {
-                    read.advance(n)?;
-                }
-                Step::StringNul => {
-                    let n = read.load::<u32>()? as usize;
-                    read.advance(n.saturating_add(1))?;
-                }
-                Step::ByteNul => {
-                    let n = read.load::<u8>()? as usize;
-                    read.advance(n.saturating_add(1))?;
-                }
-                Step::Variant => {
-                    let _ = read.load::<u8>()?;
-                    let sig = read.read::<Signature>()?;
-                    sig.skip(read)?;
-                }
-            }
-        }
-
-        Ok(())
     }
 }
 
@@ -401,37 +305,6 @@ impl fmt::Debug for Signature {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.as_str().fmt(f)
-    }
-}
-
-impl crate::write::sealed::Sealed for Signature {}
-
-impl Write for Signature {
-    const SIGNATURE: &'static Signature = Signature::SIGNATURE;
-
-    #[inline]
-    fn write_to(&self, buf: &mut BodyBuf) {
-        buf.store_frame(self.0.len() as u8);
-        buf.extend_from_slice_nul(&self.0);
-    }
-
-    #[inline]
-    fn write_to_unaligned(&self, buf: &mut UnalignedBuf) {
-        buf.store(self.0.len() as u8);
-        buf.extend_from_slice_nul(&self.0);
-    }
-}
-
-impl_traits_for_write!(Signature, Signature::new("us")?, "qg", Signature);
-
-impl crate::read::sealed::Sealed for Signature {}
-
-impl Read for Signature {
-    #[inline]
-    fn read_from<'de>(buf: &mut Body<'de>) -> Result<&'de Self> {
-        let len = buf.load::<u8>()? as usize;
-        let bytes = buf.load_slice_nul(len)?;
-        Ok(Signature::new(bytes)?)
     }
 }
 

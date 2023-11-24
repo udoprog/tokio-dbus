@@ -12,15 +12,23 @@ pub struct SignatureError {
 }
 
 impl SignatureError {
+    /// Construct a new signature error.
+    #[doc(hidden)]
     pub(crate) const fn new(kind: SignatureErrorKind) -> Self {
         Self { kind }
+    }
+
+    /// Indicate that a signature is too long.
+    #[inline]
+    pub const fn too_long() -> Self {
+        Self::new(SignatureErrorKind::SignatureTooLong)
     }
 }
 
 #[allow(missing_docs)]
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum SignatureErrorKind {
-    UnknownTypeCode(u8),
+    UnknownTypeCode(Type),
     SignatureTooLong,
     MissingArrayElementType,
     StructEndedButNotStarted,
@@ -42,7 +50,7 @@ impl fmt::Display for SignatureError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.kind {
             SignatureErrorKind::UnknownTypeCode(code) => {
-                write!(f, "Unknown type code: {:?}", Type(code))
+                write!(f, "Unknown type code: {code:?}")
             }
             SignatureErrorKind::SignatureTooLong => {
                 write!(f, "Signature too long")

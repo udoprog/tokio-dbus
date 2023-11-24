@@ -1,10 +1,10 @@
 use std::slice::from_raw_parts;
-use std::{mem::MaybeUninit, ops::Deref};
+use std::ops::Deref;
+use std::mem::MaybeUninit;
 
-use crate::signature::{
-    Signature, SignatureError, SignatureErrorKind, MAX_CONTAINER_DEPTH, MAX_DEPTH, MAX_SIGNATURE,
+use super::{
+    Signature, MAX_SIGNATURE, MAX_CONTAINER_DEPTH, MAX_DEPTH, SignatureError, SignatureErrorKind, SignatureBuf
 };
-use crate::SignatureBuf;
 
 /// A D-Bus signature builder.
 ///
@@ -22,7 +22,8 @@ pub struct SignatureBuilder {
 
 impl SignatureBuilder {
     /// Construct a new empty signature.
-    pub(crate) const fn new() -> Self {
+    #[doc(hidden)]
+    pub const fn new() -> Self {
         Self {
             data: unsafe { MaybeUninit::uninit().assume_init() },
             init: 0,
@@ -32,7 +33,8 @@ impl SignatureBuilder {
     }
 
     /// Construct from an owned signature.
-    pub(crate) fn from_owned_signature(signature: SignatureBuf) -> Self {
+    #[doc(hidden)]
+    pub fn from_owned_signature(signature: SignatureBuf) -> Self {
         let (data, init) = signature.into_raw_parts();
 
         Self {
@@ -44,13 +46,14 @@ impl SignatureBuilder {
     }
 
     /// Coerce into a signature.
-    pub(crate) fn to_signature(&self) -> &Signature {
+    pub fn to_signature(&self) -> &Signature {
         // SAFETY: Construction of SignatureBuf ensures that the signature is
         // valid.
         unsafe { Signature::new_unchecked(self.as_slice()) }
     }
 
-    pub(crate) fn open_array(&mut self) -> Result<(), SignatureError> {
+    /// Open an array in the signature.
+    pub fn open_array(&mut self) -> Result<(), SignatureError> {
         if self.arrays == MAX_CONTAINER_DEPTH || self.structs + self.arrays == MAX_DEPTH {
             return Err(SignatureError::new(
                 SignatureErrorKind::ExceededMaximumArrayRecursion,
@@ -65,11 +68,13 @@ impl SignatureBuilder {
         Ok(())
     }
 
-    pub(crate) fn close_array(&mut self) {
+    /// Open close an array in the signature.
+    pub fn close_array(&mut self) {
         self.arrays -= 1;
     }
 
-    pub(crate) fn open_struct(&mut self) -> Result<(), SignatureError> {
+    /// Open a struct in the signature.
+    pub fn open_struct(&mut self) -> Result<(), SignatureError> {
         if self.structs == MAX_CONTAINER_DEPTH || self.structs + self.arrays == MAX_DEPTH {
             return Err(SignatureError::new(
                 SignatureErrorKind::ExceededMaximumStructRecursion,
@@ -84,7 +89,8 @@ impl SignatureBuilder {
         Ok(())
     }
 
-    pub(crate) fn close_struct(&mut self) -> Result<(), SignatureError> {
+    /// Close a struct in the signature.
+    pub fn close_struct(&mut self) -> Result<(), SignatureError> {
         if !self.push(b')') {
             return Err(SignatureError::new(SignatureErrorKind::SignatureTooLong));
         }
@@ -112,13 +118,13 @@ impl SignatureBuilder {
     }
 
     /// Clear the current signature.
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.init = 0;
     }
 
     /// Extend this signature with another.
     #[must_use = "Return value must be observed to indicate an error"]
-    pub(crate) fn extend_from_signature<S>(&mut self, other: S) -> bool
+    pub fn extend_from_signature<S>(&mut self, other: S) -> bool
     where
         S: AsRef<Signature>,
     {

@@ -43,9 +43,7 @@ macro_rules! impl_traits_for_frame {
                 signature: &mut $crate::signature::SignatureBuilder,
             ) -> Result<(), $crate::signature::SignatureError> {
                 if !signature.extend_from_signature(<$ty as $crate::Frame>::SIGNATURE) {
-                    return Err($crate::signature::SignatureError::new(
-                        $crate::signature::SignatureErrorKind::SignatureTooLong,
-                    ));
+                    return Err($crate::signature::SignatureError::too_long());
                 }
 
                 Ok(())
@@ -161,13 +159,58 @@ macro_rules! impl_trait_unsized_marker {
                 signature: &mut $crate::signature::SignatureBuilder,
             ) -> Result<(), $crate::SignatureError> {
                 if !signature.extend_from_signature($crate::Signature::$signature) {
-                    return Err($crate::SignatureError::new(
-                        $crate::signature::SignatureErrorKind::SignatureTooLong,
-                    ));
+                    return Err($crate::SignatureError::too_long());
                 }
 
                 Ok(())
             }
         }
     };
+}
+
+macro_rules! implement_remote {
+    ($($ty:ty),* $(,)?) => {
+        $(
+            impl crate::frame::sealed::Sealed for $ty {}
+
+            unsafe impl crate::frame::Frame for $ty {
+                const SIGNATURE: &'static $crate::signature::Signature = <u8 as $crate::frame::Frame>::SIGNATURE;
+
+                #[inline]
+                fn adjust(&mut self, endianness: $crate::proto::Endianness) {
+                    self.as_mut().adjust(endianness);
+                }
+            }
+
+            impl_traits_for_frame!($ty);
+        )*
+    }
+}
+
+macro_rules! raw_enum {
+    (
+        $(#[$($meta:tt)*])*
+        $vis:vis enum $name:ident { $($fields:tt)* }
+    ) => {
+        ::tokio_dbus_core::raw_enum! {
+            $(#[$($meta)*])*
+            $vis enum $name { $($fields)* }
+        }
+
+        implement_remote!($name);
+    }
+}
+
+macro_rules! raw_set {
+    (
+        $(#[$($meta:tt)*])*
+        $vis:vis enum $name:ident { $($fields:tt)* }
+    ) => {
+        ::tokio_dbus_core::raw_set! {
+            $(#[$($meta)*])*
+            $vis enum $name { $($fields)* }
+        }
+
+        implement_remote!($name);
+    }
 }

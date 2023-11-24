@@ -40,7 +40,7 @@ pub(crate) mod aligned;
 use std::marker::PhantomData;
 
 use crate::error::ErrorKind;
-use crate::signature::{SignatureBuilder, SignatureErrorKind};
+use crate::signature::SignatureBuilder;
 use crate::{Body, Error, LoadArray, Result, SignatureError};
 
 /// The [`Marker`] for the [`str`] type.
@@ -237,7 +237,7 @@ impl Marker for Variant {
     #[inline]
     fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError> {
         if !signature.extend_from_signature(crate::Signature::VARIANT) {
-            return Err(SignatureError::new(SignatureErrorKind::SignatureTooLong));
+            return Err(SignatureError::too_long());
         }
 
         Ok(())

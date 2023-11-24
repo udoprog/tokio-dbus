@@ -1,59 +1,19 @@
-pub(crate) trait StackValue: Copy {
-    const DEFAULT: Self;
-}
+use core::mem::MaybeUninit;
+use core::ptr;
 
-impl StackValue for bool {
-    const DEFAULT: Self = false;
-}
-
+#[doc(hidden)]
 pub(crate) struct Stack<T, const N: usize> {
-    pub(crate) data: [T; N],
+    pub(crate) data: [MaybeUninit<T>; N],
     pub(crate) len: usize,
-}
-
-macro_rules! stack_try_push {
-    ($stack:expr, $value:expr) => {
-        if $stack.len == $stack.capacity() {
-            false
-        } else {
-            $stack.data[$stack.len] = $value;
-            $stack.len += 1;
-            true
-        }
-    };
-}
-
-macro_rules! stack_pop {
-    ($stack:expr, $ty:ty) => {
-        if $stack.len == 0 {
-            None
-        } else {
-            let new_len = $stack.len - 1;
-            $stack.len = new_len;
-            let value = $stack.data[new_len];
-            $stack.data[new_len] = <$ty as $crate::signature::stack::StackValue>::DEFAULT;
-            Some(value)
-        }
-    };
-}
-
-macro_rules! stack_peek {
-    ($stack:expr) => {
-        if $stack.len == 0 {
-            None
-        } else {
-            Some(&$stack.data[$stack.len - 1])
-        }
-    };
 }
 
 impl<T, const N: usize> Stack<T, N>
 where
-    T: StackValue,
+    T: Copy,
 {
     pub(super) const fn new() -> Self {
         Self {
-            data: [T::DEFAULT; N],
+            data: unsafe { MaybeUninit::uninit().assume_init() },
             len: 0,
         }
     }
@@ -65,16 +25,47 @@ where
 
     #[inline]
     pub(super) fn try_push(&mut self, value: T) -> bool {
-        stack_try_push!(self, value)
+        if self.len == self.capacity() {
+            return false;
+        }
+
+        // SAFETY: We're writing to an uninitialized slice.
+        unsafe {
+            self.data
+                .as_mut_ptr()
+                .cast::<T>()
+                .add(self.len)
+                .write(value);
+        }
+
+        self.len += 1;
+        true
     }
 
     #[inline]
     pub(super) fn pop(&mut self) -> Option<T> {
-        stack_pop!(self, T)
+        if self.len == 0 {
+            return None;
+        }
+
+        let new_len = self.len - 1;
+        self.len = new_len;
+
+        // SAFETY: We're reading into the known initialized slice.
+        unsafe {
+            let value = ptr::read(self.data.as_ptr().add(new_len));
+            Some(value.assume_init())
+        }
     }
 
     #[inline]
     pub(super) fn peek(&mut self) -> Option<&T> {
-        stack_peek!(self)
+        if self.len == 0 {
+            return None;
+        }
+
+        // SAFETY: Since len defines the initialized slice, we can safely read a
+        // reference to it here.
+        unsafe { Some(&*self.data.as_ptr().add(self.len - 1).cast::<T>()) }
     }
 }

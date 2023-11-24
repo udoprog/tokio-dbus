@@ -1,0 +1,7 @@
+[package]
+name = "tokio-dbus-xml"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+xmlparser = "0.13.6"
