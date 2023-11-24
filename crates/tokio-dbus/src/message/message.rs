@@ -1,12 +1,12 @@
 use std::num::NonZeroU32;
 
 use crate::proto::{Flags, MessageType};
-use crate::{AsBody, Body, BodyBuf, MessageKind, ObjectPath, OwnedMessage, Signature};
+use crate::{AsBody, Body, BodyBuf, MessageBuf, MessageKind, ObjectPath, Signature};
 
 /// A borrowed D-Bus message.
 ///
-/// This is the borrowed variant of [`OwnedMessage`], to convert to an
-/// [`OwnedMessage`], use [`Message::to_owned`].
+/// This is the borrowed variant of [`MessageBuf`], to convert to an
+/// [`MessageBuf`], use [`Message::to_owned`].
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Message<'a> {
     /// The type of the message.
@@ -159,24 +159,24 @@ impl<'a> Message<'a> {
         }
     }
 
-    /// Convert into an owned [`OwnedMessage`].
+    /// Convert into an owned [`MessageBuf`].
     ///
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{Message, OwnedMessage, ObjectPath, SendBuf};
+    /// use tokio_dbus::{Message, MessageBuf, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
     /// let m = send.method_call(PATH, "Hello").to_owned();
-    /// let m2 = OwnedMessage::method_call(PATH.into(), "Hello".into(), m.serial());
+    /// let m2 = MessageBuf::method_call(PATH.into(), "Hello".into(), m.serial());
     /// assert_eq!(m, m2);
     /// ```
     #[inline]
-    pub fn to_owned(&self) -> OwnedMessage {
-        OwnedMessage {
+    pub fn to_owned(&self) -> MessageBuf {
+        MessageBuf {
             kind: self.kind.to_owned(),
             serial: self.serial,
             flags: self.flags,
@@ -537,9 +537,9 @@ impl<'a> Message<'a> {
     }
 }
 
-impl PartialEq<OwnedMessage> for Message<'_> {
+impl PartialEq<MessageBuf> for Message<'_> {
     #[inline]
-    fn eq(&self, other: &OwnedMessage) -> bool {
+    fn eq(&self, other: &MessageBuf) -> bool {
         self.kind == other.kind
             && self.serial == other.serial
             && self.flags == other.flags

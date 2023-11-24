@@ -1,5 +1,5 @@
-pub use self::owned_message::OwnedMessage;
-mod owned_message;
+pub use self::message_buf::MessageBuf;
+mod message_buf;
 
 pub(crate) use self::owned_message_kind::OwnedMessageKind;
 mod owned_message_kind;

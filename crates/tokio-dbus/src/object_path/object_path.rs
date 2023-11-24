@@ -3,7 +3,7 @@ use std::str::from_utf8_unchecked;
 
 use crate::buf::UnalignedBuf;
 use crate::{Body, BodyBuf};
-use crate::{OwnedObjectPath, Read, Result, Signature, Write};
+use crate::{ObjectPathBuf, Read, Result, Signature, Write};
 
 use super::{validate, Iter, ObjectPathError};
 
@@ -164,13 +164,13 @@ impl AsRef<[u8]> for ObjectPath {
 }
 
 impl ToOwned for ObjectPath {
-    type Owned = OwnedObjectPath;
+    type Owned = ObjectPathBuf;
 
     #[inline]
     fn to_owned(&self) -> Self::Owned {
         // SAFETY: Type ensures that it contains a valid object path during
         // construction.
-        unsafe { OwnedObjectPath::from_raw_vec(self.0.to_vec()) }
+        unsafe { ObjectPathBuf::from_raw_vec(self.0.to_vec()) }
     }
 }
 

@@ -58,7 +58,7 @@ mod recv_buf;
 mod sasl;
 
 #[doc(inline)]
-pub use self::signature::{OwnedSignature, Signature, SignatureError};
+pub use self::signature::{Signature, SignatureBuf, SignatureError};
 mod signature;
 
 #[doc(inline)]
@@ -70,7 +70,7 @@ pub use self::storable::Storable;
 mod storable;
 
 #[doc(inline)]
-pub use self::message::{Message, MessageKind, OwnedMessage};
+pub use self::message::{Message, MessageBuf, MessageKind};
 mod message;
 
 #[cfg(feature = "tokio")]
@@ -83,7 +83,7 @@ mod lossy_str;
 mod utils;
 
 #[doc(inline)]
-pub use self::object_path::{ObjectPath, ObjectPathError, OwnedObjectPath};
+pub use self::object_path::{ObjectPath, ObjectPathBuf, ObjectPathError};
 mod object_path;
 
 #[doc(inline)]

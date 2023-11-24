@@ -120,7 +120,7 @@ fn write_blob(buf: &mut BodyBuf) -> Result<()> {
         serial: 0x12345678u32,
     })?;
 
-    let mut array = buf.store_array::<(proto::Variant, ty::Var)>()?;
+    let mut array = buf.store_array::<(proto::Variant, ty::Variant)>()?;
 
     array
         .store_struct()

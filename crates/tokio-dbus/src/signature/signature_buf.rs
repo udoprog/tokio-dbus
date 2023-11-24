@@ -11,20 +11,20 @@ use super::{validate, Signature, SignatureError, MAX_SIGNATURE};
 ///
 /// This is the owned variant which dereferences to [`Signature`].
 #[derive(Clone)]
-pub struct OwnedSignature {
+pub struct SignatureBuf {
     data: [MaybeUninit<u8>; MAX_SIGNATURE],
     init: usize,
 }
 
-impl OwnedSignature {
+impl SignatureBuf {
     /// Construct a new empty signature.
     ///
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::OwnedSignature;
+    /// use tokio_dbus::SignatureBuf;
     ///
-    /// let sig = OwnedSignature::empty();
+    /// let sig = SignatureBuf::empty();
     /// assert!(sig.is_empty());
     /// ```
     pub const fn empty() -> Self {
@@ -44,21 +44,21 @@ impl OwnedSignature {
     /// This will panic in case the signature is invalid.
     ///
     /// ```compile_fail
-    /// use tokio_dbus::OwnedSignature;
+    /// use tokio_dbus::SignatureBuf;
     ///
-    /// const BAD: OwnedSignature = OwnedSignature::new_const(b"(a)");
+    /// const BAD: SignatureBuf = SignatureBuf::new_const(b"(a)");
     /// ```
     ///
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::OwnedSignature;
+    /// use tokio_dbus::SignatureBuf;
     ///
-    /// const SIG: OwnedSignature = OwnedSignature::new_const(b"i(ai)");
+    /// const SIG: SignatureBuf = SignatureBuf::new_const(b"i(ai)");
     /// ```
     #[inline]
     #[track_caller]
-    pub const fn new_const(signature: &[u8]) -> OwnedSignature {
+    pub const fn new_const(signature: &[u8]) -> SignatureBuf {
         if validate(signature).is_err() {
             panic!("Invalid D-Bus signature")
         };
@@ -121,89 +121,87 @@ impl OwnedSignature {
     }
 }
 
-impl fmt::Debug for OwnedSignature {
+impl fmt::Debug for SignatureBuf {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("OwnedSignature")
-            .field(&self.as_str())
-            .finish()
+        f.debug_tuple("SignatureBuf").field(&self.as_str()).finish()
     }
 }
 
-impl Deref for OwnedSignature {
+impl Deref for SignatureBuf {
     type Target = Signature;
 
     fn deref(&self) -> &Self::Target {
-        // SAFETY: Construction of OwnedSignature ensures that the signature is
+        // SAFETY: Construction of SignatureBuf ensures that the signature is
         // valid.
         unsafe { Signature::new_unchecked(self.as_slice()) }
     }
 }
 
-impl Borrow<Signature> for OwnedSignature {
+impl Borrow<Signature> for SignatureBuf {
     #[inline]
     fn borrow(&self) -> &Signature {
         self
     }
 }
 
-impl AsRef<Signature> for OwnedSignature {
+impl AsRef<Signature> for SignatureBuf {
     #[inline]
     fn as_ref(&self) -> &Signature {
         self
     }
 }
 
-/// Equality check between [`OwnedSignature`] and [`OwnedSignature`].
+/// Equality check between [`SignatureBuf`] and [`SignatureBuf`].
 ///
 /// # Examples
 ///
 /// ```
-/// use tokio_dbus::{Signature, OwnedSignature};
+/// use tokio_dbus::{Signature, SignatureBuf};
 ///
-/// assert_eq!(OwnedSignature::empty(), Signature::EMPTY.to_owned());
-/// assert_eq!(OwnedSignature::new(b"s")?, Signature::STRING.to_owned());
+/// assert_eq!(SignatureBuf::empty(), Signature::EMPTY.to_owned());
+/// assert_eq!(SignatureBuf::new(b"s")?, Signature::STRING.to_owned());
 /// # Ok::<_, tokio_dbus::Error>(())
 /// ```
-impl PartialEq<OwnedSignature> for OwnedSignature {
+impl PartialEq<SignatureBuf> for SignatureBuf {
     #[inline]
-    fn eq(&self, other: &OwnedSignature) -> bool {
+    fn eq(&self, other: &SignatureBuf) -> bool {
         self.as_slice() == other.as_slice()
     }
 }
 
-impl Eq for OwnedSignature {}
+impl Eq for SignatureBuf {}
 
-/// Equality check between [`Signature`] and [`OwnedSignature`].
+/// Equality check between [`Signature`] and [`SignatureBuf`].
 ///
 /// # Examples
 ///
 /// ```
-/// use tokio_dbus::{Signature, OwnedSignature};
+/// use tokio_dbus::{Signature, SignatureBuf};
 ///
-/// assert_eq!(OwnedSignature::empty(), *Signature::EMPTY);
-/// assert_eq!(OwnedSignature::new(b"s")?, *Signature::STRING);
+/// assert_eq!(SignatureBuf::empty(), *Signature::EMPTY);
+/// assert_eq!(SignatureBuf::new(b"s")?, *Signature::STRING);
 /// # Ok::<_, tokio_dbus::Error>(())
 /// ```
-impl PartialEq<Signature> for OwnedSignature {
+impl PartialEq<Signature> for SignatureBuf {
     #[inline]
     fn eq(&self, other: &Signature) -> bool {
         self.as_slice() == other.as_bytes()
     }
 }
 
-/// Equality check between a borrowed [`Signature`] and [`OwnedSignature`].
+/// Equality check between a borrowed [`Signature`] and [`SignatureBuf`].
 ///
 /// # Examples
 ///
 /// ```
-/// use tokio_dbus::{Signature, OwnedSignature};
+/// use tokio_dbus::{Signature, SignatureBuf};
 ///
-/// assert_eq!(OwnedSignature::empty(), *Signature::EMPTY);
-/// assert_eq!(OwnedSignature::new(b"s")?, *Signature::STRING);
+/// assert_eq!(SignatureBuf::empty(), *Signature::EMPTY);
+/// assert_eq!(SignatureBuf::new(b"s")?, *Signature::STRING);
 /// # Ok::<_, tokio_dbus::Error>(())
 /// ```
-impl PartialEq<&Signature> for OwnedSignature {
+impl PartialEq<&Signature> for SignatureBuf {
     #[inline]
     fn eq(&self, other: &&Signature) -> bool {
         self.as_slice() == other.as_bytes()
