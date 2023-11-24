@@ -1,10 +1,16 @@
+use tokio_dbus_core::signature::Signature;
+
 /// A D-Bus node.
+#[derive(Debug, Clone)]
 pub struct Node<'a> {
     /// Interfaces in the node.
     pub interfaces: Box<[Interface<'a>]>,
+    /// Sub-nodes in the node.
+    pub nodes: Box<[Node<'a>]>,
 }
 
 /// A single interface.
+#[derive(Debug, Clone)]
 pub struct Interface<'a> {
     /// The name of the interface.
     pub name: &'a str,
@@ -27,7 +33,7 @@ pub struct Argument<'a> {
     /// The name of the argument.
     pub name: Option<&'a str>,
     /// The type of the argument.
-    pub ty: &'a str,
+    pub ty: &'a Signature,
     /// The direction of an argument.
     pub direction: Direction,
 }

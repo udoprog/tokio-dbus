@@ -1,5 +1,7 @@
-use core::fmt;
 use std::error;
+use std::fmt;
+
+use tokio_dbus_core::signature::SignatureError;
 
 /// Result alias defaulting to the error type of this alias.
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -35,6 +37,7 @@ impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match &self.kind {
             ErrorKind::XmlParser(error) => Some(error),
+            ErrorKind::Signature(error) => Some(error),
             _ => None,
         }
     }
@@ -43,6 +46,7 @@ impl error::Error for Error {
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) enum ErrorKind {
     XmlParser(xmlparser::Error),
+    Signature(SignatureError),
     UnsupportedElementStart(Box<str>),
     UnsupportedElementEnd,
     UnsupportedAttribute(Box<str>),
@@ -60,17 +64,23 @@ pub(crate) enum ErrorKind {
 
 impl From<xmlparser::Error> for ErrorKind {
     #[inline]
-    fn from(value: xmlparser::Error) -> Self {
-        ErrorKind::XmlParser(value)
+    fn from(error: xmlparser::Error) -> Self {
+        ErrorKind::XmlParser(error)
+    }
+}
+
+impl From<SignatureError> for ErrorKind {
+    #[inline]
+    fn from(error: SignatureError) -> Self {
+        ErrorKind::Signature(error)
     }
 }
 
 impl fmt::Display for ErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ErrorKind::XmlParser(error) => {
-                write!(f, "{error}")
-            }
+            ErrorKind::XmlParser(error) => error.fmt(f),
+            ErrorKind::Signature(error) => error.fmt(f),
             ErrorKind::UnsupportedElementStart(element) => {
                 write!(f, "Unsupported element: {element}")
             }

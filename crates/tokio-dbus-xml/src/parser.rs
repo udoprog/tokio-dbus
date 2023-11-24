@@ -1,3 +1,6 @@
+use std::fmt::Write;
+
+use tokio_dbus_core::signature::Signature;
 use xmlparser::{ElementEnd, Token};
 
 use crate::error::ErrorKind;
@@ -8,9 +11,8 @@ pub fn parse_interface(interface: &str) -> Result<Node<'_>> {
     let tokenizer = xmlparser::Tokenizer::from(interface);
 
     let mut stack = vec![];
-    let mut interfaces = Vec::new();
-
     let mut path = String::new();
+    let mut root = NodeBuilder::default();
 
     macro_rules! expect_end {
         ($end:expr, $expected:literal) => {
@@ -34,15 +36,13 @@ pub fn parse_interface(interface: &str) -> Result<Node<'_>> {
             Err(error) => return Err(Error::new(path, error)),
         };
 
-        dbg!(&path, token);
-
         match token {
             Token::ElementStart { local, .. } => {
                 match (stack.last(), local.as_str()) {
                     (None, "node") => {
-                        stack.push(State::Node);
+                        stack.push(State::Node(NodeBuilder::default()));
                     }
-                    (Some(State::Node), "interface") => {
+                    (Some(State::Node(..)), "interface") => {
                         stack.push(State::Interface(InterfaceBuilder::default()));
                     }
                     (Some(State::Interface(..)), "method") => {
@@ -71,11 +71,26 @@ pub fn parse_interface(interface: &str) -> Result<Node<'_>> {
                     }
                 }
 
-                if path.is_empty() {
-                    path.push_str(local.as_str());
-                } else {
+                if !path.is_empty() {
                     path.push_str("/");
-                    path.push_str(local.as_str());
+                }
+
+                path.push_str(local.as_str());
+
+                match &stack[..] {
+                    [.., State::Node(node), State::Node(..)] => {
+                        let _ = write!(path, "[{}]", node.nodes.len());
+                    }
+                    [.., State::Node(node), State::Interface(..)] => {
+                        let _ = write!(path, "[{}]", node.interfaces.len());
+                    }
+                    [.., State::Interface(interface), State::Method(..)] => {
+                        let _ = write!(path, "[{}]", interface.methods.len());
+                    }
+                    [.., State::Method(method), State::Argument(..)] => {
+                        let _ = write!(path, "[{}]", method.arguments.len());
+                    }
+                    _ => {}
                 }
             }
             Token::ElementEnd { end, .. } => {
@@ -92,16 +107,22 @@ pub fn parse_interface(interface: &str) -> Result<Node<'_>> {
                 };
 
                 match (&mut stack[..], top) {
-                    ([], State::Node) => {
+                    ([], State::Node(node)) => {
                         expect_end!(name, "node");
+                        root.interfaces.extend(node.interfaces);
+                        root.nodes.extend(node.nodes);
                     }
-                    ([State::Node], State::Interface(builder)) => {
+                    ([.., State::Node(node)], State::Interface(builder)) => {
                         expect_end!(name, "interface");
-                        interfaces.push(
+                        node.interfaces.push(
                             builder
                                 .build()
                                 .map_err(|kind| Error::new(path.as_str(), kind))?,
                         );
+                    }
+                    ([.., State::Node(node)], State::Node(builder)) => {
+                        expect_end!(name, "interface");
+                        node.nodes.push(builder.build());
                     }
                     ([.., State::Interface(interface)], State::Method(builder)) => {
                         expect_end!(name, "method");
@@ -154,23 +175,24 @@ pub fn parse_interface(interface: &str) -> Result<Node<'_>> {
                 value,
                 ..
             } => {
+                let len = path.len();
+                path.push_str(":");
+                path.push_str(local.as_str());
+
                 match (&mut stack[..], prefix.as_str(), local.as_str()) {
-                    ([State::Node], "xmlns", _) => {
+                    ([State::Node(..)], "xmlns", _) => {
                         // ignore xmlns attributes, while these would be good to
                         // validate, in practice they don't make much of a
                         // difference and are rarely used.
                     }
                     ([.., State::Interface(builder)], _, "name") => {
                         builder.name = Some(value.as_str());
-                        continue;
                     }
                     ([.., State::Method(builder)], _, "name") => {
                         builder.name = Some(value.as_str());
-                        continue;
                     }
                     ([.., State::Argument(builder)], _, "name") => {
                         builder.name = Some(value.as_str());
-                        continue;
                     }
                     ([.., State::Argument(builder)], _, "direction") => {
                         builder.direction = Some(match value.as_str() {
@@ -183,12 +205,12 @@ pub fn parse_interface(interface: &str) -> Result<Node<'_>> {
                                 ))
                             }
                         });
-
-                        continue;
                     }
                     ([.., State::Argument(builder)], _, "type") => {
-                        builder.ty = Some(value.as_str());
-                        continue;
+                        builder.ty = Some(
+                            Signature::new(value.as_str())
+                                .map_err(|kind| Error::new(path.as_str(), kind))?,
+                        );
                     }
                     (_, _, name) => {
                         return Err(Error::new(
@@ -197,6 +219,8 @@ pub fn parse_interface(interface: &str) -> Result<Node<'_>> {
                         ));
                     }
                 }
+
+                path.truncate(len);
             }
             Token::Text { text } => match stack.last_mut() {
                 Some(State::String(_, string)) => {
@@ -212,9 +236,22 @@ pub fn parse_interface(interface: &str) -> Result<Node<'_>> {
         }
     }
 
-    Ok(Node {
-        interfaces: interfaces.into(),
-    })
+    Ok(root.build())
+}
+
+#[derive(Debug, Default)]
+struct NodeBuilder<'a> {
+    interfaces: Vec<Interface<'a>>,
+    nodes: Vec<Node<'a>>,
+}
+
+impl<'a> NodeBuilder<'a> {
+    fn build(self) -> Node<'a> {
+        Node {
+            interfaces: self.interfaces.into(),
+            nodes: self.nodes.into(),
+        }
+    }
 }
 
 #[derive(Debug, Default)]
@@ -253,7 +290,7 @@ impl<'a> MethodBuilder<'a> {
 #[derive(Debug, Default)]
 struct ArgumentBuilder<'a> {
     name: Option<&'a str>,
-    ty: Option<&'a str>,
+    ty: Option<&'a Signature>,
     direction: Option<Direction>,
     doc: Doc<'a>,
 }
@@ -278,7 +315,7 @@ struct StringBuilder<'a> {
 
 #[derive(Debug)]
 enum State<'a> {
-    Node,
+    Node(NodeBuilder<'a>),
     Interface(InterfaceBuilder<'a>),
     Method(MethodBuilder<'a>),
     Argument(ArgumentBuilder<'a>),
