@@ -41,7 +41,7 @@ use std::marker::PhantomData;
 
 use crate::error::ErrorKind;
 use crate::signature::{SignatureBuilder, SignatureErrorKind};
-use crate::{Body, Error, LoadArray, ObjectPath, Result, Signature, SignatureError, Variant};
+use crate::{Body, Error, LoadArray, Result, SignatureError};
 
 /// The [`Marker`] for the [`str`] type.
 ///
@@ -87,7 +87,7 @@ impl_trait_unsized_marker!(Str, u32, str, STRING);
 ///
 /// let mut buf = BodyBuf::new();
 ///
-/// buf.store_struct::<(u8, ty::Sig)>()?
+/// buf.store_struct::<(u8, ty::Signature)>()?
 ///     .store(42u8)
 ///     .store(Signature::new("ay")?)
 ///     .finish();
@@ -96,16 +96,16 @@ impl_trait_unsized_marker!(Str, u32, str, STRING);
 ///
 /// let mut b = buf.as_body();
 ///
-/// let (n, value) = b.load_struct::<(u8, ty::Sig)>()?;
+/// let (n, value) = b.load_struct::<(u8, ty::Signature)>()?;
 ///
 /// assert_eq!(n, 42u8);
 /// assert_eq!(value, Signature::new("ay")?);
 /// # Ok::<_, tokio_dbus::Error>(())
 /// ```
 #[non_exhaustive]
-pub struct Sig;
+pub struct Signature;
 
-impl_trait_unsized_marker!(Sig, u8, Signature, SIGNATURE);
+impl_trait_unsized_marker!(Signature, u8, crate::Signature, SIGNATURE);
 
 /// The [`Marker`] for the [`ObjectPath`] type.
 ///
@@ -119,7 +119,7 @@ impl_trait_unsized_marker!(Sig, u8, Signature, SIGNATURE);
 ///
 /// let mut buf = BodyBuf::new();
 ///
-/// buf.store_struct::<(u8, ty::ObjPath)>()?
+/// buf.store_struct::<(u8, ty::ObjectPath)>()?
 ///     .store(42u8)
 ///     .store(ObjectPath::new("/se/tedro/DBusExample")?)
 ///     .finish();
@@ -128,16 +128,16 @@ impl_trait_unsized_marker!(Sig, u8, Signature, SIGNATURE);
 ///
 /// let mut b = buf.as_body();
 ///
-/// let (n, value) = b.load_struct::<(u8, ty::ObjPath)>()?;
+/// let (n, value) = b.load_struct::<(u8, ty::ObjectPath)>()?;
 ///
 /// assert_eq!(n, 42u8);
 /// assert_eq!(value, ObjectPath::new("/se/tedro/DBusExample")?);
 /// # Ok::<_, tokio_dbus::Error>(())
 /// ```
 #[non_exhaustive]
-pub struct ObjPath;
+pub struct ObjectPath;
 
-impl_trait_unsized_marker!(ObjPath, u8, ObjectPath, OBJECT_PATH);
+impl_trait_unsized_marker!(ObjectPath, u8, crate::ObjectPath, OBJECT_PATH);
 
 /// The [`Marker`] for an array type, like `[u8]`.
 ///
@@ -203,27 +203,29 @@ where
 }
 
 /// The [`Marker`] for the [`Variant`] type.
+///
+/// [`Variant`]: crate::Variant
 #[non_exhaustive]
-pub struct Var;
+pub struct Variant;
 
-impl self::aligned::sealed::Sealed for Var {}
+impl self::aligned::sealed::Sealed for Variant {}
 
-impl Aligned for Var {
+impl Aligned for Variant {
     type Alignment = u32;
 }
 
-impl self::marker::sealed::Sealed for Var {}
+impl self::marker::sealed::Sealed for Variant {}
 
-impl Marker for Var {
-    type Return<'de> = Variant<'de>;
+impl Marker for Variant {
+    type Return<'de> = crate::Variant<'de>;
 
     #[inline]
     fn load_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>> {
-        let signature: &Signature = buf.read()?;
+        let signature: &crate::Signature = buf.read()?;
 
         let variant = match signature.as_bytes() {
-            b"s" => Variant::String(buf.read()?),
-            b"u" => Variant::U32(buf.load()?),
+            b"s" => crate::Variant::String(buf.read()?),
+            b"u" => crate::Variant::U32(buf.load()?),
             _ => {
                 return Err(Error::new(ErrorKind::UnsupportedVariant(signature.into())));
             }
@@ -234,7 +236,7 @@ impl Marker for Var {
 
     #[inline]
     fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError> {
-        if !signature.extend_from_signature(Signature::VARIANT) {
+        if !signature.extend_from_signature(crate::Signature::VARIANT) {
             return Err(SignatureError::new(SignatureErrorKind::SignatureTooLong));
         }
 

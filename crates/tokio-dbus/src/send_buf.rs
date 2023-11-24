@@ -58,14 +58,14 @@ impl SendBuf {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{Message, OwnedMessage, ObjectPath, SendBuf};
+    /// use tokio_dbus::{Message, MessageBuf, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
     /// let m = send.method_call(PATH, "Hello").to_owned();
-    /// let m2 = OwnedMessage::method_call(PATH.into(), "Hello".into(), m.serial());
+    /// let m2 = MessageBuf::method_call(PATH.into(), "Hello".into(), m.serial());
     /// assert_eq!(m, m2);
     /// ```
     pub fn method_call<'a>(&mut self, path: &'a ObjectPath, member: &'a str) -> Message<'a> {
@@ -77,12 +77,12 @@ impl SendBuf {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{Message, OwnedMessage, SendBuf};
+    /// use tokio_dbus::{Message, MessageBuf, SendBuf};
     ///
     /// let mut send = SendBuf::new();
     ///
     /// let m = send.signal("Hello").to_owned();
-    /// let m2 = OwnedMessage::signal("Hello".into(), m.serial());
+    /// let m2 = MessageBuf::signal("Hello".into(), m.serial());
     /// assert_eq!(m, m2);
     /// ```
     pub fn signal<'a>(&mut self, member: &'a str) -> Message<'a> {

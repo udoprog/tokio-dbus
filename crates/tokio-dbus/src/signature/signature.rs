@@ -4,7 +4,7 @@ use std::str::from_utf8_unchecked;
 use crate::buf::UnalignedBuf;
 use crate::error::Result;
 use crate::proto::Type;
-use crate::{Body, BodyBuf, OwnedSignature, Read, Write};
+use crate::{Body, BodyBuf, Read, SignatureBuf, Write};
 
 use super::stack::Stack;
 use super::{validate, SignatureError, MAX_DEPTH};
@@ -443,46 +443,46 @@ impl AsRef<Signature> for Signature {
 }
 
 impl ToOwned for Signature {
-    type Owned = OwnedSignature;
+    type Owned = SignatureBuf;
 
     #[inline]
     fn to_owned(&self) -> Self::Owned {
-        unsafe { OwnedSignature::from_slice_unchecked(&self.0) }
+        unsafe { SignatureBuf::from_slice_unchecked(&self.0) }
     }
 }
 
-/// Equality check between [`OwnedSignature`] and [`Signature`].
+/// Equality check between [`SignatureBuf`] and [`Signature`].
 ///
 /// # Examples
 ///
 /// ```
-/// use tokio_dbus::{Signature, OwnedSignature};
+/// use tokio_dbus::{Signature, SignatureBuf};
 ///
-/// assert_eq!(*Signature::EMPTY, OwnedSignature::empty());
-/// assert_eq!(*Signature::STRING, OwnedSignature::new(b"s")?);
+/// assert_eq!(*Signature::EMPTY, SignatureBuf::empty());
+/// assert_eq!(*Signature::STRING, SignatureBuf::new(b"s")?);
 /// # Ok::<_, tokio_dbus::Error>(())
 /// ```
-impl PartialEq<OwnedSignature> for Signature {
+impl PartialEq<SignatureBuf> for Signature {
     #[inline]
-    fn eq(&self, other: &OwnedSignature) -> bool {
+    fn eq(&self, other: &SignatureBuf) -> bool {
         self.0 == other.0
     }
 }
 
-/// Equality check between [`OwnedSignature`] and a borrowed [`Signature`].
+/// Equality check between [`SignatureBuf`] and a borrowed [`Signature`].
 ///
 /// # Examples
 ///
 /// ```
-/// use tokio_dbus::{Signature, OwnedSignature};
+/// use tokio_dbus::{Signature, SignatureBuf};
 ///
-/// assert_eq!(Signature::EMPTY, OwnedSignature::empty());
-/// assert_eq!(Signature::STRING, OwnedSignature::new(b"s")?);
+/// assert_eq!(Signature::EMPTY, SignatureBuf::empty());
+/// assert_eq!(Signature::STRING, SignatureBuf::new(b"s")?);
 /// # Ok::<_, tokio_dbus::Error>(())
 /// ```
-impl PartialEq<OwnedSignature> for &Signature {
+impl PartialEq<SignatureBuf> for &Signature {
     #[inline]
-    fn eq(&self, other: &OwnedSignature) -> bool {
+    fn eq(&self, other: &SignatureBuf) -> bool {
         self.0 == other.0
     }
 }
@@ -492,7 +492,7 @@ impl PartialEq<OwnedSignature> for &Signature {
 /// # Examples
 ///
 /// ```
-/// use tokio_dbus::{Signature, OwnedSignature};
+/// use tokio_dbus::{Signature, SignatureBuf};
 ///
 /// assert_eq!(*Signature::EMPTY, b""[..]);
 /// assert_eq!(*Signature::STRING, b"s"[..]);
@@ -509,7 +509,7 @@ impl PartialEq<[u8]> for Signature {
 /// # Examples
 ///
 /// ```
-/// use tokio_dbus::{Signature, OwnedSignature};
+/// use tokio_dbus::{Signature, SignatureBuf};
 ///
 /// assert_eq!(Signature::EMPTY, b""[..]);
 /// assert_eq!(Signature::STRING, b"s"[..]);
@@ -526,7 +526,7 @@ impl PartialEq<[u8]> for &Signature {
 /// # Examples
 ///
 /// ```
-/// use tokio_dbus::{Signature, OwnedSignature};
+/// use tokio_dbus::{Signature, SignatureBuf};
 ///
 /// assert_eq!(Signature::EMPTY, b"");
 /// assert_eq!(Signature::STRING, b"s");
@@ -543,7 +543,7 @@ impl<const N: usize> PartialEq<[u8; N]> for Signature {
 /// # Examples
 ///
 /// ```
-/// use tokio_dbus::{Signature, OwnedSignature};
+/// use tokio_dbus::{Signature, SignatureBuf};
 ///
 /// assert_eq!(Signature::EMPTY, b"");
 /// assert_eq!(Signature::STRING, b"s");
@@ -560,7 +560,7 @@ impl<const N: usize> PartialEq<[u8; N]> for &Signature {
 /// # Examples
 ///
 /// ```
-/// use tokio_dbus::{Signature, OwnedSignature};
+/// use tokio_dbus::{Signature, SignatureBuf};
 ///
 /// assert_eq!(*Signature::EMPTY, *"");
 /// assert_eq!(*Signature::STRING, *"s");
@@ -577,7 +577,7 @@ impl PartialEq<str> for Signature {
 /// # Examples
 ///
 /// ```
-/// use tokio_dbus::{Signature, OwnedSignature};
+/// use tokio_dbus::{Signature, SignatureBuf};
 ///
 /// assert_eq!(Signature::EMPTY, *"");
 /// assert_eq!(Signature::STRING, *"s");
@@ -594,7 +594,7 @@ impl PartialEq<str> for &Signature {
 /// # Examples
 ///
 /// ```
-/// use tokio_dbus::{Signature, OwnedSignature};
+/// use tokio_dbus::{Signature, SignatureBuf};
 ///
 /// assert_eq!(*Signature::EMPTY, *"");
 /// assert_eq!(*Signature::STRING, *"s");

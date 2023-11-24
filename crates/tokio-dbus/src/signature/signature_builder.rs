@@ -4,7 +4,7 @@ use std::{mem::MaybeUninit, ops::Deref};
 use crate::signature::{
     Signature, SignatureError, SignatureErrorKind, MAX_CONTAINER_DEPTH, MAX_DEPTH, MAX_SIGNATURE,
 };
-use crate::OwnedSignature;
+use crate::SignatureBuf;
 
 /// A D-Bus signature builder.
 ///
@@ -32,7 +32,7 @@ impl SignatureBuilder {
     }
 
     /// Construct from an owned signature.
-    pub(crate) fn from_owned_signature(signature: OwnedSignature) -> Self {
+    pub(crate) fn from_owned_signature(signature: SignatureBuf) -> Self {
         let (data, init) = signature.into_raw_parts();
 
         Self {
@@ -45,7 +45,7 @@ impl SignatureBuilder {
 
     /// Coerce into a signature.
     pub(crate) fn to_signature(&self) -> &Signature {
-        // SAFETY: Construction of OwnedSignature ensures that the signature is
+        // SAFETY: Construction of SignatureBuf ensures that the signature is
         // valid.
         unsafe { Signature::new_unchecked(self.as_slice()) }
     }

@@ -6,9 +6,9 @@ use crate::{Body, BodyBuf, Flags, Message, MessageKind, ObjectPath, Signature};
 /// An owned D-Bus message.
 ///
 /// This is the owned variant of a [`Message`], to convert to a [`Message`], use
-/// [`OwnedMessage::borrow`].
+/// [`MessageBuf::borrow`].
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct OwnedMessage {
+pub struct MessageBuf {
     /// The type of the message.
     pub(super) kind: OwnedMessageKind,
     /// Serial of the emssage.
@@ -25,20 +25,20 @@ pub struct OwnedMessage {
     pub(super) body: BodyBuf,
 }
 
-impl OwnedMessage {
+impl MessageBuf {
     /// Construct a method call.
     ///
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{Message, ObjectPath, OwnedMessage, SendBuf};
+    /// use tokio_dbus::{Message, ObjectPath, MessageBuf, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
     /// let m = Message::method_call(PATH, "Hello", send.next_serial()).to_owned();
-    /// let m2 = OwnedMessage::method_call(PATH.into(), "Hello".into(), m.serial());
+    /// let m2 = MessageBuf::method_call(PATH.into(), "Hello".into(), m.serial());
     /// assert_eq!(m, m2);
     /// ```
     #[must_use]
@@ -95,17 +95,17 @@ impl OwnedMessage {
         }
     }
 
-    /// Construct a signal [`OwnedMessage`].
+    /// Construct a signal [`MessageBuf`].
     ///
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{OwnedMessage, SendBuf};
+    /// use tokio_dbus::{MessageBuf, SendBuf};
     ///
     /// let mut send = SendBuf::new();
     ///
     /// let m = send.signal("Hello").to_owned();
-    /// let m2 = OwnedMessage::signal("Hello".into(), m.serial());
+    /// let m2 = MessageBuf::signal("Hello".into(), m.serial());
     /// assert_eq!(m, m2);
     /// ```
     #[must_use]
@@ -514,7 +514,7 @@ impl OwnedMessage {
     }
 }
 
-impl PartialEq<Message<'_>> for OwnedMessage {
+impl PartialEq<Message<'_>> for MessageBuf {
     #[inline]
     fn eq(&self, other: &Message<'_>) -> bool {
         *other == *self

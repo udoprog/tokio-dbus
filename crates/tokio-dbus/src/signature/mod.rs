@@ -4,8 +4,8 @@ mod stack;
 use self::validation::validate;
 mod validation;
 
-pub use self::owned_signature::OwnedSignature;
-mod owned_signature;
+pub use self::signature_buf::SignatureBuf;
+mod signature_buf;
 
 pub use self::signature::Signature;
 mod signature;

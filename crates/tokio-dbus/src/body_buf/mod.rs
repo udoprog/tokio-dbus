@@ -11,7 +11,7 @@ use crate::buf::{AlignedBuf, Alloc};
 use crate::error::Result;
 use crate::signature::{SignatureBuilder, SignatureError, SignatureErrorKind};
 use crate::ty;
-use crate::{Body, Endianness, Frame, OwnedSignature, Signature, Storable, Write};
+use crate::{Body, Endianness, Frame, Signature, SignatureBuf, Storable, Write};
 
 /// A buffer that can be used to write a body.
 ///
@@ -59,7 +59,7 @@ impl BodyBuf {
     pub(crate) fn from_raw_parts(
         buf: AlignedBuf,
         endianness: Endianness,
-        signature: OwnedSignature,
+        signature: SignatureBuf,
     ) -> Self {
         Self {
             buf,

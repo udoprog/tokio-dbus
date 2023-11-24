@@ -19,9 +19,9 @@ use super::ObjectPath;
 ///   (a single '/' character).
 #[derive(Clone, PartialEq, Eq)]
 #[repr(transparent)]
-pub struct OwnedObjectPath(Vec<u8>);
+pub struct ObjectPathBuf(Vec<u8>);
 
-impl OwnedObjectPath {
+impl ObjectPathBuf {
     /// Construct an owned object path from its raw underlying vector.
     ///
     /// # Safety
@@ -40,7 +40,7 @@ impl OwnedObjectPath {
     }
 }
 
-impl Deref for OwnedObjectPath {
+impl Deref for ObjectPathBuf {
     type Target = ObjectPath;
 
     #[inline]
@@ -49,14 +49,14 @@ impl Deref for OwnedObjectPath {
     }
 }
 
-impl Borrow<ObjectPath> for OwnedObjectPath {
+impl Borrow<ObjectPath> for ObjectPathBuf {
     #[inline]
     fn borrow(&self) -> &ObjectPath {
         self
     }
 }
 
-impl AsRef<ObjectPath> for OwnedObjectPath {
+impl AsRef<ObjectPath> for ObjectPathBuf {
     #[inline]
     fn as_ref(&self) -> &ObjectPath {
         self
