@@ -9,7 +9,7 @@ use std::fmt;
 use crate::arguments::Arguments;
 use crate::buf::{AlignedBuf, Alloc};
 use crate::error::Result;
-use crate::signature::{SignatureBuilder, SignatureError, SignatureErrorKind};
+use crate::signature::{SignatureBuilder, SignatureError};
 use crate::ty;
 use crate::{Body, Endianness, Frame, Signature, SignatureBuf, Storable, Write};
 
@@ -323,7 +323,7 @@ impl BodyBuf {
         T: Storable,
     {
         if !T::write_signature(&mut self.signature) {
-            return Err(SignatureError::new(SignatureErrorKind::SignatureTooLong).into());
+            return Err(SignatureError::too_long().into());
         }
 
         frame.store_to(self);

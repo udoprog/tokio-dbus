@@ -142,7 +142,7 @@ impl RecvBuf {
                     sender = Some(st.read::<str>()?);
                 }
                 (_, _) => {
-                    sig.skip(&mut st)?;
+                    crate::signature::skip(sig, &mut st)?;
                 }
             }
         }

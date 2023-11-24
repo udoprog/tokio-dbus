@@ -34,8 +34,8 @@ impl SignatureBuf {
         }
     }
 
-    /// Coerce an owned signature into its raw parts.
-    pub(crate) const fn into_raw_parts(self) -> ([MaybeUninit<u8>; MAX_SIGNATURE], usize) {
+    /// Convert an owned signature into its raw parts.
+    pub const fn into_raw_parts(self) -> ([MaybeUninit<u8>; MAX_SIGNATURE], usize) {
         (self.data, 0)
     }
 

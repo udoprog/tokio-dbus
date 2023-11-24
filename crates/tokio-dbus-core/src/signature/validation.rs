@@ -1,7 +1,7 @@
 use crate::proto::Type;
-use crate::signature::stack::{Stack, StackValue};
 
 use super::{SignatureError, SignatureErrorKind, MAX_CONTAINER_DEPTH, MAX_DEPTH};
+use super::stack::{Stack, StackValue};
 
 #[derive(Default, Debug, Clone, Copy)]
 #[repr(u8)]
@@ -36,7 +36,7 @@ pub(super) const fn validate(bytes: &[u8]) -> Result<(), SignatureError> {
     while n < bytes.len() {
         let b = bytes[n];
         n += 1;
-        let t = Type(b);
+        let t = Type::new(b);
 
         let mut is_basic = match t {
             Type::BYTE => true,
@@ -124,7 +124,7 @@ pub(super) const fn validate(bytes: &[u8]) -> Result<(), SignatureError> {
 
                 false
             }
-            t => return Err(SignatureError::new(UnknownTypeCode(t.0))),
+            t => return Err(SignatureError::new(UnknownTypeCode(t))),
         };
 
         while let Some((Kind::Array, _)) = stack_peek!(stack) {
