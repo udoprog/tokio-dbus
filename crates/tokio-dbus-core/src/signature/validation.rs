@@ -1,7 +1,7 @@
 use crate::proto::Type;
 
-use super::{SignatureError, SignatureErrorKind, MAX_CONTAINER_DEPTH, MAX_DEPTH};
 use super::stack::{Stack, StackValue};
+use super::{SignatureError, SignatureErrorKind, MAX_CONTAINER_DEPTH, MAX_DEPTH};
 
 #[derive(Default, Debug, Clone, Copy)]
 #[repr(u8)]

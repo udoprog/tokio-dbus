@@ -1,4 +1,4 @@
-use super::{Signature, SignatureErrorKind, MAX_SIGNATURE};
+use super::{Signature, SignatureError, SignatureErrorKind, Type, MAX_SIGNATURE};
 
 use SignatureErrorKind::*;
 
@@ -68,4 +68,50 @@ fn signature_tests() {
         b"(((((((((((((((((((((((((((((((((ii))))))))))))))))))))))))))))))))",
         Err(ExceededMaximumStructRecursion)
     };
+}
+
+#[test]
+fn test_iter() -> Result<(), SignatureError> {
+    let s = Signature::new("aaa(as)yua{yy}")?;
+
+    let mut it1 = s.iter();
+
+    let Some(Type::Array(s2)) = it1.next() else {
+        panic!("expected inner array");
+    };
+
+    assert_eq!(s2, "aa(as)");
+
+    let Some(Type::Array(s3)) = s2.iter().next() else {
+        panic!("expected inner array");
+    };
+
+    assert_eq!(s3, "a(as)");
+
+    let Some(Type::Array(s4)) = s3.iter().next() else {
+        panic!("expected inner struct");
+    };
+
+    assert_eq!(s4, "(as)");
+
+    let Some(Type::Struct(s5)) = s4.iter().next() else {
+        panic!("expected inner struct: {:?}", s4.iter().next());
+    };
+
+    assert_eq!(s5, "as");
+
+    assert_eq!(it1.next(), Some(Type::Signature(Signature::BYTE)));
+    assert_eq!(it1.next(), Some(Type::Signature(Signature::UINT32)));
+
+    let Some(Type::Array(s6)) = it1.next() else {
+        panic!("expected inner array");
+    };
+
+    let Some(Type::Dict(key, value)) = s6.iter().next() else {
+        panic!("expected inner dict");
+    };
+
+    assert_eq!(key, Signature::BYTE);
+    assert_eq!(value, Signature::BYTE);
+    Ok(())
 }

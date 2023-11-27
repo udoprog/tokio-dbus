@@ -2,3 +2,6 @@
 name = "tokio-dbus-core"
 version = "0.0.13"
 edition = "2021"
+
+[dev-dependencies]
+tokio-dbus = { path = "../tokio-dbus" }

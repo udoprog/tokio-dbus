@@ -4,6 +4,9 @@ mod stack;
 #[cfg(test)]
 mod tests;
 
+pub use self::iter::{Iter, Type};
+mod iter;
+
 use self::validation::validate;
 mod validation;
 
@@ -16,8 +19,8 @@ mod signature_builder;
 pub use self::signature_buf::SignatureBuf;
 mod signature_buf;
 
-use self::signature_error::SignatureErrorKind;
 pub use self::signature_error::SignatureError;
+use self::signature_error::SignatureErrorKind;
 mod signature_error;
 
 /// The maximum size of a signature.

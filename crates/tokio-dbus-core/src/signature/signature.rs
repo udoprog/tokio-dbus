@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str::from_utf8_unchecked;
 
-use super::{validate, SignatureError, SignatureBuf};
+use super::{validate, Iter, SignatureBuf, SignatureError};
 
 /// A D-Bus signature.
 ///
@@ -223,21 +223,6 @@ impl Signature {
     /// (mnemonic: h for handle)
     pub const UNIX_FD: &'static Signature = Signature::new_const(b"h");
 
-    /// Construct a new empty signature.
-    pub const fn empty() -> &'static Self {
-        unsafe { Self::new_unchecked(&[]) }
-    }
-
-    /// Test if the signature is empty.
-    pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
-    }
-
-    /// Get the length of the signature in bytes.
-    pub fn len(&self) -> usize {
-        self.0.len()
-    }
-
     /// Construct a new signature with validation inside of a constant context.
     ///
     /// This will panic in case the signature is invalid.
@@ -287,6 +272,26 @@ impl Signature {
     #[inline]
     pub const unsafe fn new_unchecked(signature: &[u8]) -> &Self {
         &*(signature as *const _ as *const Signature)
+    }
+
+    /// Construct a new empty signature.
+    pub const fn empty() -> &'static Self {
+        unsafe { Self::new_unchecked(&[]) }
+    }
+
+    /// Test if the signature is empty.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    /// Get the length of the signature in bytes.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    #[inline]
+    pub fn iter(&self) -> Iter<'_> {
+        Iter::new(self)
     }
 
     /// Get the signature as a string.

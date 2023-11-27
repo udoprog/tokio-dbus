@@ -1,9 +1,10 @@
-use std::slice::from_raw_parts;
-use std::ops::Deref;
 use std::mem::MaybeUninit;
+use std::ops::Deref;
+use std::slice::from_raw_parts;
 
 use super::{
-    Signature, MAX_SIGNATURE, MAX_CONTAINER_DEPTH, MAX_DEPTH, SignatureError, SignatureErrorKind, SignatureBuf
+    Signature, SignatureBuf, SignatureError, SignatureErrorKind, MAX_CONTAINER_DEPTH, MAX_DEPTH,
+    MAX_SIGNATURE,
 };
 
 /// A D-Bus signature builder.
