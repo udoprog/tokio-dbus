@@ -101,7 +101,7 @@ impl<'a> Aligned<'a> {
         let padding = padding_to::<T>(self.read);
 
         if self.read + padding > self.written {
-            return Err(Error::from(io::Error::from(io::ErrorKind::UnexpectedEof)));
+            return Err(Error::from(ErrorKind::BufferUnderflow));
         }
 
         self.read += padding;
@@ -111,7 +111,7 @@ impl<'a> Aligned<'a> {
     /// Load a slice.
     pub(crate) fn load_slice(&mut self, len: usize) -> Result<&'a [u8]> {
         if self.read + len > self.written {
-            return Err(Error::from(io::Error::from(io::ErrorKind::UnexpectedEof)));
+            return Err(Error::from(ErrorKind::BufferUnderflow));
         }
 
         // SAFETY: We just checked that the slice is available just above.
@@ -127,7 +127,7 @@ impl<'a> Aligned<'a> {
     /// Load a slice ending with a NUL byte, excluding the null byte.
     pub(crate) fn load_slice_nul(&mut self, len: usize) -> Result<&'a [u8]> {
         if self.read + len + 1 > self.written {
-            return Err(Error::from(io::Error::from(io::ErrorKind::UnexpectedEof)));
+            return Err(Error::from(ErrorKind::BufferUnderflow));
         }
 
         // SAFETY: We just checked that the slice is available just above.

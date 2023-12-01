@@ -72,13 +72,13 @@ impl fmt::Display for Error {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
-            ErrorKind::Io(error) => error.fmt(f),
-            ErrorKind::Signature(error) => error.fmt(f),
-            ErrorKind::ObjectPath(error) => error.fmt(f),
-            ErrorKind::Utf8Error(error) => error.fmt(f),
+            ErrorKind::Io(..) => write!(f, "I/O error"),
+            ErrorKind::Signature(..) => write!(f, "Signature error"),
+            ErrorKind::ObjectPath(..) => write!(f, "ObjectPath error"),
+            ErrorKind::Utf8Error(..) => write!(f, "UTF-8 error"),
             ErrorKind::WouldBlock => write!(f, "Would block"),
             ErrorKind::BufferUnderflow => write!(f, "Buffer underflow"),
-            ErrorKind::MissingBus => write!(f, "Missing session bus"),
+            ErrorKind::MissingBus => write!(f, "Missing bus to connect to"),
             ErrorKind::InvalidAddress => write!(f, "Invalid d-bus address"),
             ErrorKind::InvalidSasl => write!(f, "Invalid SASL message"),
             ErrorKind::InvalidSaslResponse => write!(f, "Invalid SASL command"),

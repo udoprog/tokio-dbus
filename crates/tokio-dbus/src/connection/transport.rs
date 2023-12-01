@@ -18,6 +18,7 @@ use crate::sasl::Auth;
 use crate::sasl::{Guid, SaslRequest, SaslResponse};
 use crate::{Frame, RecvBuf};
 
+const ENV_STARTER_ADDRESS: &str = "DBUS_STARTER_ADDRESS";
 const ENV_SESSION_BUS: &str = "DBUS_SESSION_BUS_ADDRESS";
 const ENV_SYSTEM_BUS: &str = "DBUS_SYSTEM_BUS_ADDRESS";
 const DEFAULT_SYSTEM_BUS: &str = "unix:path=/var/run/dbus/system_bus_socket";
@@ -77,7 +78,7 @@ impl Transport {
     /// This uses the `DBUS_SESSION_BUS_ADDRESS` environment variable to
     /// determine its address.
     pub fn session_bus() -> Result<Self> {
-        Self::from_env(ENV_SESSION_BUS, None)
+        Self::from_env([ENV_STARTER_ADDRESS, ENV_SESSION_BUS], None)
     }
 
     /// Construct a new connection to the session bus.
@@ -86,32 +87,45 @@ impl Transport {
     /// determine its address or fallback to the well-known address
     /// `unix:path=/var/run/dbus/system_bus_socket`.
     pub fn system_bus() -> Result<Self> {
-        Self::from_env(ENV_SYSTEM_BUS, Some(DEFAULT_SYSTEM_BUS))
+        Self::from_env(
+            [ENV_STARTER_ADDRESS, ENV_SYSTEM_BUS],
+            Some(DEFAULT_SYSTEM_BUS),
+        )
     }
 
     /// Construct a new connection to the session bus.
     ///
     /// This uses the `DBUS_SESSION_BUS_ADDRESS` environment variable to
     /// determine its address.
-    fn from_env(env: &str, default: Option<&str>) -> Result<Self> {
-        let value;
+    fn from_env<I>(envs: I, default: Option<&str>) -> Result<Self>
+    where
+        I: IntoIterator,
+        I::Item: AsRef<OsStr>,
+    {
+        let address_storage;
 
-        let address: &OsStr = match env::var_os(env) {
-            Some(address) => {
-                value = address;
-                value.as_os_str()
+        let address = 'address: {
+            for env in envs {
+                let Some(address) = env::var_os(env) else {
+                    continue;
+                };
+
+                address_storage = address;
+                break 'address address_storage.as_os_str();
             }
-            None => match default {
-                Some(default) => default.as_ref(),
-                None => return Err(Error::new(ErrorKind::MissingBus)),
-            },
+
+            if let Some(address) = default {
+                break 'address OsStr::new(address);
+            }
+
+            return Err(Error::new(ErrorKind::MissingBus));
         };
 
         let stream = match parse_address(address)? {
             Address::Unix(address) => UnixStream::connect(OsStr::from_bytes(address))?,
         };
 
-        Ok(Self::from_std(stream))
+        return Ok(Self::from_std(stream));
     }
 
     /// Set the connection as non-blocking.

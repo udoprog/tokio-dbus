@@ -299,6 +299,7 @@ impl Connection {
 
     /// Request the given well-known name.
     pub async fn request_name(&mut self, name: &str, flags: NameFlag) -> Result<NameReply> {
+        self.body.clear();
         self.body.store(name)?;
         self.body.store(flags)?;
 
@@ -310,7 +311,6 @@ impl Connection {
 
         let serial = m.serial();
         self.send.write_message(m)?;
-        self.body.clear();
 
         loop {
             self.wait().await?;
