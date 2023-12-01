@@ -88,6 +88,18 @@ impl Connection {
     /// # Ok(()) }    
     /// ```
     pub async fn wait(&mut self) -> Result<()> {
+        // The receive buffer contains deferred messages, so we return one
+        // of them.
+        if self.recv.take_deferred() {
+            return Ok(());
+        }
+
+        self.wait_no_deferred().await
+    }
+
+    /// Wait for the next incoming message on this connection ignoring deferred
+    /// messages.
+    pub async fn wait_no_deferred(&mut self) -> Result<()> {
         loop {
             if !self.io(false).await? {
                 continue;
@@ -313,7 +325,7 @@ impl Connection {
         self.send.write_message(m)?;
 
         loop {
-            self.wait().await?;
+            self.wait_no_deferred().await?;
             let message = self.recv.last_message()?;
 
             match message.kind {
@@ -333,7 +345,7 @@ impl Connection {
                     )));
                 }
                 _ => {
-                    // Ignore other messages
+                    self.recv.defer_last()?;
                 }
             }
         }
