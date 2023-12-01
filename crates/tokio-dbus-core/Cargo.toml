@@ -1,7 +1,19 @@
 [package]
 name = "tokio-dbus-core"
-version = "0.0.13"
+version = "0.0.14"
+authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
+rust-version = "1.66"
+description = """
+Pure Rust D-Bus implementation for Tokio.
+"""
+documentation = "https://docs.rs/tokio-dbus"
+readme = "README.md"
+homepage = "https://github.com/udoprog/tokio-dbus"
+repository = "https://github.com/udoprog/tokio-dbus"
+license = "MIT OR Apache-2.0"
+keywords = ["async", "d-bus", "dbus", "ipc", "tokio"]
+categories = ["asynchronous", "os::unix-apis"]
 
 [dev-dependencies]
 tokio-dbus = { path = "../tokio-dbus" }
