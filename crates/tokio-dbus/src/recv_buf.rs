@@ -128,6 +128,24 @@ impl RecvBuf {
             return Ok(message.borrow());
         }
 
+        self.last_message_no_deferred()
+    }
+
+    /// Read the last message buffered.
+    ///
+    /// This will only read the last message which has been buffered in the
+    /// receive buffer.
+    ///
+    /// This method should primarily be used in combination with
+    /// [`wait_no_deferred()`].
+    ///
+    /// [`wait_no_deferred()`]: crate::Connection::wait_no_deferred
+    ///
+    /// # Errors
+    ///
+    /// In case there is no message buffered.
+    #[inline]
+    pub fn last_message_no_deferred(&self) -> Result<Message<'_>> {
         last_message(&self.last_message, &self.buf, self.endianness)
     }
 }

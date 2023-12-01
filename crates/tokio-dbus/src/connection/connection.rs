@@ -338,7 +338,7 @@ impl Connection {
 
         loop {
             self.wait_no_deferred().await?;
-            let message = self.recv.last_message()?;
+            let message = self.recv.last_message_no_deferred()?;
 
             match message.kind {
                 MessageKind::MethodReturn { reply_serial } if reply_serial == serial => {
