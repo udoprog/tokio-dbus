@@ -1,6 +1,6 @@
 [package]
 name = "tokio-dbus-xml"
-version = "0.0.15"
+version = "0.0.16"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2021"
 rust-version = "1.66"
@@ -16,5 +16,5 @@ keywords = ["async", "d-bus", "dbus", "ipc", "tokio"]
 categories = ["asynchronous", "os::unix-apis"]
 
 [dependencies]
-tokio-dbus-core = { path = "../tokio-dbus-core", version = "0.0.15" }
+tokio-dbus-core = { path = "../tokio-dbus-core", version = "=0.0.16" }
 xmlparser = "0.13.6"
