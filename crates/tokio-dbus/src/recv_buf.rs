@@ -70,12 +70,8 @@ impl RecvBuf {
             self.deferred.pop_front();
         }
 
-        if self.deferred.is_empty() {
-            return false;
-        }
-
-        self.deferred_taken = true;
-        true
+        self.deferred_taken = !self.deferred.is_empty();
+        self.deferred_taken
     }
 
     /// Access the underlying buffer.
