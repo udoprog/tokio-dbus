@@ -85,7 +85,7 @@ impl Connection {
     /// let mut c = Connection::session_bus().await?;
     /// c.wait().await?;
     /// let message: Message<'_> = c.last_message()?;
-    /// # Ok(()) }    
+    /// # Ok(()) }
     /// ```
     pub async fn wait(&mut self) -> Result<()> {
         // The receive buffer contains deferred messages, so we return one
@@ -97,8 +97,20 @@ impl Connection {
         self.wait_no_deferred().await
     }
 
-    /// Wait for the next incoming message on this connection ignoring deferred
-    /// messages.
+    /// Wait for the next incoming message on this connection ignoring messages
+    /// that have been deferred through [`RecvBuf::defer`].
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use tokio_dbus::{Connection, Message};
+    ///
+    /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
+    /// let mut c = Connection::session_bus().await?;
+    /// c.wait_no_deferred().await?;
+    /// let message: Message<'_> = c.last_message()?;
+    /// # Ok(()) }
+    /// ```
     pub async fn wait_no_deferred(&mut self) -> Result<()> {
         loop {
             if !self.io(false).await? {

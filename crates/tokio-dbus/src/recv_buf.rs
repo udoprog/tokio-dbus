@@ -109,6 +109,17 @@ impl RecvBuf {
 
     /// Read the last message buffered.
     ///
+    /// This will first read any messages that have been deferred through
+    /// [`defer()`]. Then the last message which has been buffered.
+    ///
+    /// [`defer()`]: Self::defer
+    ///
+    /// This method should primarily be used in combination with [`wait()`] and
+    /// [`wait_no_deferred()`].
+    ///
+    /// [`wait()`]: crate::Connection::wait
+    /// [`wait_no_deferred()`]: crate::Connection::wait_no_deferred
+    ///
     /// # Errors
     ///
     /// In case there is no message buffered.

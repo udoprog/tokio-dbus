@@ -5,7 +5,7 @@ use crate::proto::Type;
 
 /// Detailed errors raised when validation of a [`Signature`] fails.
 ///
-/// [`Signature`]: crate::Signature
+/// [`Signature`]: crate::signature::Signature
 #[derive(Debug, PartialEq, Eq)]
 pub struct SignatureError {
     pub(super) kind: SignatureErrorKind,
