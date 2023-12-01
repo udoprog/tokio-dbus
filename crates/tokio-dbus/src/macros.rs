@@ -178,7 +178,7 @@ macro_rules! implement_remote {
 
                 #[inline]
                 fn adjust(&mut self, endianness: $crate::proto::Endianness) {
-                    self.as_mut().adjust(endianness);
+                    self.private_mut().adjust(endianness);
                 }
             }
 

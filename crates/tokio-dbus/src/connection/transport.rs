@@ -125,7 +125,7 @@ impl Transport {
             Address::Unix(address) => UnixStream::connect(OsStr::from_bytes(address))?,
         };
 
-        return Ok(Self::from_std(stream));
+        Ok(Self::from_std(stream))
     }
 
     /// Set the connection as non-blocking.

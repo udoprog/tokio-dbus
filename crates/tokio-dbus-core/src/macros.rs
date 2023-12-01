@@ -25,7 +25,7 @@ macro_rules! raw_enum {
 
             /// Access the underlying representation mutably.
             #[doc(hidden)]
-            pub fn as_mut(&mut self) -> &mut $repr {
+            pub fn private_mut(&mut self) -> &mut $repr {
                 &mut self.0
             }
         }
@@ -75,7 +75,7 @@ macro_rules! raw_set {
 
             /// Access the underlying representation mutably.
             #[doc(hidden)]
-            pub fn as_mut(&mut self) -> &mut $repr {
+            pub fn private_mut(&mut self) -> &mut $repr {
                 &mut self.0
             }
         }

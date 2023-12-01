@@ -72,7 +72,7 @@ pub fn parse_interface(interface: &str) -> Result<Node<'_>> {
                 }
 
                 if !path.is_empty() {
-                    path.push_str("/");
+                    path.push('/');
                 }
 
                 path.push_str(local.as_str());
@@ -176,7 +176,7 @@ pub fn parse_interface(interface: &str) -> Result<Node<'_>> {
                 ..
             } => {
                 let len = path.len();
-                path.push_str(":");
+                path.push(':');
                 path.push_str(local.as_str());
 
                 match (&mut stack[..], prefix.as_str(), local.as_str()) {
