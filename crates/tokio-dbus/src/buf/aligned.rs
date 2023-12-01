@@ -1,5 +1,4 @@
 use std::fmt;
-use std::io;
 use std::marker::PhantomData;
 use std::mem::size_of;
 use std::ptr;

@@ -169,12 +169,12 @@ macro_rules! impl_trait_unsized_marker {
 }
 
 macro_rules! implement_remote {
-    ($($ty:ty),* $(,)?) => {
+    ($remote:ty, $($ty:ty),* $(,)?) => {
         $(
             impl crate::frame::sealed::Sealed for $ty {}
 
             unsafe impl crate::frame::Frame for $ty {
-                const SIGNATURE: &'static $crate::signature::Signature = <u8 as $crate::frame::Frame>::SIGNATURE;
+                const SIGNATURE: &'static $crate::signature::Signature = <$remote as $crate::frame::Frame>::SIGNATURE;
 
                 #[inline]
                 fn adjust(&mut self, endianness: $crate::proto::Endianness) {
@@ -189,28 +189,32 @@ macro_rules! implement_remote {
 
 macro_rules! raw_enum {
     (
-        $(#[$($meta:tt)*])*
+        $(#[doc = $doc:literal])*
+        #[repr($repr:ty)]
         $vis:vis enum $name:ident { $($fields:tt)* }
     ) => {
         ::tokio_dbus_core::raw_enum! {
-            $(#[$($meta)*])*
+            $(#[doc = $doc])*
+            #[repr($repr)]
             $vis enum $name { $($fields)* }
         }
 
-        implement_remote!($name);
+        implement_remote!($repr, $name);
     }
 }
 
 macro_rules! raw_set {
     (
-        $(#[$($meta:tt)*])*
+        $(#[doc = $doc:literal])*
+        #[repr($repr:ty)]
         $vis:vis enum $name:ident { $($fields:tt)* }
     ) => {
         ::tokio_dbus_core::raw_set! {
-            $(#[$($meta)*])*
+            $(#[doc = $doc])*
+            #[repr($repr)]
             $vis enum $name { $($fields)* }
         }
 
-        implement_remote!($name);
+        implement_remote!($repr, $name);
     }
 }

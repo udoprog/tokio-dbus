@@ -30,4 +30,4 @@ unsafe impl Frame for Header {
 
 impl_traits_for_frame!(Header);
 
-implement_remote!(Variant, Endianness, MessageType, Flags, Type);
+implement_remote!(u8, Variant, Endianness, MessageType, Flags, Type);
