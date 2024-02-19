@@ -9,8 +9,8 @@
 //! (like proxies generated from xml).
 //!
 //! To currently see how it's used, see:
-//! * [examples/client.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/client.rs)
-//! * [examples/server.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/server.rs)
+//! * [examples/client.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/examples/client.rs)
+//! * [examples/server.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/examples/server.rs)
 
 #![deny(missing_docs)]
 #![allow(clippy::module_inception)]
