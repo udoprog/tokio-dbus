@@ -14,10 +14,8 @@ pub struct Guid([u8]);
 impl Guid {
     #[inline]
     pub(crate) fn new(guid: &[u8]) -> &Guid {
-        unsafe {
-            // SAFETY: The byte slice is repr transparent over this type.
-            &*(guid as *const _ as *const Guid)
-        }
+        // SAFETY: The byte slice is repr transparent over this type.
+        unsafe { &*(guid as *const _ as *const Guid) }
     }
 }
 
@@ -39,7 +37,7 @@ pub enum SaslRequest<'a> {
 /// A SASL message.
 pub enum SaslResponse<'a> {
     /// The OK message.
-    Ok(&'a Guid),
+    Ok(#[allow(unused)] &'a Guid),
 }
 
 /// The SASL authentication method.
