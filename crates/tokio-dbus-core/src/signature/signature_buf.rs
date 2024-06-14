@@ -92,7 +92,7 @@ impl SignatureBuf {
         }
 
         Self {
-            data: transmute(data),
+            data: transmute::<[u8; MAX_SIGNATURE], [MaybeUninit<u8>; MAX_SIGNATURE]>(data),
             init: bytes.len(),
         }
     }
