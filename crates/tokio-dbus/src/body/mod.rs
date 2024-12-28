@@ -435,7 +435,7 @@ impl fmt::Debug for Body<'_> {
     }
 }
 
-impl<'a, 'b> PartialEq<Body<'a>> for Body<'b> {
+impl<'a> PartialEq<Body<'a>> for Body<'_> {
     #[inline]
     fn eq(&self, other: &Body<'a>) -> bool {
         self.get() == other.get() && self.endianness == other.endianness
@@ -449,4 +449,4 @@ impl PartialEq<BodyBuf> for Body<'_> {
     }
 }
 
-impl<'a> Eq for Body<'a> {}
+impl Eq for Body<'_> {}

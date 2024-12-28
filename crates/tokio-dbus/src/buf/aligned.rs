@@ -169,7 +169,7 @@ impl fmt::Debug for Aligned<'_> {
     }
 }
 
-impl<'a, 'b> PartialEq<Aligned<'a>> for Aligned<'b> {
+impl<'a> PartialEq<Aligned<'a>> for Aligned<'_> {
     #[inline]
     fn eq(&self, other: &Aligned<'a>) -> bool {
         self.get() == other.get()
@@ -183,4 +183,4 @@ impl PartialEq<AlignedBuf> for Aligned<'_> {
     }
 }
 
-impl<'a> Eq for Aligned<'a> {}
+impl Eq for Aligned<'_> {}

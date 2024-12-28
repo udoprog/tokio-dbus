@@ -59,7 +59,7 @@ where
     }
 }
 
-impl<'a, T> StoreArray<'a, T>
+impl<T> StoreArray<'_, T>
 where
     T: ty::Aligned,
 {
@@ -90,7 +90,7 @@ where
     }
 }
 
-impl<'a, T> StoreArray<'a, ty::Array<T>>
+impl<T> StoreArray<'_, ty::Array<T>>
 where
     T: ty::Aligned,
 {
@@ -105,7 +105,7 @@ where
     }
 }
 
-impl<'a> StoreArray<'a, u8> {
+impl StoreArray<'_, u8> {
     /// Write a byte array inside of the array.
     ///
     /// See [`BodyBuf::store_array`].

@@ -37,7 +37,7 @@ impl<'de, T> LoadArray<'de, T> {
     }
 }
 
-impl<'de, T> LoadArray<'de, T>
+impl<T> LoadArray<'_, T>
 where
     T: Frame,
 {
