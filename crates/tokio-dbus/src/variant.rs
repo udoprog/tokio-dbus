@@ -1,4 +1,4 @@
-use crate::{signature::SignatureBuilder, BodyBuf, Signature, Storable};
+use crate::{BodyBuf, Signature, Storable, signature::SignatureBuilder};
 
 /// A variant.
 pub enum Variant<'de> {

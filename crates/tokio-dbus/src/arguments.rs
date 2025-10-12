@@ -1,5 +1,5 @@
-use crate::error::Result;
 use crate::BodyBuf;
+use crate::error::Result;
 
 pub(crate) mod sealed {
     pub trait Sealed {}

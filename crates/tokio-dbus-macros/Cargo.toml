@@ -2,8 +2,8 @@
 name = "tokio-dbus-macros"
 version = "0.1.4"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
-edition = "2021"
-rust-version = "1.70"
+edition = "2024"
+rust-version = "1.90"
 description = """
 Pure Rust D-Bus implementation for Tokio.
 """

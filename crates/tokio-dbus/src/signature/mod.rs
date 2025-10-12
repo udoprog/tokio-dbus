@@ -5,9 +5,9 @@ mod tests;
 mod stack;
 
 #[doc(inline)]
-pub use tokio_dbus_core::signature::{Signature, SignatureBuf, SignatureError};
+pub(crate) use tokio_dbus_core::signature::{MAX_DEPTH, SignatureBuilder};
 #[doc(inline)]
-pub(crate) use tokio_dbus_core::signature::{SignatureBuilder, MAX_DEPTH};
+pub use tokio_dbus_core::signature::{Signature, SignatureBuf, SignatureError};
 
 use crate::buf::UnalignedBuf;
 use crate::error::Result;

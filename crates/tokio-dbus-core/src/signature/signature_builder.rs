@@ -3,8 +3,8 @@ use std::ops::Deref;
 use std::slice::from_raw_parts;
 
 use super::{
-    Signature, SignatureBuf, SignatureError, SignatureErrorKind, MAX_CONTAINER_DEPTH, MAX_DEPTH,
-    MAX_SIGNATURE,
+    MAX_CONTAINER_DEPTH, MAX_DEPTH, MAX_SIGNATURE, Signature, SignatureBuf, SignatureError,
+    SignatureErrorKind,
 };
 
 /// A D-Bus signature builder.

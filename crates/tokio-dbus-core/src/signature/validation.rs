@@ -1,7 +1,7 @@
 use crate::proto::Type;
 
 use super::stack::{Stack, StackValue};
-use super::{SignatureError, SignatureErrorKind, MAX_CONTAINER_DEPTH, MAX_DEPTH};
+use super::{MAX_CONTAINER_DEPTH, MAX_DEPTH, SignatureError, SignatureErrorKind};
 
 #[derive(Default, Debug, Clone, Copy)]
 #[repr(u8)]
@@ -132,10 +132,10 @@ pub(super) const fn validate(bytes: &[u8]) -> Result<(), SignatureError> {
             is_basic = false;
         }
 
-        if let Some((Kind::Dict, 0)) = stack_peek!(stack) {
-            if !is_basic {
-                return Err(SignatureError::new(DictKeyMustBeBasicType));
-            }
+        if let Some((Kind::Dict, 0)) = stack_peek!(stack)
+            && !is_basic
+        {
+            return Err(SignatureError::new(DictKeyMustBeBasicType));
         }
 
         if let Some((kind, n)) = stack_pop!(stack, (Kind, u8)) {

@@ -3,10 +3,10 @@ use std::fmt;
 use std::io;
 use std::str::Utf8Error;
 
-use crate::connection::TransportState;
 use crate::ObjectPathError;
 use crate::Signature;
 use crate::SignatureError;
+use crate::connection::TransportState;
 
 /// Result alias using an [`Error`] as the error type by default.
 pub type Result<T, E = Error> = std::result::Result<T, E>;

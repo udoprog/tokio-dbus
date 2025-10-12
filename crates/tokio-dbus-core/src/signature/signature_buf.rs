@@ -1,11 +1,11 @@
 use std::borrow::Borrow;
 use std::fmt;
-use std::mem::transmute;
 use std::mem::MaybeUninit;
+use std::mem::transmute;
 use std::ops::Deref;
 use std::slice::from_raw_parts;
 
-use super::{validate, Signature, SignatureError, MAX_SIGNATURE};
+use super::{MAX_SIGNATURE, Signature, SignatureError, validate};
 
 /// A D-Bus signature.
 ///
@@ -92,7 +92,9 @@ impl SignatureBuf {
         }
 
         Self {
-            data: transmute::<[u8; MAX_SIGNATURE], [MaybeUninit<u8>; MAX_SIGNATURE]>(data),
+            data: unsafe {
+                transmute::<[u8; MAX_SIGNATURE], [MaybeUninit<u8>; MAX_SIGNATURE]>(data)
+            },
             init: bytes.len(),
         }
     }
@@ -106,10 +108,14 @@ impl SignatureBuf {
     pub(super) unsafe fn from_slice_unchecked(bytes: &[u8]) -> Self {
         debug_assert!(bytes.len() <= MAX_SIGNATURE);
         let mut this = Self::empty();
-        this.data
-            .as_mut_ptr()
-            .cast::<u8>()
-            .copy_from_nonoverlapping(bytes.as_ptr(), bytes.len());
+
+        unsafe {
+            this.data
+                .as_mut_ptr()
+                .cast::<u8>()
+                .copy_from_nonoverlapping(bytes.as_ptr(), bytes.len());
+        }
+
         this.init = bytes.len();
         this
     }

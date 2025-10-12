@@ -2,7 +2,7 @@ use std::marker::PhantomData;
 
 use crate::buf::MAX_ARRAY_LENGTH;
 use crate::error::ErrorKind;
-use crate::{ty, Body};
+use crate::{Body, ty};
 use crate::{Error, Frame, Read, Result};
 
 /// Read an array from a buffer.

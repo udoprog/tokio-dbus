@@ -202,7 +202,7 @@ pub fn parse_interface(interface: &str) -> Result<Node<'_>> {
                                 return Err(Error::new(
                                     path,
                                     ErrorKind::UnsupportedArgumentDirection(other.into()),
-                                ))
+                                ));
                             }
                         });
                     }

@@ -1,11 +1,11 @@
-use std::alloc::{alloc, dealloc, handle_alloc_error, realloc, Layout};
+use std::alloc::{Layout, alloc, dealloc, handle_alloc_error, realloc};
 use std::fmt;
 use std::mem::{align_of, size_of};
 use std::ptr;
 use std::slice::{from_raw_parts, from_raw_parts_mut};
 
-use crate::buf::{max_size_for_align, padding_to, Aligned, Alloc};
 use crate::Frame;
+use crate::buf::{Aligned, Alloc, max_size_for_align, padding_to};
 
 /// The type we're basing our alignment on.
 pub(crate) type AlignType = u64;
@@ -221,8 +221,11 @@ impl AlignedBuf {
     }
 
     unsafe fn zero(&mut self, len: usize) {
-        let at = self.data.as_ptr().add(self.len);
-        at.write_bytes(0, len);
+        unsafe {
+            let at = self.data.as_ptr().wrapping_add(self.len);
+            at.write_bytes(0, len);
+        }
+
         // Skip over calculating padding.
         self.len += len;
     }

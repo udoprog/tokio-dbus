@@ -1,6 +1,6 @@
+use crate::BodyBuf;
 use crate::error::Result;
 use crate::ty;
-use crate::BodyBuf;
 
 use super::Signature;
 

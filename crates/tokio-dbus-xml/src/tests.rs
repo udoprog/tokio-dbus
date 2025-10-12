@@ -1,4 +1,4 @@
-use crate::{parse_interface, Result};
+use crate::{Result, parse_interface};
 
 const SIMPLE: &str = r#"
 <!DOCTYPE node PUBLIC

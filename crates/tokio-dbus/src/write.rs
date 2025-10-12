@@ -1,4 +1,4 @@
-use crate::{buf::UnalignedBuf, BodyBuf, Signature};
+use crate::{BodyBuf, Signature, buf::UnalignedBuf};
 
 pub(crate) mod sealed {
     pub trait Sealed {}

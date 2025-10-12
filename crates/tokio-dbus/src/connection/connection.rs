@@ -9,7 +9,7 @@ use crate::org_freedesktop_dbus::{self, NameFlag, NameReply};
 use crate::sasl::{SaslRequest, SaslResponse};
 use crate::{BodyBuf, Error, Message, MessageKind, ObjectPath, RecvBuf, SendBuf};
 
-use super::{sasl_recv, ConnectionBuilder, Transport};
+use super::{ConnectionBuilder, Transport, sasl_recv};
 
 /// The high level state of a client.
 pub(crate) enum ConnectionState {

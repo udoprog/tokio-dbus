@@ -1,4 +1,4 @@
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 use tokio_dbus::{Connection, MessageKind, ObjectPath};
 
 const NAME: &str = "se.tedro.DBusExample";

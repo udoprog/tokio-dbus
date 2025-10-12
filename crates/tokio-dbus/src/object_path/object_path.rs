@@ -5,7 +5,7 @@ use crate::buf::UnalignedBuf;
 use crate::{Body, BodyBuf};
 use crate::{ObjectPathBuf, Read, Result, Signature, Write};
 
-use super::{validate, Iter, ObjectPathError};
+use super::{Iter, ObjectPathError, validate};
 
 /// A validated object path.
 ///
@@ -124,7 +124,7 @@ impl ObjectPath {
     /// The caller must ensure that the path is a valid object path.
     #[must_use]
     pub(super) const unsafe fn new_unchecked(path: &[u8]) -> &Self {
-        &*(path as *const _ as *const Self)
+        unsafe { &*(path as *const _ as *const Self) }
     }
 
     /// Get the object path as a string.

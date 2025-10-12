@@ -1,4 +1,4 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 use tokio_dbus::org_freedesktop_dbus::{NameFlag, NameReply};
 use tokio_dbus::{BodyBuf, Connection, Message, MessageKind, ObjectPath, SendBuf};
 

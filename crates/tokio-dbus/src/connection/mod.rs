@@ -1,6 +1,6 @@
 #[doc(inline)]
 use self::transport::Transport;
-pub(crate) use self::transport::{sasl_recv, TransportState};
+pub(crate) use self::transport::{TransportState, sasl_recv};
 mod transport;
 
 pub use self::builder::ConnectionBuilder;

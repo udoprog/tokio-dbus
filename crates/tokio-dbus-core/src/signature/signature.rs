@@ -1,7 +1,7 @@
 use std::fmt;
 use std::str::from_utf8_unchecked;
 
-use super::{validate, Iter, SignatureBuf, SignatureError};
+use super::{Iter, SignatureBuf, SignatureError, validate};
 
 /// A D-Bus signature.
 ///
@@ -271,7 +271,7 @@ impl Signature {
     /// The caller must ensure that the signature is a valid signature.
     #[inline]
     pub const unsafe fn new_unchecked(signature: &[u8]) -> &Self {
-        &*(signature as *const _ as *const Signature)
+        unsafe { &*(signature as *const _ as *const Signature) }
     }
 
     /// Construct a new empty signature.

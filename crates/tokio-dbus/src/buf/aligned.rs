@@ -7,7 +7,7 @@ use std::slice::from_raw_parts;
 use crate::error::{ErrorKind, Result};
 use crate::{Error, Frame};
 
-use super::{padding_to, AlignedBuf};
+use super::{AlignedBuf, padding_to};
 
 /// A read-only view into an aligned buffer.
 pub struct Aligned<'a> {

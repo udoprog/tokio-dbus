@@ -1,6 +1,6 @@
 use std::num::NonZeroU32;
 
-use crate::{message::OwnedMessageKind, ObjectPath};
+use crate::{ObjectPath, message::OwnedMessageKind};
 
 /// The kind of a D-Bus message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

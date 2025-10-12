@@ -1,4 +1,4 @@
-use super::{Signature, SignatureError, SignatureErrorKind, Type, MAX_SIGNATURE};
+use super::{MAX_SIGNATURE, Signature, SignatureError, SignatureErrorKind, Type};
 
 use SignatureErrorKind::*;
 

@@ -2,7 +2,7 @@ use std::num::NonZeroU32;
 
 use crate::buf::UnalignedBuf;
 use crate::error::{Error, ErrorKind, Result};
-use crate::{proto, Endianness};
+use crate::{Endianness, proto};
 use crate::{Message, MessageKind, ObjectPath, Signature};
 
 /// Buffer used for sending messages through D-Bus.

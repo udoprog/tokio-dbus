@@ -1,4 +1,4 @@
-use std::alloc::{alloc, dealloc, handle_alloc_error, realloc, Layout};
+use std::alloc::{Layout, alloc, dealloc, handle_alloc_error, realloc};
 use std::mem::size_of;
 use std::ptr;
 use std::slice::{from_raw_parts, from_raw_parts_mut};
@@ -259,8 +259,11 @@ impl UnalignedBuf {
     }
 
     unsafe fn zero(&mut self, len: usize) {
-        let at = self.data.as_ptr().add(self.written);
-        at.write_bytes(0, len);
+        unsafe {
+            let at = self.data.as_ptr().wrapping_add(self.written);
+            at.write_bytes(0, len);
+        }
+
         // Skip over calculating padding.
         self.written += len;
     }
