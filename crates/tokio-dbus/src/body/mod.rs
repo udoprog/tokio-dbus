@@ -58,6 +58,7 @@ impl<'a> Body<'a> {
     }
 
     /// Deconstruct into raw parts.
+    #[cfg(feature = "alloc")]
     #[inline]
     pub(crate) const fn into_raw_parts(self) -> (Aligned<'a>, Endianness, &'a Signature) {
         (self.data, self.endianness, self.signature)
@@ -125,6 +126,7 @@ impl<'a> Body<'a> {
     }
 
     /// Adjust the signature of buffer.
+    #[cfg(feature = "alloc")]
     pub(crate) fn with_signature(self, signature: &'a Signature) -> Self {
         Self { signature, ..self }
     }
@@ -385,6 +387,7 @@ impl<'a> Body<'a> {
     }
 
     /// Advance the read cursor by `n`.
+    #[cfg(feature = "alloc")]
     #[inline]
     pub(crate) fn advance(&mut self, n: usize) -> Result<()> {
         self.data.advance(n)

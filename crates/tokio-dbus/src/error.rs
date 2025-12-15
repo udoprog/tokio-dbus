@@ -10,8 +10,7 @@ use core::str::Utf8Error;
 
 #[cfg(feature = "alloc")]
 use crate::Signature;
-#[cfg(feature = "tokio")]
-use crate::connection::TransportState;
+use crate::connection::Sasl;
 use crate::{ObjectPathError, SignatureError};
 
 /// Result alias using an [`Error`] as the error type by default.
@@ -96,10 +95,9 @@ impl fmt::Display for Error {
             ErrorKind::BufferUnderflow => write!(f, "Buffer underflow"),
             ErrorKind::MissingBus => write!(f, "Missing bus to connect to"),
             ErrorKind::InvalidAddress => write!(f, "Invalid d-bus address"),
+            ErrorKind::InvalidSaslState(state) => write!(f, "Invalid sasl state {state}"),
             ErrorKind::InvalidSasl => write!(f, "Invalid SASL message"),
             ErrorKind::InvalidSaslResponse => write!(f, "Invalid SASL command"),
-            #[cfg(feature = "tokio")]
-            ErrorKind::InvalidState(state) => write!(f, "Invalid connection state `{state}`"),
             ErrorKind::InvalidProtocol => write!(f, "Invalid protocol"),
             ErrorKind::MissingPath => write!(f, "Missing required PATH header"),
             ErrorKind::MissingMember => write!(f, "Missing required MEMBER header"),
@@ -163,10 +161,9 @@ pub(crate) enum ErrorKind {
     BufferUnderflow,
     MissingBus,
     InvalidAddress,
+    InvalidSaslState(Sasl),
     InvalidSasl,
     InvalidSaslResponse,
-    #[cfg(feature = "tokio")]
-    InvalidState(TransportState),
     InvalidProtocol,
     MissingPath,
     MissingMember,

@@ -1,8 +1,6 @@
-use crate::Buffers;
 use crate::error::Result;
 #[cfg(not(feature = "libc"))]
 use crate::error::{Error, ErrorKind};
-use crate::sasl::{Auth, SaslRequest, SaslResponse};
 
 use super::{Connection, Transport};
 
@@ -11,7 +9,8 @@ enum BusKind {
     System,
 }
 
-enum AuthKind {
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum AuthKind {
     /// No authentication.
     None,
     /// Authenticate using the current UID.
@@ -58,8 +57,7 @@ impl ConnectionBuilder {
     /// use tokio_dbus::{Buffers, ConnectionBuilder};
     ///
     /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
-    /// let mut buf = Buffers::new();
-    /// let c = ConnectionBuilder::new().no_auth().session_bus().connect(&mut buf).await?;
+    /// let c = ConnectionBuilder::new().no_auth().session_bus().build()?;
     /// # Ok(()) }
     /// ```
     pub fn no_auth(&mut self) -> &mut Self {
@@ -75,8 +73,7 @@ impl ConnectionBuilder {
     /// use tokio_dbus::{Buffers, ConnectionBuilder};
     ///
     /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
-    /// let mut buf = Buffers::new();
-    /// let c = ConnectionBuilder::new().session_bus().connect(&mut buf).await?;
+    /// let c = ConnectionBuilder::new().session_bus().build()?;
     /// # Ok(()) }
     /// ```
     pub fn session_bus(&mut self) -> &mut Self {
@@ -92,8 +89,7 @@ impl ConnectionBuilder {
     /// use tokio_dbus::{Buffers, ConnectionBuilder};
     ///
     /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
-    /// let mut buf = Buffers::new();
-    /// let c = ConnectionBuilder::new().system_bus().connect(&mut buf).await?;
+    /// let c = ConnectionBuilder::new().system_bus().build()?;
     /// # Ok(()) }
     /// ```
     pub fn system_bus(&mut self) -> &mut Self {
@@ -102,40 +98,13 @@ impl ConnectionBuilder {
     }
 
     /// Construct and connect a [`Connection`] with the current configuration.
-    pub async fn connect(&self, buf: &mut Buffers) -> Result<Connection> {
+    pub fn build(&self) -> Result<Connection> {
         let transport = match self.bus {
             BusKind::Session => Transport::session_bus()?,
             BusKind::System => Transport::system_bus()?,
         };
 
-        let mut auth_buf;
-
-        let auth = match self.auth {
-            AuthKind::None => None,
-            #[cfg(not(feature = "libc"))]
-            AuthKind::Uid => {
-                return Err(Error::new(ErrorKind::UnsupportedAuthUid));
-            }
-            #[cfg(feature = "libc")]
-            AuthKind::Uid => {
-                auth_buf = [0; 32];
-                Some(Auth::external_from_uid(&mut auth_buf))
-            }
-        };
-
-        let mut c = Connection::new(transport)?;
-
-        if let Some(auth) = auth {
-            let sasl = c.sasl_request(buf, &SaslRequest::Auth(auth)).await?;
-
-            match sasl {
-                SaslResponse::Ok(..) => {}
-            }
-        }
-
-        // Transition to message mode.
-        c.sasl_begin(buf).await?;
-        Ok(c)
+        Ok(Connection::new(self.auth, transport)?)
     }
 }
 

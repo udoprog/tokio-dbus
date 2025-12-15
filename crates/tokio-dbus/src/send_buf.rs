@@ -20,6 +20,11 @@ impl SendBuf {
         }
     }
 
+    /// Extend the buffer with a slice.
+    pub(crate) fn extend_from_slice(&mut self, bytes: &[u8]) {
+        self.buf.extend_from_slice(bytes);
+    }
+
     /// Access the underlying buffer.
     pub(crate) fn buf(&mut self) -> &UnalignedBuf {
         &self.buf

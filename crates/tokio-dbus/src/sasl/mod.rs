@@ -3,43 +3,6 @@
 #[cfg(test)]
 mod tests;
 
-use core::fmt;
-
-use crate::lossy_str::LossyStr;
-
-/// A GUID sent over SASL.
-#[repr(transparent)]
-pub struct Guid([u8]);
-
-impl Guid {
-    #[inline]
-    pub(crate) fn new(guid: &[u8]) -> &Guid {
-        // SAFETY: The byte slice is repr transparent over this type.
-        unsafe { &*(guid as *const _ as *const Guid) }
-    }
-}
-
-impl fmt::Debug for Guid {
-    #[inline]
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_tuple("Guid")
-            .field(&LossyStr::new(&self.0))
-            .finish()
-    }
-}
-
-/// A SASL message.
-pub enum SaslRequest<'a> {
-    /// The AUTH message.
-    Auth(Auth<'a>),
-}
-
-/// A SASL message.
-pub enum SaslResponse<'a> {
-    /// The OK message.
-    Ok(#[allow(unused)] &'a Guid),
-}
-
 /// The SASL authentication method.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Auth<'a> {

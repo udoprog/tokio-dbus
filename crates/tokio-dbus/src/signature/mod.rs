@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests;
 
-#[macro_use]
+#[cfg(feature = "alloc")]
 mod stack;
 
 #[doc(inline)]
@@ -51,8 +51,11 @@ impl Read for Signature {
 }
 
 /// Return the stride needed to skip over read buffer.
+#[cfg(feature = "alloc")]
 pub(crate) fn skip(this: &Signature, read: &mut Body<'_>) -> Result<()> {
     use crate::proto::Type;
+
+    use self::stack::Stack;
 
     #[derive(Debug, Clone, Copy)]
     enum Step {
@@ -62,7 +65,7 @@ pub(crate) fn skip(this: &Signature, read: &mut Body<'_>) -> Result<()> {
         ByteNul,
     }
 
-    let mut stack = self::stack::Stack::<bool, MAX_DEPTH>::new();
+    let mut stack = Stack::<bool, MAX_DEPTH>::new();
     let mut arrays = 0;
 
     for &b in this.as_bytes() {
