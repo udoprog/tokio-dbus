@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use core::marker::PhantomData;
 
 use crate::buf::MAX_ARRAY_LENGTH;
 use crate::error::ErrorKind;

@@ -14,6 +14,13 @@
 
 #![deny(missing_docs)]
 #![allow(clippy::module_inception)]
+#![no_std]
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
+
+#[cfg(feature = "std")]
+extern crate std;
 
 #[macro_use]
 mod macros;
@@ -26,7 +33,7 @@ mod proto;
 pub mod org_freedesktop_dbus;
 
 #[doc(inline)]
-pub use self::write::Write;
+pub use self::write::{Write, WriteAligned, WriteUnaligned};
 mod write;
 
 #[doc(inline)]
@@ -40,22 +47,26 @@ mod error;
 pub(crate) mod buf;
 
 #[doc(inline)]
+#[cfg(feature = "alloc")]
 pub use self::body_buf::{BodyBuf, StoreArray, StoreStruct};
+#[cfg(feature = "alloc")]
 mod body_buf;
 
 #[doc(inline)]
 pub use self::body::{AsBody, Body, LoadArray};
 mod body;
 
+#[cfg(feature = "alloc")]
 #[doc(inline)]
 pub use self::send_buf::SendBuf;
+#[cfg(feature = "alloc")]
 mod send_buf;
 
+#[cfg(feature = "alloc")]
 #[doc(inline)]
 pub use self::recv_buf::RecvBuf;
+#[cfg(feature = "alloc")]
 mod recv_buf;
-
-mod sasl;
 
 #[doc(inline)]
 pub use self::signature::{Signature, SignatureBuf, SignatureError};
@@ -69,21 +80,35 @@ mod frame;
 pub use self::storable::Storable;
 mod storable;
 
+#[cfg(feature = "alloc")]
 #[doc(inline)]
-pub use self::message::{Message, MessageBuf, MessageKind};
+pub use self::message::MessageBuf;
+#[doc(inline)]
+pub use self::message::{Message, MessageKind, Serial};
 mod message;
 
+#[cfg(feature = "alloc")]
+#[doc(inline)]
+pub use self::connection::Buffers;
 #[cfg(feature = "tokio")]
 #[doc(inline)]
 pub use self::connection::{Connection, ConnectionBuilder};
 mod connection;
 
+#[cfg(feature = "tokio")]
+mod sasl;
+
+#[cfg(feature = "tokio")]
 mod lossy_str;
 
+#[cfg(feature = "tokio")]
 mod utils;
 
+#[cfg(feature = "alloc")]
 #[doc(inline)]
-pub use self::object_path::{ObjectPath, ObjectPathBuf, ObjectPathError};
+pub use self::object_path::ObjectPathBuf;
+#[doc(inline)]
+pub use self::object_path::{ObjectPath, ObjectPathError};
 mod object_path;
 
 #[doc(inline)]

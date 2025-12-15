@@ -9,10 +9,9 @@ pub(crate) use tokio_dbus_core::signature::{MAX_DEPTH, SignatureBuilder};
 #[doc(inline)]
 pub use tokio_dbus_core::signature::{Signature, SignatureBuf, SignatureError};
 
-use crate::buf::UnalignedBuf;
 use crate::error::Result;
 
-use crate::{Body, BodyBuf, Read, Write};
+use crate::{Body, Read, Write, WriteAligned, WriteUnaligned};
 
 impl crate::write::sealed::Sealed for Signature {}
 
@@ -20,13 +19,19 @@ impl Write for Signature {
     const SIGNATURE: &'static Signature = Signature::SIGNATURE;
 
     #[inline]
-    fn write_to(&self, buf: &mut BodyBuf) {
+    fn write_to<B>(&self, buf: &mut B)
+    where
+        B: ?Sized + WriteAligned,
+    {
         buf.store_frame(self.len() as u8);
         buf.extend_from_slice_nul(self.as_bytes());
     }
 
     #[inline]
-    fn write_to_unaligned(&self, buf: &mut UnalignedBuf) {
+    fn write_to_unaligned<B>(&self, buf: &mut B)
+    where
+        B: ?Sized + WriteUnaligned,
+    {
         buf.store(self.len() as u8);
         buf.extend_from_slice_nul(self.as_bytes());
     }

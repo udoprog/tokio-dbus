@@ -1,6 +1,7 @@
-use std::num::NonZeroU32;
+#[cfg(feature = "alloc")]
+use alloc::boxed::Box;
 
-use crate::{MessageKind, ObjectPath};
+use crate::{MessageKind, ObjectPath, Serial};
 
 /// The kind of a D-Bus message.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -16,7 +17,7 @@ pub(crate) enum OwnedMessageKind {
     /// Method reply with returned data.
     MethodReturn {
         /// The serial this is a reply to.
-        reply_serial: NonZeroU32,
+        reply_serial: Serial,
     },
     /// Error reply. If the first argument exists and is a string, it is an
     /// error message.
@@ -24,7 +25,7 @@ pub(crate) enum OwnedMessageKind {
         /// The name of the error.
         error_name: Box<str>,
         /// The serial this is a reply to.
-        reply_serial: NonZeroU32,
+        reply_serial: Serial,
     },
     /// Signal emission.
     Signal {

@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+use core::marker::PhantomData;
 
 /// An allocated location in the buffer that can be written to later.
 pub struct Alloc<T>(usize, PhantomData<T>);

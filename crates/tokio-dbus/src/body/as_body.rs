@@ -1,12 +1,16 @@
-use crate::{Body, BodyBuf};
+use crate::Body;
+#[cfg(feature = "alloc")]
+use crate::BodyBuf;
 
 mod sealed {
-    use crate::{Body, BodyBuf};
     pub trait Sealed<'de> {}
-    impl<'de> Sealed<'de> for &Body<'de> {}
-    impl<'de> Sealed<'de> for Body<'de> {}
-    impl<'de> Sealed<'de> for &'de BodyBuf {}
-    impl<'de> Sealed<'de> for &'de mut BodyBuf {}
+
+    impl<'de> Sealed<'de> for &crate::Body<'de> {}
+    impl<'de> Sealed<'de> for crate::Body<'de> {}
+    #[cfg(feature = "alloc")]
+    impl<'de> Sealed<'de> for &'de crate::BodyBuf {}
+    #[cfg(feature = "alloc")]
+    impl<'de> Sealed<'de> for &'de mut crate::BodyBuf {}
 }
 
 /// Trait for types which can be cheaply coerced into a [`Body`].
@@ -116,6 +120,7 @@ impl<'de> AsBody<'de> for Body<'de> {
 /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
 /// assert_eq!(m.signature(), Signature::STRING);
 /// ```
+#[cfg(feature = "alloc")]
 impl<'de> AsBody<'de> for &'de BodyBuf {
     #[inline]
     fn as_body(self) -> Body<'de> {
@@ -143,6 +148,7 @@ impl<'de> AsBody<'de> for &'de BodyBuf {
 /// assert!(matches!(m.kind(), MessageKind::MethodCall { .. }));
 /// assert_eq!(m.signature(), Signature::STRING);
 /// ```
+#[cfg(feature = "alloc")]
 impl<'de> AsBody<'de> for &'de mut BodyBuf {
     #[inline]
     fn as_body(self) -> Body<'de> {

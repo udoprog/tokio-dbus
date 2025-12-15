@@ -1,10 +1,16 @@
-use std::fmt;
-use std::str::from_utf8_unchecked;
+use core::fmt;
+use core::str::from_utf8_unchecked;
 
-use crate::buf::UnalignedBuf;
-use crate::{Body, BodyBuf};
-use crate::{ObjectPathBuf, Read, Result, Signature, Write};
+#[cfg(feature = "alloc")]
+use alloc::borrow::ToOwned;
+#[cfg(feature = "alloc")]
+use alloc::boxed::Box;
 
+use crate::{Body, WriteAligned, WriteUnaligned};
+use crate::{Read, Result, Signature, Write};
+
+#[cfg(feature = "alloc")]
+use super::ObjectPathBuf;
 use super::{Iter, ObjectPathError, validate};
 
 /// A validated object path.
@@ -163,6 +169,7 @@ impl AsRef<[u8]> for ObjectPath {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl ToOwned for ObjectPath {
     type Owned = ObjectPathBuf;
 
@@ -174,6 +181,7 @@ impl ToOwned for ObjectPath {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl From<&ObjectPath> for Box<ObjectPath> {
     #[inline]
     fn from(object_path: &ObjectPath) -> Self {
@@ -184,6 +192,7 @@ impl From<&ObjectPath> for Box<ObjectPath> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl Clone for Box<ObjectPath> {
     #[inline]
     fn clone(&self) -> Self {
@@ -224,13 +233,19 @@ impl Write for ObjectPath {
     const SIGNATURE: &'static Signature = Signature::OBJECT_PATH;
 
     #[inline]
-    fn write_to(&self, buf: &mut BodyBuf) {
+    fn write_to<B>(&self, buf: &mut B)
+    where
+        B: ?Sized + WriteAligned,
+    {
         buf.store_frame(self.0.len() as u32);
         buf.extend_from_slice_nul(&self.0);
     }
 
     #[inline]
-    fn write_to_unaligned(&self, buf: &mut UnalignedBuf) {
+    fn write_to_unaligned<B>(&self, buf: &mut B)
+    where
+        B: ?Sized + WriteUnaligned,
+    {
         buf.store(self.0.len() as u32);
         buf.extend_from_slice_nul(&self.0);
     }

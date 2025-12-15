@@ -1,6 +1,6 @@
-use std::num::NonZeroU32;
-
-use crate::{ObjectPath, message::OwnedMessageKind};
+#[cfg(feature = "alloc")]
+use crate::message::OwnedMessageKind;
+use crate::{ObjectPath, Serial};
 
 /// The kind of a D-Bus message.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -16,7 +16,7 @@ pub enum MessageKind<'a> {
     /// Method reply with returned data.
     MethodReturn {
         /// The serial this is a reply to.
-        reply_serial: NonZeroU32,
+        reply_serial: Serial,
     },
     /// Error reply. If the first argument exists and is a string, it is an
     /// error message.
@@ -24,7 +24,7 @@ pub enum MessageKind<'a> {
         /// The name of the error.
         error_name: &'a str,
         /// The serial this is a reply to.
-        reply_serial: NonZeroU32,
+        reply_serial: Serial,
     },
     /// Signal emission.
     Signal {
@@ -33,6 +33,7 @@ pub enum MessageKind<'a> {
     },
 }
 
+#[cfg(feature = "alloc")]
 impl MessageKind<'_> {
     #[inline]
     pub(crate) fn to_owned(self) -> OwnedMessageKind {
@@ -58,6 +59,7 @@ impl MessageKind<'_> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl PartialEq<OwnedMessageKind> for MessageKind<'_> {
     fn eq(&self, other: &OwnedMessageKind) -> bool {
         match (*self, other) {

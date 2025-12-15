@@ -6,6 +6,10 @@
 //! This is split up into a separate crate so it can be used by macros.
 
 #![allow(clippy::module_inception)]
+#![no_std]
+
+#[cfg(feature = "alloc")]
+extern crate alloc;
 
 #[macro_use]
 mod macros;

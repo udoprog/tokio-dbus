@@ -1,5 +1,8 @@
+#[cfg(feature = "alloc")]
+use alloc::string::String;
+
+use crate::WriteAligned;
 use crate::signature::SignatureBuilder;
-use crate::{BodyBuf, Signature};
 
 pub(crate) mod sealed {
     pub trait Sealed {}
@@ -23,13 +26,16 @@ pub(crate) mod sealed {
 pub trait Storable: self::sealed::Sealed {
     /// Store a frame into a buffer body.
     #[doc(hidden)]
-    fn store_to(self, buf: &mut BodyBuf);
+    fn store_to<B>(self, buf: &mut B)
+    where
+        B: ?Sized + WriteAligned;
 
     /// Write a signature.
     #[doc(hidden)]
     fn write_signature(builder: &mut SignatureBuilder) -> bool;
 }
 
+#[cfg(feature = "alloc")]
 impl self::sealed::Sealed for String {}
 
 /// [`Storable`] implementation for [`String`].
@@ -47,14 +53,18 @@ impl self::sealed::Sealed for String {}
 /// assert_eq!(body.signature(), "qs");
 /// # Ok::<_, tokio_dbus::Error>(())
 /// ```
+#[cfg(feature = "alloc")]
 impl Storable for String {
     #[inline]
-    fn store_to(self, buf: &mut BodyBuf) {
+    fn store_to<B>(self, buf: &mut B)
+    where
+        B: ?Sized + WriteAligned,
+    {
         self.as_str().store_to(buf);
     }
 
     #[inline]
     fn write_signature(builder: &mut SignatureBuilder) -> bool {
-        builder.extend_from_signature(Signature::STRING)
+        <&str as Storable>::write_signature(builder)
     }
 }

@@ -4,12 +4,14 @@ mod load_array;
 pub use self::as_body::AsBody;
 mod as_body;
 
-use std::fmt;
+use core::fmt;
 
+#[cfg(feature = "alloc")]
+use crate::BodyBuf;
 use crate::buf::Aligned;
 use crate::error::Result;
 use crate::ty;
-use crate::{BodyBuf, Endianness, Frame, Read, Signature};
+use crate::{Endianness, Frame, Read, Signature};
 
 /// A read-only view into a buffer suitable for use as a body in a [`Message`].
 ///
@@ -204,9 +206,7 @@ impl<'a> Body<'a> {
     ///
     /// fn read(buf: &mut Body<'_>) -> Result<()> {
     ///     assert_eq!(buf.load::<u32>()?, 4);
-    ///     assert_eq!(buf.load::<u8>()?, 1);
-    ///     assert_eq!(buf.load::<u8>()?, 2);
-    ///     assert!(buf.load::<u8>().is_err());
+    ///     assert_eq!(buf.read::<str>()?, "hi");
     ///     assert!(buf.is_empty());
     ///     Ok(())
     /// }
@@ -442,6 +442,7 @@ impl<'a> PartialEq<Body<'a>> for Body<'_> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl PartialEq<BodyBuf> for Body<'_> {
     #[inline]
     fn eq(&self, other: &BodyBuf) -> bool {

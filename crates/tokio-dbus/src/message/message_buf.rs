@@ -1,7 +1,7 @@
-use std::num::NonZeroU32;
+use alloc::boxed::Box;
 
 use crate::message::OwnedMessageKind;
-use crate::{Body, BodyBuf, Flags, Message, MessageKind, ObjectPath, Signature};
+use crate::{Body, BodyBuf, Flags, Message, MessageKind, ObjectPath, Serial, Signature};
 
 /// An owned D-Bus message.
 ///
@@ -12,7 +12,7 @@ pub struct MessageBuf {
     /// The type of the message.
     pub(super) kind: OwnedMessageKind,
     /// Serial of the emssage.
-    pub(super) serial: NonZeroU32,
+    pub(super) serial: Serial,
     /// Flags in the message.
     pub(super) flags: Flags,
     /// The interface of the message.
@@ -42,7 +42,7 @@ impl MessageBuf {
     /// assert_eq!(m, m2);
     /// ```
     #[must_use]
-    pub fn method_call(path: Box<ObjectPath>, member: Box<str>, serial: NonZeroU32) -> Self {
+    pub fn method_call(path: Box<ObjectPath>, member: Box<str>, serial: Serial) -> Self {
         Self {
             kind: OwnedMessageKind::MethodCall { path, member },
             serial,
@@ -81,7 +81,7 @@ impl MessageBuf {
     /// assert_eq!(m.destination(), m2.sender());
     /// ```
     #[must_use]
-    pub fn method_return(self, serial: NonZeroU32) -> Self {
+    pub fn method_return(self, serial: Serial) -> Self {
         Self {
             kind: OwnedMessageKind::MethodReturn {
                 reply_serial: self.serial,
@@ -109,7 +109,7 @@ impl MessageBuf {
     /// assert_eq!(m, m2);
     /// ```
     #[must_use]
-    pub fn signal(member: Box<str>, serial: NonZeroU32) -> Self {
+    pub fn signal(member: Box<str>, serial: Serial) -> Self {
         Self {
             kind: OwnedMessageKind::Signal { member },
             serial,
@@ -145,7 +145,7 @@ impl MessageBuf {
     /// assert_eq!(m.destination(), m2.sender());
     /// ```
     #[must_use]
-    pub fn error(self, error_name: Box<str>, serial: NonZeroU32) -> Self {
+    pub fn error(self, error_name: Box<str>, serial: Serial) -> Self {
         Self {
             kind: OwnedMessageKind::Error {
                 error_name,
@@ -260,8 +260,6 @@ impl MessageBuf {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Message, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
@@ -269,13 +267,12 @@ impl MessageBuf {
     /// let mut send = SendBuf::new();
     ///
     /// let m = send.method_call(PATH, "Hello");
-    /// assert_eq!(m.serial().get(), 1);
-    ///
-    /// let m2 = m.with_serial(NonZeroU32::new(1000).unwrap());
-    /// assert_eq!(m2.serial().get(), 1000);
+    /// let initial = m.serial();
+    /// let m2 = m.with_serial(send.next_serial());
+    /// assert_ne!(initial, m2.serial());
     /// ```
     #[must_use]
-    pub fn serial(&self) -> NonZeroU32 {
+    pub fn serial(&self) -> Serial {
         self.serial
     }
 
@@ -284,8 +281,6 @@ impl MessageBuf {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Message, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
@@ -293,13 +288,12 @@ impl MessageBuf {
     /// let mut send = SendBuf::new();
     ///
     /// let m = send.method_call(PATH, "Hello");
-    /// assert_eq!(m.serial().get(), 1);
-    ///
-    /// let m2 = m.with_serial(NonZeroU32::new(1000).unwrap());
-    /// assert_eq!(m2.serial().get(), 1000);
+    /// let m2 = send.method_call(PATH, "Hello");
+    /// let m2 = m2.with_serial(m.serial());
+    /// assert_eq!(m.serial(), m2.serial());
     /// ```
     #[must_use]
-    pub fn with_serial(self, serial: NonZeroU32) -> Self {
+    pub fn with_serial(self, serial: Serial) -> Self {
         Self { serial, ..self }
     }
 

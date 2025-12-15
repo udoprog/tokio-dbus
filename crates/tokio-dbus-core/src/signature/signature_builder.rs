@@ -1,6 +1,6 @@
-use std::mem::MaybeUninit;
-use std::ops::Deref;
-use std::slice::from_raw_parts;
+use core::mem::MaybeUninit;
+use core::ops::Deref;
+use core::slice::from_raw_parts;
 
 use super::{
     MAX_CONTAINER_DEPTH, MAX_DEPTH, MAX_SIGNATURE, Signature, SignatureBuf, SignatureError,

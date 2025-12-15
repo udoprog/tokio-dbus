@@ -1,11 +1,10 @@
-use std::collections::VecDeque;
-use std::mem::size_of;
-use std::num::NonZeroU32;
+use core::mem::size_of;
+use core::num::NonZeroU32;
 
-use crate::buf::AlignedBuf;
+use crate::buf::{Aligned, AlignedBuf};
 use crate::error::{Error, ErrorKind, Result};
 use crate::proto;
-use crate::{Body, Endianness, Message, MessageBuf, MessageKind, ObjectPath, Signature};
+use crate::{Body, Endianness, Message, MessageKind, ObjectPath, Serial, Signature};
 
 /// An owned reference to a message in a [`RecvBuf`].
 ///
@@ -17,7 +16,7 @@ use crate::{Body, Endianness, Message, MessageBuf, MessageKind, ObjectPath, Sign
 /// [`RecvBuf::read_message`]: crate::RecvBuf::read_message
 /// [`RecvBuf`]: crate::RecvBuf
 pub(crate) struct MessageRef {
-    pub(crate) serial: NonZeroU32,
+    pub(crate) serial: Serial,
     pub(crate) message_type: proto::MessageType,
     pub(crate) flags: proto::Flags,
     pub(crate) headers: usize,
@@ -33,10 +32,6 @@ pub struct RecvBuf {
     /// The last serial observed. This is used to determine whether a
     /// [`MessageRef`] is valid or not.
     last_message: Option<MessageRef>,
-    /// If a message has been taken from the receive buffer.
-    deferred_taken: bool,
-    /// Stored messages.
-    deferred: VecDeque<MessageBuf>,
 }
 
 impl RecvBuf {
@@ -46,32 +41,7 @@ impl RecvBuf {
             buf: AlignedBuf::new(),
             endianness: Endianness::NATIVE,
             last_message: None,
-            deferred_taken: false,
-            deferred: VecDeque::new(),
         }
-    }
-
-    /// Defer the given message, causing it to be received again at the next
-    /// wait.
-    pub fn defer(&mut self, message: MessageBuf) {
-        self.deferred.push_back(message);
-    }
-
-    /// Defer the last message.
-    pub(crate) fn defer_last(&mut self) -> Result<()> {
-        let message = last_message(&self.last_message, &self.buf, self.endianness)?;
-        self.deferred.push_back(message.to_owned());
-        Ok(())
-    }
-
-    /// Try to take a single deferred message.
-    pub(crate) fn take_deferred(&mut self) -> bool {
-        if self.deferred_taken {
-            self.deferred.pop_front();
-        }
-
-        self.deferred_taken = !self.deferred.is_empty();
-        self.deferred_taken
     }
 
     /// Access the underlying buffer.
@@ -110,55 +80,27 @@ impl RecvBuf {
     ///
     /// [`defer()`]: Self::defer
     ///
-    /// This method should primarily be used in combination with [`wait()`] and
-    /// [`wait_no_deferred()`].
+    /// This method should primarily be used in combination with [`wait()`].
     ///
     /// [`wait()`]: crate::Connection::wait
-    /// [`wait_no_deferred()`]: crate::Connection::wait_no_deferred
     ///
     /// # Errors
     ///
     /// In case there is no message buffered.
     pub fn last_message(&self) -> Result<Message<'_>> {
-        if self.deferred_taken {
-            let Some(message) = self.deferred.front() else {
-                return Err(Error::new(ErrorKind::MissingMessage));
-            };
+        let Some(message_ref) = &self.last_message else {
+            return Err(Error::new(ErrorKind::MissingMessage));
+        };
 
-            return Ok(message.borrow());
-        }
-
-        self.last_message_no_deferred()
-    }
-
-    /// Read the last message buffered.
-    ///
-    /// This will only read the last message which has been buffered in the
-    /// receive buffer.
-    ///
-    /// This method should primarily be used in combination with
-    /// [`wait_no_deferred()`].
-    ///
-    /// [`wait_no_deferred()`]: crate::Connection::wait_no_deferred
-    ///
-    /// # Errors
-    ///
-    /// In case there is no message buffered.
-    #[inline]
-    pub fn last_message_no_deferred(&self) -> Result<Message<'_>> {
-        last_message(&self.last_message, &self.buf, self.endianness)
+        last_message(message_ref, self.buf.as_aligned(), self.endianness)
     }
 }
 
 fn last_message<'a>(
-    last_message: &Option<MessageRef>,
-    buf: &'a AlignedBuf,
+    message_ref: &MessageRef,
+    mut buf: Aligned<'a>,
     endianness: Endianness,
 ) -> Result<Message<'a>> {
-    let Some(message_ref) = last_message else {
-        return Err(Error::new(ErrorKind::MissingMessage));
-    };
-
     let MessageRef {
         serial,
         message_type,
@@ -166,7 +108,6 @@ fn last_message<'a>(
         headers,
     } = *message_ref;
 
-    let mut buf = buf.as_aligned();
     buf.advance(size_of::<proto::Header>() + size_of::<u32>())?;
 
     let mut path = None;
@@ -205,7 +146,8 @@ fn last_message<'a>(
             }
             (proto::Variant::REPLY_SERIAL, b"u") => {
                 let number = st.load::<u32>()?;
-                let number = NonZeroU32::new(number).ok_or(ErrorKind::ZeroReplySerial)?;
+                let number =
+                    Serial::new(NonZeroU32::new(number).ok_or(ErrorKind::ZeroReplySerial)?);
                 reply_serial = Some(number);
             }
             (proto::Variant::DESTINATION, b"s") => {

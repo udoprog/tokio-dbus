@@ -1,9 +1,9 @@
-use std::num::NonZeroU32;
+use core::num::NonZeroU32;
 
 use crate::buf::UnalignedBuf;
 use crate::error::{Error, ErrorKind, Result};
-use crate::{Endianness, proto};
-use crate::{Message, MessageKind, ObjectPath, Signature};
+use crate::proto;
+use crate::{Endianness, Message, MessageKind, ObjectPath, Serial, Signature};
 
 /// Buffer used for sending messages through D-Bus.
 pub struct SendBuf {
@@ -38,10 +38,9 @@ impl SendBuf {
     /// use tokio_dbus::SendBuf;
     ///
     /// let mut send = SendBuf::new();
-    /// assert_eq!(send.next_serial().get(), 1);
-    /// assert_eq!(send.next_serial().get(), 2);
+    /// assert_ne!(send.next_serial(), send.next_serial());
     /// ```
-    pub fn next_serial(&mut self) -> NonZeroU32 {
+    pub fn next_serial(&mut self) -> Serial {
         loop {
             let Some(serial) = NonZeroU32::new(self.serial.wrapping_add(1)) else {
                 self.serial = 1;
@@ -49,7 +48,7 @@ impl SendBuf {
             };
 
             self.serial = serial.get();
-            break serial;
+            break Serial::new(serial);
         }
     }
 
@@ -90,7 +89,7 @@ impl SendBuf {
     }
 
     /// Write a message to the buffer.
-    pub fn write_message(&mut self, message: Message<'_>) -> Result<()> {
+    pub fn write_message(&mut self, message: Message<'_>) -> Result<Serial> {
         self.buf.update_base_align();
 
         let body = message.body();
@@ -183,11 +182,15 @@ impl SendBuf {
             self.buf.write(body.signature());
         }
 
-        self.buf.store_at(length, (self.buf.len() - start) as u32);
+        let Ok(header_length) = u32::try_from(self.buf.len().saturating_sub(start)) else {
+            return Err(Error::new(ErrorKind::HeaderTooLong(u32::MAX)));
+        };
+
+        self.buf.store_at(length, header_length);
 
         self.buf.align_mut::<u64>();
         self.buf.extend_from_slice(body.get());
-        Ok(())
+        Ok(message.serial)
     }
 }
 

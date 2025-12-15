@@ -6,17 +6,24 @@ mod tests;
 pub(crate) use self::aligned::Aligned;
 mod aligned;
 
+#[cfg(feature = "alloc")]
 pub(crate) use self::aligned_buf::AlignedBuf;
+#[cfg(feature = "alloc")]
 mod aligned_buf;
 
+#[cfg(feature = "alloc")]
 pub(crate) use self::unaligned_buf::UnalignedBuf;
+#[cfg(feature = "alloc")]
 mod unaligned_buf;
 
+#[cfg(feature = "tokio")]
 pub(crate) use self::alloc::Alloc;
+#[cfg(feature = "tokio")]
 mod alloc;
 
 /// The maximum length of an array in bytes.
 pub(crate) const MAX_ARRAY_LENGTH: u32 = 1u32 << 26;
+
 /// The maximum length of a body in bytes.
 pub(crate) const MAX_BODY_LENGTH: u32 = 1u32 << 27;
 

@@ -37,7 +37,7 @@ pub(crate) mod marker;
 pub use self::aligned::Aligned;
 pub(crate) mod aligned;
 
-use std::marker::PhantomData;
+use core::marker::PhantomData;
 
 use crate::error::ErrorKind;
 use crate::signature::SignatureBuilder;
@@ -226,8 +226,13 @@ impl Marker for Variant {
         let variant = match signature.as_bytes() {
             b"s" => crate::Variant::String(buf.read()?),
             b"u" => crate::Variant::U32(buf.load()?),
+            #[cfg(feature = "alloc")]
             _ => {
                 return Err(Error::new(ErrorKind::UnsupportedVariant(signature.into())));
+            }
+            #[cfg(not(feature = "alloc"))]
+            _ => {
+                return Err(Error::new(ErrorKind::UnsupportedVariantNoAlloc));
             }
         };
 

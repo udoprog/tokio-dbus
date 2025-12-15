@@ -1,12 +1,12 @@
+use core::fmt;
+use core::mem::size_of;
+use core::num::NonZeroU32;
+
 use std::env;
 use std::ffi::OsStr;
-use std::fmt;
 use std::io;
 use std::io::{Read, Write};
-use std::mem::size_of;
-use std::num::NonZeroU32;
-use std::os::fd::AsRawFd;
-use std::os::fd::RawFd;
+use std::os::fd::{AsRawFd, RawFd};
 use std::os::unix::ffi::OsStrExt;
 use std::os::unix::net::UnixStream;
 
@@ -16,7 +16,7 @@ use crate::proto;
 use crate::recv_buf::MessageRef;
 use crate::sasl::Auth;
 use crate::sasl::{Guid, SaslRequest, SaslResponse};
-use crate::{Frame, RecvBuf};
+use crate::{Frame, RecvBuf, Serial};
 
 const ENV_STARTER_ADDRESS: &str = "DBUS_STARTER_ADDRESS";
 const ENV_SESSION_BUS: &str = "DBUS_SESSION_BUS_ADDRESS";
@@ -259,7 +259,8 @@ impl Transport {
                         return Err(Error::new(ErrorKind::ArrayTooLong(headers)));
                     };
 
-                    let serial = NonZeroU32::new(header.serial).ok_or(ErrorKind::ZeroSerial)?;
+                    let serial =
+                        Serial::new(NonZeroU32::new(header.serial).ok_or(ErrorKind::ZeroSerial)?);
 
                     // Padding used in the header.
                     let total = headers + padding_to::<u64>(headers) + body_length;

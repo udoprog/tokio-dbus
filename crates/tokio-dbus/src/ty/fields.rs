@@ -105,7 +105,7 @@ macro_rules! struct_fields {
             $first: Marker,
             $($rest: Marker,)*
         {
-            type First = A;
+            type First = _A;
             type Remaining = ($($rest,)*);
         }
     }
