@@ -181,18 +181,6 @@ impl UnalignedBuf {
         self.written += n;
     }
 
-    /// Read until len bytes.
-    pub(crate) fn read_until(&mut self, len: usize) -> &[u8] {
-        assert!(len <= self.len());
-
-        // SAFETY: We've ensure that the slice is valid just above.
-        unsafe {
-            let data = self.data.as_ptr().add(self.read);
-            self.advance(len);
-            from_raw_parts(data, len)
-        }
-    }
-
     /// Indicate that we've read `n` bytes from the buffer.
     pub(crate) fn advance(&mut self, n: usize) {
         self.read += n;

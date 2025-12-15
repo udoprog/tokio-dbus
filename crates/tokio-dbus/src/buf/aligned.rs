@@ -84,6 +84,7 @@ impl<'a> Aligned<'a> {
     }
 
     /// Advance the read cursor by `n`.
+    #[cfg(feature = "alloc")]
     pub(crate) fn advance(&mut self, n: usize) -> Result<()> {
         if n == 0 {
             return Ok(());

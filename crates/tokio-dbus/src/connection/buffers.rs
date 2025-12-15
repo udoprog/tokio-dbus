@@ -33,8 +33,10 @@ use crate::{BodyBuf, RecvBuf, SendBuf, Serial};
 /// use tokio_dbus::{Buffers, Connection, Message};
 ///
 /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
+/// let mut c = Connection::session_bus()?;
+///
 /// let mut buf = Buffers::new();
-/// let mut c = Connection::session_bus(&mut buf).await?;
+/// c.connect(&mut buf).await?;
 /// c.wait(&mut buf).await?;
 ///
 /// let message: Message<'_> = buf.recv.last_message()?;

@@ -68,9 +68,14 @@ impl RecvBuf {
     }
 
     /// Clear the receive buffer.
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.buf.clear();
         self.last_message = None;
+    }
+
+    /// Test if a message has been received.
+    pub fn has_message(&self) -> bool {
+        self.last_message.is_some()
     }
 
     /// Read the last message buffered.

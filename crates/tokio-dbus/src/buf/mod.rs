@@ -25,6 +25,7 @@ mod alloc;
 pub(crate) const MAX_ARRAY_LENGTH: u32 = 1u32 << 26;
 
 /// The maximum length of a body in bytes.
+#[cfg(feature = "alloc")]
 pub(crate) const MAX_BODY_LENGTH: u32 = 1u32 << 27;
 
 use core::mem::align_of;
@@ -43,6 +44,7 @@ unsafe fn padding_to_with(align: usize, len: usize) -> usize {
     (align - (len & mask)) & mask
 }
 
+#[cfg(feature = "alloc")]
 #[inline(always)]
 const fn max_size_for_align(align: usize) -> usize {
     isize::MAX as usize - (align - 1)

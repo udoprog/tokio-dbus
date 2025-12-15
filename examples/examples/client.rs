@@ -8,7 +8,10 @@ const PATH: &ObjectPath = ObjectPath::new_const(b"/se/tedro/DBusExample");
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut buf = Buffers::new();
-    let mut c = Connection::session_bus(&mut buf).await?;
+    let mut c = Connection::session_bus()?;
+
+    c.connect(&mut buf).await?;
+
     let hello_serial = buf.hello()?;
 
     buf.body.store(42u32)?;
@@ -24,7 +27,6 @@ async fn main() -> Result<()> {
 
     let reply = loop {
         c.wait(&mut buf).await?;
-
         let message = buf.recv.last_message()?;
 
         match message.kind() {
@@ -32,6 +34,7 @@ async fn main() -> Result<()> {
                 dbg!(message.body().read::<str>()?);
             }
             MessageKind::MethodReturn { reply_serial } if reply_serial == request_serial => {
+                dbg!(&message);
                 break message.body().load::<u32>()?;
             }
             MessageKind::Error {

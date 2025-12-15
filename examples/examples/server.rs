@@ -9,14 +9,15 @@ const PATH: &ObjectPath = ObjectPath::new_const(b"/se/tedro/DBusExample");
 #[tokio::main]
 async fn main() -> Result<()> {
     let mut buf = Buffers::new();
-    let mut c = Connection::session_bus(&mut buf).await?;
+    let mut c = Connection::session_bus()?;
+
+    c.connect(&mut buf).await?;
 
     let hello_reply = buf.hello()?;
     let name_reply = buf.request_name(NAME, NameFlag::DO_NOT_QUEUE)?;
 
     loop {
         c.wait(&mut buf).await?;
-
         let message = buf.recv.last_message()?;
 
         match message.kind() {
@@ -29,6 +30,8 @@ async fn main() -> Result<()> {
                 if reply != NameReply::PRIMARY_OWNER {
                     bail!("Could not acquire name: {reply:?}");
                 }
+
+                dbg!("name acquired");
             }
             MessageKind::Error {
                 error_name,
@@ -38,6 +41,8 @@ async fn main() -> Result<()> {
                 bail!("{error_name}: {reply_serial}: {message}");
             }
             MessageKind::MethodCall { path, member } => {
+                buf.body.clear();
+
                 let ret = match handle_method_call(
                     path,
                     member,
@@ -90,7 +95,7 @@ fn handle_method_call<'a>(
         INTERFACE => match member {
             "Ping" => {
                 let value = msg.body().load::<u32>()?;
-                body.arguments(value)?;
+                body.store(value)?;
                 msg.method_return(send.next_serial()).with_body(body)
             }
             method => bail!("Unknown method: {method}"),
