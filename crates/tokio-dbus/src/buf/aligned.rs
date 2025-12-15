@@ -1,13 +1,15 @@
-use std::fmt;
-use std::marker::PhantomData;
-use std::mem::size_of;
-use std::ptr;
-use std::slice::from_raw_parts;
+use core::fmt;
+use core::marker::PhantomData;
+use core::mem::size_of;
+use core::ptr;
+use core::slice::from_raw_parts;
 
 use crate::error::{ErrorKind, Result};
 use crate::{Error, Frame};
 
-use super::{AlignedBuf, padding_to};
+#[cfg(feature = "alloc")]
+use super::AlignedBuf;
+use super::padding_to;
 
 /// A read-only view into an aligned buffer.
 pub struct Aligned<'a> {
@@ -176,6 +178,7 @@ impl<'a> PartialEq<Aligned<'a>> for Aligned<'_> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl PartialEq<AlignedBuf> for Aligned<'_> {
     #[inline]
     fn eq(&self, other: &AlignedBuf) -> bool {

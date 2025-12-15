@@ -1,5 +1,4 @@
-use std::error;
-use std::fmt;
+use core::fmt;
 
 /// An error constructing an object path.
 #[derive(Debug)]
@@ -13,4 +12,4 @@ impl fmt::Display for ObjectPathError {
     }
 }
 
-impl error::Error for ObjectPathError {}
+impl core::error::Error for ObjectPathError {}

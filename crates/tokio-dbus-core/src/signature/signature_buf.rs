@@ -1,9 +1,9 @@
-use std::borrow::Borrow;
-use std::fmt;
-use std::mem::MaybeUninit;
-use std::mem::transmute;
-use std::ops::Deref;
-use std::slice::from_raw_parts;
+use core::borrow::Borrow;
+use core::fmt;
+use core::mem::MaybeUninit;
+use core::mem::transmute;
+use core::ops::Deref;
+use core::slice::from_raw_parts;
 
 use super::{MAX_SIGNATURE, Signature, SignatureError, validate};
 

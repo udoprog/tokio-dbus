@@ -1,5 +1,10 @@
-use std::fmt;
-use std::str::from_utf8_unchecked;
+use core::fmt;
+use core::str::from_utf8_unchecked;
+
+#[cfg(feature = "alloc")]
+use alloc::borrow::ToOwned;
+#[cfg(feature = "alloc")]
+use alloc::boxed::Box;
 
 use super::{Iter, SignatureBuf, SignatureError, validate};
 
@@ -484,6 +489,7 @@ impl PartialEq<&str> for Signature {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl From<&Signature> for Box<Signature> {
     #[inline]
     fn from(signature: &Signature) -> Self {

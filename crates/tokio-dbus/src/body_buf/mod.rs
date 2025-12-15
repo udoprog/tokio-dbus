@@ -4,14 +4,16 @@ mod store_array;
 pub use self::store_struct::StoreStruct;
 mod store_struct;
 
-use std::fmt;
+use core::fmt;
+
+use alloc::borrow::ToOwned;
 
 use crate::arguments::Arguments;
 use crate::buf::{AlignedBuf, Alloc};
 use crate::error::Result;
 use crate::signature::{SignatureBuilder, SignatureError};
 use crate::ty;
-use crate::{Body, Endianness, Frame, Signature, SignatureBuf, Storable, Write};
+use crate::{Body, Endianness, Frame, Signature, SignatureBuf, Storable, Write, WriteAligned};
 
 /// A buffer that can be used to write a body.
 ///
@@ -510,5 +512,42 @@ impl From<Body<'_>> for BodyBuf {
         let buf = AlignedBuf::from(buf);
         let signature = signature.to_owned();
         Self::from_raw_parts(buf, endianness, signature)
+    }
+}
+
+impl WriteAligned for BodyBuf {
+    /// Only write to the buffer without appending a signature.
+    #[inline]
+    fn write_only<T>(&mut self, value: &T)
+    where
+        T: ?Sized + Write,
+    {
+        BodyBuf::write_only(self, value);
+    }
+
+    #[inline]
+    fn store<T>(&mut self, frame: T) -> Result<()>
+    where
+        T: Storable,
+    {
+        BodyBuf::store(self, frame)
+    }
+
+    #[inline]
+    fn store_frame<T>(&mut self, frame: T)
+    where
+        T: Frame,
+    {
+        BodyBuf::store_frame(self, frame);
+    }
+
+    #[inline]
+    fn extend_from_slice(&mut self, bytes: &[u8]) {
+        BodyBuf::extend_from_slice(self, bytes);
+    }
+
+    #[inline]
+    fn extend_from_slice_nul(&mut self, bytes: &[u8]) {
+        BodyBuf::extend_from_slice_nul(self, bytes);
     }
 }

@@ -1,15 +1,21 @@
-use std::error;
-use std::fmt;
+#[cfg(feature = "std")]
 use std::io;
-use std::str::Utf8Error;
 
-use crate::ObjectPathError;
+#[cfg(feature = "alloc")]
+use alloc::boxed::Box;
+
+use core::error;
+use core::fmt;
+use core::str::Utf8Error;
+
+#[cfg(feature = "alloc")]
 use crate::Signature;
-use crate::SignatureError;
+#[cfg(feature = "tokio")]
 use crate::connection::TransportState;
+use crate::{ObjectPathError, SignatureError};
 
 /// Result alias using an [`Error`] as the error type by default.
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+pub type Result<T, E = Error> = core::result::Result<T, E>;
 
 /// An error raised by this crate.
 #[derive(Debug)]
@@ -24,6 +30,7 @@ impl Error {
     }
 
     /// Test if the error indicates that the operation would block.
+    #[cfg(feature = "tokio")]
     #[inline]
     pub(crate) fn would_block(&self) -> bool {
         matches!(self.kind, ErrorKind::WouldBlock)
@@ -44,6 +51,7 @@ impl From<ObjectPathError> for Error {
     }
 }
 
+#[cfg(feature = "std")]
 impl From<io::Error> for Error {
     #[inline]
     fn from(error: io::Error) -> Self {
@@ -72,16 +80,25 @@ impl fmt::Display for Error {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match &self.kind {
+            #[cfg(feature = "std")]
             ErrorKind::Io(..) => write!(f, "I/O error"),
             ErrorKind::Signature(..) => write!(f, "Signature error"),
             ErrorKind::ObjectPath(..) => write!(f, "ObjectPath error"),
             ErrorKind::Utf8Error(..) => write!(f, "UTF-8 error"),
+            #[cfg(not(feature = "libc"))]
+            ErrorKind::UnsupportedAuthUid => {
+                write!(
+                    f,
+                    "Authentication using the current UID requires the `libc` feature to be enabled"
+                )
+            }
             ErrorKind::WouldBlock => write!(f, "Would block"),
             ErrorKind::BufferUnderflow => write!(f, "Buffer underflow"),
             ErrorKind::MissingBus => write!(f, "Missing bus to connect to"),
             ErrorKind::InvalidAddress => write!(f, "Invalid d-bus address"),
             ErrorKind::InvalidSasl => write!(f, "Invalid SASL message"),
             ErrorKind::InvalidSaslResponse => write!(f, "Invalid SASL command"),
+            #[cfg(feature = "tokio")]
             ErrorKind::InvalidState(state) => write!(f, "Invalid connection state `{state}`"),
             ErrorKind::InvalidProtocol => write!(f, "Invalid protocol"),
             ErrorKind::MissingPath => write!(f, "Missing required PATH header"),
@@ -99,14 +116,22 @@ impl fmt::Display for Error {
             ErrorKind::BodyTooLong(length) => {
                 write!(f, "Body of length {length} is too long (max is 134217728)")
             }
+            ErrorKind::HeaderTooLong(length) => {
+                write!(
+                    f,
+                    "Header of length {length} is too long (max is 134217728)"
+                )
+            }
             ErrorKind::MissingMessage => {
                 write!(f, "No message")
             }
-            ErrorKind::ResponseError(error_name, message) => {
-                write!(f, "Response error: {error_name}: {message}")
-            }
+            #[cfg(feature = "alloc")]
             ErrorKind::UnsupportedVariant(signature) => {
-                write!(f, "Unsupported variant {signature:?}")
+                write!(f, "Unsupported variant signature {signature:?}")
+            }
+            #[cfg(not(feature = "alloc"))]
+            ErrorKind::UnsupportedVariantNoAlloc => {
+                write!(f, "Unsupported variant signature")
             }
         }
     }
@@ -115,6 +140,7 @@ impl fmt::Display for Error {
 impl error::Error for Error {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         match &self.kind {
+            #[cfg(feature = "std")]
             ErrorKind::Io(error) => Some(error),
             ErrorKind::Signature(error) => Some(error),
             ErrorKind::ObjectPath(error) => Some(error),
@@ -126,16 +152,20 @@ impl error::Error for Error {
 
 #[derive(Debug)]
 pub(crate) enum ErrorKind {
+    #[cfg(feature = "std")]
     Io(io::Error),
     Signature(SignatureError),
     ObjectPath(ObjectPathError),
     Utf8Error(Utf8Error),
+    #[cfg(not(feature = "libc"))]
+    UnsupportedAuthUid,
     WouldBlock,
     BufferUnderflow,
     MissingBus,
     InvalidAddress,
     InvalidSasl,
     InvalidSaslResponse,
+    #[cfg(feature = "tokio")]
     InvalidState(TransportState),
     InvalidProtocol,
     MissingPath,
@@ -145,9 +175,12 @@ pub(crate) enum ErrorKind {
     ZeroReplySerial,
     MissingErrorName,
     NotNullTerminated,
-    BodyTooLong(u32),
     ArrayTooLong(u32),
+    BodyTooLong(u32),
+    HeaderTooLong(u32),
     MissingMessage,
+    #[cfg(feature = "alloc")]
     UnsupportedVariant(Box<Signature>),
-    ResponseError(Box<str>, Box<str>),
+    #[cfg(not(feature = "alloc"))]
+    UnsupportedVariantNoAlloc,
 }

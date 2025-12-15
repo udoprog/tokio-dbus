@@ -1,5 +1,5 @@
-use std::mem::take;
-use std::str::from_utf8_unchecked;
+use core::mem::take;
+use core::str::from_utf8_unchecked;
 
 /// An iterator over an [`ObjectPath`].
 ///

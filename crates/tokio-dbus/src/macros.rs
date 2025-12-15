@@ -1,22 +1,24 @@
 /// Helper to efficiently repeat type parameters.
 macro_rules! repeat {
     ($macro:path) => {
-        $macro!(A);
-        $macro!(A, B);
-        $macro!(A, B, C);
-        $macro!(A, B, C, D);
-        $macro!(A, B, C, D, E);
-        $macro!(A, B, C, D, E, F);
-        $macro!(A, B, C, D, E, F, G);
-        $macro!(A, B, C, D, E, F, G, H);
-        $macro!(A, B, C, D, E, F, G, H, I);
-        $macro!(A, B, C, D, E, F, G, H, I, J);
-        $macro!(A, B, C, D, E, F, G, H, I, J, K);
-        $macro!(A, B, C, D, E, F, G, H, I, J, K, L);
-        $macro!(A, B, C, D, E, F, G, H, I, J, K, L, M);
-        $macro!(A, B, C, D, E, F, G, H, I, J, K, L, M, N);
-        $macro!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O);
-        $macro!(A, B, C, D, E, F, G, H, I, J, K, L, M, N, O, P);
+        $macro!(_A);
+        $macro!(_A, _B);
+        $macro!(_A, _B, _C);
+        $macro!(_A, _B, _C, _D);
+        $macro!(_A, _B, _C, _D, _E);
+        $macro!(_A, _B, _C, _D, _E, _F);
+        $macro!(_A, _B, _C, _D, _E, _F, _G);
+        $macro!(_A, _B, _C, _D, _E, _F, _G, _H);
+        $macro!(_A, _B, _C, _D, _E, _F, _G, _H, _I);
+        $macro!(_A, _B, _C, _D, _E, _F, _G, _H, _I, _J);
+        $macro!(_A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K);
+        $macro!(_A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L);
+        $macro!(_A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M);
+        $macro!(_A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N);
+        $macro!(_A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O);
+        $macro!(
+            _A, _B, _C, _D, _E, _F, _G, _H, _I, _J, _K, _L, _M, _N, _O, _P
+        );
     };
 }
 
@@ -54,12 +56,18 @@ macro_rules! impl_traits_for_frame {
 
         impl $crate::arguments::Arguments for $ty {
             #[inline]
-            fn extend_to(&self, buf: &mut $crate::BodyBuf) -> $crate::error::Result<()> {
+            fn extend_to<B>(&self, buf: &mut B) -> $crate::error::Result<()>
+            where
+                B: ?Sized + $crate::WriteAligned,
+            {
                 buf.store(*self)
             }
 
             #[inline]
-            fn buf_to(&self, buf: &mut $crate::BodyBuf) {
+            fn buf_to<B>(&self, buf: &mut B)
+            where
+                B: ?Sized + $crate::WriteAligned,
+            {
                 buf.store_frame(*self);
             }
         }
@@ -68,7 +76,10 @@ macro_rules! impl_traits_for_frame {
 
         impl $crate::storable::Storable for $ty {
             #[inline]
-            fn store_to(self, buf: &mut $crate::BodyBuf) {
+            fn store_to<B>(self, buf: &mut B)
+            where
+                B: ?Sized + $crate::WriteAligned,
+            {
                 buf.store_frame(self)
             }
 
@@ -104,7 +115,10 @@ macro_rules! impl_traits_for_write {
         /// ```
         impl $crate::storable::Storable for &$ty {
             #[inline]
-            fn store_to(self, buf: &mut $crate::BodyBuf) {
+            fn store_to<B>(self, buf: &mut B)
+            where
+                B: ?Sized + $crate::WriteAligned,
+            {
                 buf.write_only(self);
             }
 
@@ -118,12 +132,18 @@ macro_rules! impl_traits_for_write {
 
         impl $crate::arguments::Arguments for $ty {
             #[inline]
-            fn extend_to(&self, buf: &mut $crate::BodyBuf) -> $crate::error::Result<()> {
+            fn extend_to<B>(&self, buf: &mut B) -> $crate::error::Result<()>
+            where
+                B: ?Sized + $crate::WriteAligned,
+            {
                 buf.store(self)
             }
 
             #[inline]
-            fn buf_to(&self, buf: &mut $crate::BodyBuf) {
+            fn buf_to<B>(&self, buf: &mut B)
+            where
+                B: ?Sized + $crate::WriteAligned,
+            {
                 Write::write_to(self, buf);
             }
         }

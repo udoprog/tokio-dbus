@@ -1,7 +1,46 @@
-use crate::{BodyBuf, Signature, buf::UnalignedBuf};
+use crate::error::Result;
+use crate::{Frame, Signature, Storable};
 
 pub(crate) mod sealed {
     pub trait Sealed {}
+}
+
+/// Trait for types which can be written to.
+pub trait WriteAligned {
+    /// Only write to the buffer without appending a signature.
+    fn write_only<T>(&mut self, value: &T)
+    where
+        T: ?Sized + Write;
+
+    /// Only store the specified value without appending its signature.
+    fn store<T>(&mut self, frame: T) -> Result<()>
+    where
+        T: Storable;
+
+    /// Only store the specified value without appending its signature.
+    fn store_frame<T>(&mut self, frame: T)
+    where
+        T: Frame;
+
+    /// Extend the buffer with a slice.
+    fn extend_from_slice(&mut self, bytes: &[u8]);
+
+    /// Extend the buffer with a slice ending with a NUL byte.
+    fn extend_from_slice_nul(&mut self, bytes: &[u8]);
+}
+
+/// Trait for types which can be written unaligned to.
+pub trait WriteUnaligned {
+    /// Only store the specified value without appending its signature.
+    fn store<T>(&mut self, frame: T)
+    where
+        T: Frame;
+
+    /// Extend the buffer with a slice.
+    fn extend_from_slice(&mut self, bytes: &[u8]);
+
+    /// Extend the buffer with a slice ending with a NUL byte.
+    fn extend_from_slice_nul(&mut self, bytes: &[u8]);
 }
 
 /// A type who's reference can be written directly to a buffer.
@@ -16,11 +55,15 @@ pub trait Write: self::sealed::Sealed {
 
     /// Write `self` into `buf`.
     #[doc(hidden)]
-    fn write_to(&self, buf: &mut BodyBuf);
+    fn write_to<B>(&self, buf: &mut B)
+    where
+        B: ?Sized + WriteAligned;
 
     /// Write `self` into `buf`.
     #[doc(hidden)]
-    fn write_to_unaligned(&self, buf: &mut UnalignedBuf);
+    fn write_to_unaligned<B>(&self, buf: &mut B)
+    where
+        B: ?Sized + WriteUnaligned;
 }
 
 impl self::sealed::Sealed for [u8] {}
@@ -43,13 +86,19 @@ impl Write for [u8] {
     const SIGNATURE: &'static Signature = Signature::new_const(b"ay");
 
     #[inline]
-    fn write_to(&self, buf: &mut BodyBuf) {
+    fn write_to<B>(&self, buf: &mut B)
+    where
+        B: ?Sized + WriteAligned,
+    {
         buf.store_frame(self.len() as u32);
         buf.extend_from_slice(self);
     }
 
     #[inline]
-    fn write_to_unaligned(&self, buf: &mut UnalignedBuf) {
+    fn write_to_unaligned<B>(&self, buf: &mut B)
+    where
+        B: ?Sized + WriteUnaligned,
+    {
         buf.store(self.len() as u32);
         buf.extend_from_slice(self);
     }
@@ -76,13 +125,19 @@ impl Write for str {
     const SIGNATURE: &'static Signature = Signature::STRING;
 
     #[inline]
-    fn write_to(&self, buf: &mut BodyBuf) {
+    fn write_to<B>(&self, buf: &mut B)
+    where
+        B: ?Sized + WriteAligned,
+    {
         buf.store_frame(self.len() as u32);
         buf.extend_from_slice_nul(self.as_bytes());
     }
 
     #[inline]
-    fn write_to_unaligned(&self, buf: &mut UnalignedBuf) {
+    fn write_to_unaligned<B>(&self, buf: &mut B)
+    where
+        B: ?Sized + WriteUnaligned,
+    {
         buf.store(self.len() as u32);
         buf.extend_from_slice_nul(self.as_bytes());
     }

@@ -1,10 +1,12 @@
-use std::alloc::{Layout, alloc, dealloc, handle_alloc_error, realloc};
-use std::mem::size_of;
-use std::ptr;
-use std::slice::{from_raw_parts, from_raw_parts_mut};
+use core::alloc::Layout;
+use core::mem::size_of;
+use core::ptr;
+use core::slice::{from_raw_parts, from_raw_parts_mut};
+
+use alloc::alloc::{alloc, dealloc, handle_alloc_error, realloc};
 
 use crate::buf::{max_size_for_align, padding_to};
-use crate::{Frame, Write};
+use crate::{Frame, Write, WriteUnaligned};
 
 use super::Alloc;
 
@@ -290,5 +292,25 @@ impl Drop for UnalignedBuf {
                 self.capacity = 0;
             }
         }
+    }
+}
+
+impl WriteUnaligned for UnalignedBuf {
+    #[inline]
+    fn store<T>(&mut self, frame: T)
+    where
+        T: Frame,
+    {
+        UnalignedBuf::store(self, frame)
+    }
+
+    #[inline]
+    fn extend_from_slice(&mut self, bytes: &[u8]) {
+        UnalignedBuf::extend_from_slice(self, bytes)
+    }
+
+    #[inline]
+    fn extend_from_slice_nul(&mut self, bytes: &[u8]) {
+        UnalignedBuf::extend_from_slice_nul(self, bytes)
     }
 }

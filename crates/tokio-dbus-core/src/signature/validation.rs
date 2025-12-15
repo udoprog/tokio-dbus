@@ -21,6 +21,7 @@ impl StackValue for Kind {
     const DEFAULT: Self = Kind::None;
 }
 
+#[allow(unused_assignments)]
 pub(super) const fn validate(bytes: &[u8]) -> Result<(), SignatureError> {
     use SignatureErrorKind::*;
 

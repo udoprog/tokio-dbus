@@ -1,4 +1,5 @@
-use crate::{BodyBuf, Signature, Storable, signature::SignatureBuilder};
+use crate::signature::SignatureBuilder;
+use crate::{Signature, Storable, WriteAligned};
 
 /// A variant.
 pub enum Variant<'de> {
@@ -14,7 +15,10 @@ impl crate::storable::sealed::Sealed for Variant<'_> {}
 
 impl Storable for Variant<'_> {
     #[inline]
-    fn store_to(self, buf: &mut BodyBuf) {
+    fn store_to<B>(self, buf: &mut B)
+    where
+        B: ?Sized + WriteAligned,
+    {
         match self {
             Variant::String(string) => {
                 buf.write_only(Signature::STRING);

@@ -50,13 +50,14 @@ pub enum Auth<'a> {
 impl<'a> Auth<'a> {
     /// Construct external authentication from u32 ascii hex.
     #[cfg(all(unix, feature = "libc"))]
-    pub fn external_from_uid(buf: &'a mut [u8; 32]) -> Auth<'a> {
+    pub(crate) fn external_from_uid(buf: &'a mut [u8; 32]) -> Auth<'a> {
         let id = unsafe { libc::getuid() };
         Self::external_from_u32_ascii_hex(buf, id)
     }
 
     /// Construct an external authentication from a u32.
-    pub fn external_from_u32_ascii_hex(buf: &'a mut [u8; 32], mut id: u32) -> Auth<'a> {
+    #[cfg(all(unix, feature = "libc"))]
+    pub(crate) fn external_from_u32_ascii_hex(buf: &'a mut [u8; 32], mut id: u32) -> Auth<'a> {
         const HEX: [u8; 16] = *b"0123456789abcdef";
 
         let mut n = 0;

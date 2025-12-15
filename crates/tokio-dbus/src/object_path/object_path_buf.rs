@@ -1,4 +1,7 @@
-use std::{borrow::Borrow, ops::Deref};
+use core::borrow::Borrow;
+use core::ops::Deref;
+
+use alloc::vec::Vec;
 
 use super::ObjectPath;
 

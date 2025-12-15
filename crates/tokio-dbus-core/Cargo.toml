@@ -15,5 +15,9 @@ license = "MIT OR Apache-2.0"
 keywords = ["async", "d-bus", "dbus", "ipc", "tokio"]
 categories = ["asynchronous", "os::unix-apis"]
 
+[features]
+default = ["alloc"]
+alloc = []
+
 [dev-dependencies]
 tokio-dbus = { path = "../tokio-dbus" }

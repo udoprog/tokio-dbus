@@ -1,7 +1,11 @@
-use std::num::NonZeroU32;
+#[cfg(feature = "alloc")]
+use alloc::boxed::Box;
 
 use crate::proto::{Flags, MessageType};
-use crate::{AsBody, Body, BodyBuf, MessageBuf, MessageKind, ObjectPath, Signature};
+use crate::{AsBody, Body, MessageKind, ObjectPath, Serial, Signature};
+
+#[cfg(feature = "alloc")]
+use crate::{BodyBuf, MessageBuf};
 
 /// A borrowed D-Bus message.
 ///
@@ -12,7 +16,7 @@ pub struct Message<'a> {
     /// The type of the message.
     pub(crate) kind: MessageKind<'a>,
     /// Serial of the emssage.
-    pub(crate) serial: NonZeroU32,
+    pub(crate) serial: Serial,
     /// Flags in the message.
     pub(crate) flags: Flags,
     /// The interface of the message.
@@ -41,7 +45,7 @@ impl<'a> Message<'a> {
     /// let m2 = Message::method_call(PATH, "Hello", m.serial());
     /// assert_eq!(m, m2);
     /// ```
-    pub fn method_call(path: &'a ObjectPath, member: &'a str, serial: NonZeroU32) -> Self {
+    pub fn method_call(path: &'a ObjectPath, member: &'a str, serial: Serial) -> Self {
         Self {
             kind: MessageKind::MethodCall { path, member },
             serial,
@@ -78,7 +82,7 @@ impl<'a> Message<'a> {
     /// assert_eq!(m.sender(), m2.destination());
     /// assert_eq!(m.destination(), m2.sender());
     /// ```
-    pub fn method_return(&self, serial: NonZeroU32) -> Self {
+    pub fn method_return(&self, serial: Serial) -> Self {
         Self {
             kind: MessageKind::MethodReturn {
                 reply_serial: self.serial,
@@ -108,7 +112,7 @@ impl<'a> Message<'a> {
     /// assert_eq!(m, m2);
     /// ```
     #[must_use]
-    pub fn signal(member: &'a str, serial: NonZeroU32) -> Self {
+    pub fn signal(member: &'a str, serial: Serial) -> Self {
         Self {
             kind: MessageKind::Signal { member },
             serial,
@@ -144,7 +148,7 @@ impl<'a> Message<'a> {
     /// assert_eq!(m.destination(), m2.sender());
     /// ```
     #[must_use]
-    pub fn error(&self, error_name: &'a str, serial: NonZeroU32) -> Self {
+    pub fn error(&self, error_name: &'a str, serial: Serial) -> Self {
         Self {
             kind: MessageKind::Error {
                 error_name,
@@ -175,6 +179,7 @@ impl<'a> Message<'a> {
     /// assert_eq!(m, m2);
     /// ```
     #[inline]
+    #[cfg(feature = "alloc")]
     pub fn to_owned(&self) -> MessageBuf {
         MessageBuf {
             kind: self.kind.to_owned(),
@@ -274,8 +279,6 @@ impl<'a> Message<'a> {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Message, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
@@ -283,13 +286,15 @@ impl<'a> Message<'a> {
     /// let mut send = SendBuf::new();
     ///
     /// let m = send.method_call(PATH, "Hello");
-    /// assert_eq!(m.serial().get(), 1);
+    /// let initial = m.serial();
+    /// let serial = send.next_serial();
+    /// let m2 = m.with_serial(serial);
     ///
-    /// let m2 = m.with_serial(NonZeroU32::new(1000).unwrap());
-    /// assert_eq!(m2.serial().get(), 1000);
+    /// assert_eq!(m2.serial(), serial);
+    /// assert_ne!(m2.serial(), initial);
     /// ```
-    #[must_use]
-    pub fn serial(&self) -> NonZeroU32 {
+    #[inline]
+    pub fn serial(&self) -> Serial {
         self.serial
     }
 
@@ -298,8 +303,6 @@ impl<'a> Message<'a> {
     /// # Examples
     ///
     /// ```
-    /// use std::num::NonZeroU32;
-    ///
     /// use tokio_dbus::{Message, ObjectPath, SendBuf};
     ///
     /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
@@ -307,13 +310,15 @@ impl<'a> Message<'a> {
     /// let mut send = SendBuf::new();
     ///
     /// let m = send.method_call(PATH, "Hello");
-    /// assert_eq!(m.serial().get(), 1);
+    /// let serial = send.next_serial();
+    /// let initial = m.serial();
+    /// let m = m.with_serial(serial);
     ///
-    /// let m2 = m.with_serial(NonZeroU32::new(1000).unwrap());
-    /// assert_eq!(m2.serial().get(), 1000);
+    /// assert_eq!(m.serial(), serial);
+    /// assert_ne!(m.serial(), initial);
     /// ```
     #[must_use]
-    pub fn with_serial(self, serial: NonZeroU32) -> Self {
+    pub fn with_serial(self, serial: Serial) -> Self {
         Self { serial, ..self }
     }
 
@@ -527,6 +532,7 @@ impl<'a> Message<'a> {
         self.body.signature()
     }
 
+    #[cfg(feature = "alloc")]
     pub(crate) fn message_type(&self) -> crate::proto::MessageType {
         match self.kind {
             MessageKind::MethodCall { .. } => MessageType::METHOD_CALL,
@@ -537,6 +543,7 @@ impl<'a> Message<'a> {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl PartialEq<MessageBuf> for Message<'_> {
     #[inline]
     fn eq(&self, other: &MessageBuf) -> bool {
