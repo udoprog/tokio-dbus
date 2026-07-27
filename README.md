@@ -17,3 +17,5 @@ To currently see how it's used, see:
 * [examples/systray.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/examples/systray.rs),
   a systray icon with a menu, implementing `org.kde.StatusNotifierItem` and
   `com.canonical.dbusmenu`.
+* [examples/notification.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/examples/notification.rs),
+  sending a desktop notification through `org.freedesktop.Notifications`.
