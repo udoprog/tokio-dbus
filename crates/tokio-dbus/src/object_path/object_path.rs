@@ -1,4 +1,5 @@
 use core::fmt;
+use core::hash;
 use core::str::from_utf8_unchecked;
 
 #[cfg(feature = "alloc")]
@@ -152,6 +153,16 @@ impl fmt::Debug for ObjectPath {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.as_str().fmt(f)
+    }
+}
+
+impl hash::Hash for ObjectPath {
+    #[inline]
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: hash::Hasher,
+    {
+        self.0.hash(state);
     }
 }
 

@@ -7,6 +7,9 @@ mod store_struct;
 pub use self::store_variant::StoreVariant;
 mod store_variant;
 
+pub use self::raw::{Raw, RawArray};
+mod raw;
+
 #[cfg(test)]
 mod tests;
 
@@ -198,6 +201,12 @@ impl BodyBuf {
     #[inline]
     pub(crate) fn align_mut<T>(&mut self) {
         self.buf.align_mut::<T>();
+    }
+
+    /// Align the buffer to a dynamically determined alignment.
+    #[inline]
+    pub(crate) fn align_mut_to(&mut self, align: usize) {
+        self.buf.align_mut_to(align);
     }
 
     /// Get a slice out of the buffer that has ben written to.
@@ -541,6 +550,88 @@ impl BodyBuf {
         }
 
         Ok(StoreVariant::new(self, signature))
+    }
+
+    /// Extend the signature of the buffer with `signature`, and return a writer
+    /// for a value matching it whose shape does not have to be known when the
+    /// code is written.
+    ///
+    /// This is the entry point used by code which is generic over, or generated
+    /// for, arbitrary D-Bus types. Prefer [`store()`] and the typed container
+    /// writers when the shape of the value is known.
+    ///
+    /// [`store()`]: Self::store
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{ty, Alignment, BodyBuf, Signature};
+    ///
+    /// let mut buf = BodyBuf::new();
+    ///
+    /// let mut raw = buf.store_raw(Signature::new("as")?)?;
+    /// let mut array = raw.store_array(Alignment::U32);
+    /// array.as_raw().store("Hello");
+    /// array.as_raw().store("World");
+    /// array.finish();
+    ///
+    /// assert_eq!(buf.signature(), "as");
+    ///
+    /// let mut buf = buf.as_body();
+    /// let mut array = buf.load_array::<ty::Str>()?;
+    /// assert_eq!(array.read()?, Some("Hello"));
+    /// assert_eq!(array.read()?, Some("World"));
+    /// assert_eq!(array.read()?, None);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    pub fn store_raw(&mut self, signature: &Signature) -> Result<Raw<'_>> {
+        self.extend_signature(signature)?;
+        Ok(Raw::new(self))
+    }
+
+    /// Extend the signature of the buffer without writing anything.
+    ///
+    /// This is used together with [`raw()`] by code which writes several values
+    /// into the same buffer and declares their combined signature up front, such
+    /// as the argument list of a message.
+    ///
+    /// [`raw()`]: Self::raw
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{BodyBuf, Signature};
+    ///
+    /// let mut buf = BodyBuf::new();
+    /// buf.extend_signature(Signature::new("us")?)?;
+    ///
+    /// buf.raw().store(42u32);
+    /// buf.raw().store("Hello World!");
+    ///
+    /// assert_eq!(buf.signature(), "us");
+    ///
+    /// let mut buf = buf.as_body();
+    /// assert_eq!(buf.load::<u32>()?, 42);
+    /// assert_eq!(buf.read::<str>()?, "Hello World!");
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    pub fn extend_signature(&mut self, signature: &Signature) -> Result<()> {
+        if !self.signature.extend_from_signature(signature) {
+            return Err(SignatureError::too_long().into());
+        }
+
+        Ok(())
+    }
+
+    /// A writer which writes values without touching the signature of the
+    /// buffer.
+    ///
+    /// See [`extend_signature()`].
+    ///
+    /// [`extend_signature()`]: Self::extend_signature
+    #[inline]
+    pub fn raw(&mut self) -> Raw<'_> {
+        Raw::new(self)
     }
 }
 

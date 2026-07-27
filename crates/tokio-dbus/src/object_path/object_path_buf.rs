@@ -1,4 +1,6 @@
 use core::borrow::Borrow;
+use core::fmt;
+use core::hash;
 use core::ops::Deref;
 
 use alloc::vec::Vec;
@@ -40,6 +42,30 @@ impl ObjectPathBuf {
         // SAFETY: This type ensures during construction that the object path it
         // contains is valid.
         unsafe { ObjectPath::new_unchecked(&self.0) }
+    }
+}
+
+impl hash::Hash for ObjectPathBuf {
+    #[inline]
+    fn hash<H>(&self, state: &mut H)
+    where
+        H: hash::Hasher,
+    {
+        hash::Hash::hash(&**self, state);
+    }
+}
+
+impl fmt::Display for ObjectPathBuf {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&**self, f)
+    }
+}
+
+impl fmt::Debug for ObjectPathBuf {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Debug::fmt(&**self, f)
     }
 }
 

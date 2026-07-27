@@ -328,6 +328,23 @@ impl Signature {
     }
 }
 
+/// Format the signature as the string of type codes it consists of.
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::Signature;
+///
+/// assert_eq!(Signature::new("a{sv}")?.to_string(), "a{sv}");
+/// # Ok::<_, tokio_dbus::SignatureError>(())
+/// ```
+impl fmt::Display for Signature {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
 impl fmt::Debug for Signature {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

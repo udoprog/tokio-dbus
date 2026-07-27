@@ -20,6 +20,29 @@ impl SendBuf {
         }
     }
 
+    /// Test if there are no buffered messages waiting to be written out.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
+    ///
+    /// let mut send = SendBuf::new();
+    /// assert!(send.is_empty());
+    ///
+    /// let m = send.method_call(PATH, "Hello");
+    /// send.write_message(m)?;
+    ///
+    /// assert!(!send.is_empty());
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.buf.is_empty()
+    }
+
     /// Extend the buffer with a slice.
     pub(crate) fn extend_from_slice(&mut self, bytes: &[u8]) {
         self.buf.extend_from_slice(bytes);

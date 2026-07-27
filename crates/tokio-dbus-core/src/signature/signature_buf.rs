@@ -127,6 +127,13 @@ impl SignatureBuf {
     }
 }
 
+impl fmt::Display for SignatureBuf {
+    #[inline]
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(&**self, f)
+    }
+}
+
 impl fmt::Debug for SignatureBuf {
     #[inline]
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -189,6 +196,20 @@ impl Eq for SignatureBuf {}
 /// assert_eq!(SignatureBuf::new(b"s")?, *Signature::STRING);
 /// # Ok::<_, tokio_dbus::Error>(())
 /// ```
+impl PartialEq<str> for SignatureBuf {
+    #[inline]
+    fn eq(&self, other: &str) -> bool {
+        self.as_bytes() == other.as_bytes()
+    }
+}
+
+impl PartialEq<&str> for SignatureBuf {
+    #[inline]
+    fn eq(&self, other: &&str) -> bool {
+        self.as_bytes() == other.as_bytes()
+    }
+}
+
 impl PartialEq<Signature> for SignatureBuf {
     #[inline]
     fn eq(&self, other: &Signature) -> bool {

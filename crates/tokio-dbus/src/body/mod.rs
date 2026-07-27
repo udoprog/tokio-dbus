@@ -567,6 +567,82 @@ impl<'a> Body<'a> {
         Ok(signature)
     }
 
+    /// Align the read cursor to the given alignment.
+    ///
+    /// This is the counterpart of [`Raw::align`], and is needed before reading
+    /// the fields of a struct or a dict entry whose shape is only known at
+    /// runtime.
+    ///
+    /// [`Raw::align`]: crate::Raw::align
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{ty, Alignment, BodyBuf};
+    ///
+    /// let mut buf = BodyBuf::new();
+    ///
+    /// buf.store(1u8)?;
+    /// buf.store_struct::<(u32, u32)>()?.store(2u32).store(3u32).finish();
+    ///
+    /// let mut buf = buf.as_body();
+    /// assert_eq!(buf.load::<u8>()?, 1);
+    ///
+    /// buf.align_to(Alignment::U64)?;
+    /// assert_eq!(buf.load::<u32>()?, 2);
+    /// assert_eq!(buf.load::<u32>()?, 3);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    #[cfg(feature = "alloc")]
+    pub fn align_to(&mut self, alignment: crate::Alignment) -> Result<()> {
+        self.data.align_to(alignment.in_bytes())
+    }
+
+    /// Read an array whose elements have the given alignment, returning a
+    /// [`Body`] over its contents.
+    ///
+    /// This is the counterpart of [`Raw::store_array`].
+    ///
+    /// [`Raw::store_array`]: crate::Raw::store_array
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{ty, Alignment, BodyBuf};
+    ///
+    /// let mut buf = BodyBuf::new();
+    ///
+    /// let mut array = buf.store_array::<ty::Str>()?;
+    /// array.store("Hello");
+    /// array.store("World");
+    /// array.finish();
+    ///
+    /// let mut buf = buf.as_body();
+    /// let mut array = buf.load_raw_array(Alignment::U32)?;
+    ///
+    /// let mut out = Vec::new();
+    ///
+    /// while !array.is_empty() {
+    ///     out.push(array.read::<str>()?);
+    /// }
+    ///
+    /// assert_eq!(out, ["Hello", "World"]);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    #[cfg(feature = "alloc")]
+    pub fn load_raw_array(&mut self, alignment: crate::Alignment) -> Result<Body<'a>> {
+        let bytes = self.load::<u32>()?;
+
+        if bytes > crate::buf::MAX_ARRAY_LENGTH {
+            return Err(crate::Error::new(crate::error::ErrorKind::ArrayTooLong(
+                bytes,
+            )));
+        }
+
+        self.align_to(alignment)?;
+        Ok(self.read_until(bytes as usize))
+    }
+
     /// Advance the read cursor by `n`.
     #[cfg(feature = "alloc")]
     #[inline]
@@ -578,13 +654,6 @@ impl<'a> Body<'a> {
     #[inline]
     pub(crate) fn align<T>(&mut self) -> Result<()> {
         self.data.align::<T>()
-    }
-
-    /// Align the read side of the buffer to a dynamic alignment.
-    #[cfg(feature = "alloc")]
-    #[inline]
-    pub(crate) fn align_to(&mut self, align: usize) -> Result<()> {
-        self.data.align_to(align)
     }
 
     /// Load a slice.

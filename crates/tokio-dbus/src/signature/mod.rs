@@ -5,13 +5,13 @@ mod tests;
 mod stack;
 
 #[doc(inline)]
-pub(crate) use tokio_dbus_core::signature::{MAX_DEPTH, SignatureBuilder};
+pub(crate) use tokio_dbus_core::signature::MAX_DEPTH;
 #[doc(inline)]
-pub use tokio_dbus_core::signature::{Signature, SignatureBuf, SignatureError};
+pub use tokio_dbus_core::signature::{Signature, SignatureBuf, SignatureBuilder, SignatureError};
 
 use crate::error::Result;
 
-use crate::{Body, Read, Write, WriteAligned, WriteUnaligned};
+use crate::{Alignment, Body, Read, Write, WriteAligned, WriteUnaligned};
 
 impl crate::write::sealed::Sealed for Signature {}
 
@@ -55,20 +55,22 @@ impl Read for Signature {
 /// An absent type code cannot legally occur in a validated signature, but is
 /// treated as being byte-aligned so that the caller doesn't have to handle it.
 #[cfg(feature = "alloc")]
-fn alignment_of(byte: Option<u8>) -> usize {
+fn alignment_of(byte: Option<u8>) -> Alignment {
     use crate::proto::Type;
 
     let Some(byte) = byte else {
-        return 1;
+        return Alignment::BYTE;
     };
 
     match Type::new(byte) {
-        Type::BYTE | Type::SIGNATURE | Type::VARIANT => 1,
-        Type::INT16 | Type::UINT16 => 2,
-        Type::INT64 | Type::UINT64 | Type::DOUBLE | Type::OPEN_PAREN | Type::OPEN_BRACE => 8,
+        Type::BYTE | Type::SIGNATURE | Type::VARIANT => Alignment::BYTE,
+        Type::INT16 | Type::UINT16 => Alignment::U16,
+        Type::INT64 | Type::UINT64 | Type::DOUBLE | Type::OPEN_PAREN | Type::OPEN_BRACE => {
+            Alignment::U64
+        }
         // NB: Covers `bihu`, `so` and nested arrays, all of which are aligned
         // to 4 bytes.
-        _ => 4,
+        _ => Alignment::U32,
     }
 }
 

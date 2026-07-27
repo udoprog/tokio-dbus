@@ -19,3 +19,13 @@ To currently see how it's used, see:
   `com.canonical.dbusmenu`.
 * [examples/notification.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/examples/notification.rs),
   sending a desktop notification through `org.freedesktop.Notifications`.
+
+Both of those have a counterpart which does the same thing through bindings
+generated from an interface file by [`tokio-dbus-codegen`], driven by
+[`tokio-dbus-runtime`]:
+[examples/systray_codegen.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/examples/systray_codegen.rs)
+and
+[examples/notification_codegen.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/examples/notification_codegen.rs).
+
+[`tokio-dbus-codegen`]: https://docs.rs/tokio-dbus-codegen
+[`tokio-dbus-runtime`]: https://docs.rs/tokio-dbus-runtime

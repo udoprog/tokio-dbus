@@ -222,6 +222,27 @@ impl AlignedBuf {
         }
     }
 
+    /// Align the write end of the buffer to a dynamically determined alignment.
+    ///
+    /// # Panics
+    ///
+    /// Panics unless `align` is a non-zero power of two.
+    pub(crate) fn align_mut_to(&mut self, align: usize) {
+        assert!(align.is_power_of_two(), "alignment must be a power of two");
+
+        // SAFETY: The alignment was just asserted to be a power of two.
+        let padding = unsafe { crate::buf::padding_to_with(align, self.len) };
+        let requested = self.len + padding + align;
+
+        self.ensure_capacity(requested);
+
+        // SAFETY: We've ensured that the buffer has sufficient capacity just
+        // above.
+        unsafe {
+            self.zero(padding);
+        }
+    }
+
     unsafe fn zero(&mut self, len: usize) {
         unsafe {
             let at = self.data.as_ptr().wrapping_add(self.len);

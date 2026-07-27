@@ -57,9 +57,15 @@ pub(crate) enum ErrorKind {
     },
     MissingMethodName,
     MissingInterfaceName,
+    MissingSignalName,
+    MissingPropertyName,
+    MissingPropertyType,
+    MissingPropertyAccess,
+    UnsupportedPropertyAccess(Box<str>),
+    MissingAnnotationName,
+    MissingAnnotationValue,
     MissingArgumentType,
     UnsupportedArgumentDirection(Box<str>),
-    MissingArgumentDirection,
 }
 
 impl From<xmlparser::Error> for ErrorKind {
@@ -102,14 +108,32 @@ impl fmt::Display for ErrorKind {
             ErrorKind::MissingInterfaceName => {
                 write!(f, "Missing interface name")
             }
+            ErrorKind::MissingSignalName => {
+                write!(f, "Missing signal name")
+            }
+            ErrorKind::MissingPropertyName => {
+                write!(f, "Missing property name")
+            }
+            ErrorKind::MissingPropertyType => {
+                write!(f, "Missing property type")
+            }
+            ErrorKind::MissingPropertyAccess => {
+                write!(f, "Missing property access")
+            }
+            ErrorKind::UnsupportedPropertyAccess(value) => {
+                write!(f, "Unsupported property access `{value}`")
+            }
+            ErrorKind::MissingAnnotationName => {
+                write!(f, "Missing annotation name")
+            }
+            ErrorKind::MissingAnnotationValue => {
+                write!(f, "Missing annotation value")
+            }
             ErrorKind::MissingArgumentType => {
                 write!(f, "Missing argument type")
             }
             ErrorKind::UnsupportedArgumentDirection(value) => {
                 write!(f, "Unsupported argument direction `{value}`")
-            }
-            ErrorKind::MissingArgumentDirection => {
-                write!(f, "Missing argument direction")
             }
         }
     }

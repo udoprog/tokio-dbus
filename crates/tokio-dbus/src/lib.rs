@@ -16,6 +16,16 @@
 //!   `com.canonical.dbusmenu`.
 //! * [examples/notification.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/examples/notification.rs),
 //!   sending a desktop notification through `org.freedesktop.Notifications`.
+//!
+//! Both of those have a counterpart which does the same thing through bindings
+//! generated from an interface file by [`tokio-dbus-codegen`], driven by
+//! [`tokio-dbus-runtime`]:
+//! [examples/systray_codegen.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/examples/systray_codegen.rs)
+//! and
+//! [examples/notification_codegen.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/examples/notification_codegen.rs).
+//!
+//! [`tokio-dbus-codegen`]: https://docs.rs/tokio-dbus-codegen
+//! [`tokio-dbus-runtime`]: https://docs.rs/tokio-dbus-runtime
 
 #![deny(missing_docs)]
 #![allow(clippy::module_inception)]
@@ -53,7 +63,7 @@ pub(crate) mod buf;
 
 #[doc(inline)]
 #[cfg(feature = "alloc")]
-pub use self::body_buf::{BodyBuf, StoreArray, StoreStruct, StoreVariant};
+pub use self::body_buf::{BodyBuf, Raw, RawArray, StoreArray, StoreStruct, StoreVariant};
 #[cfg(feature = "alloc")]
 mod body_buf;
 
@@ -74,7 +84,7 @@ pub use self::recv_buf::RecvBuf;
 mod recv_buf;
 
 #[doc(inline)]
-pub use self::signature::{Signature, SignatureBuf, SignatureError};
+pub use self::signature::{Signature, SignatureBuf, SignatureBuilder, SignatureError};
 mod signature;
 
 #[doc(inline)]
@@ -119,6 +129,10 @@ mod object_path;
 #[doc(inline)]
 pub use self::variant::Variant;
 mod variant;
+
+#[doc(inline)]
+pub use self::alignment::Alignment;
+mod alignment;
 
 pub mod ty;
 

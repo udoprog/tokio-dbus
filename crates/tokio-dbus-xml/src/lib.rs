@@ -9,7 +9,10 @@ mod tests;
 pub use self::error::{Error, Result};
 mod error;
 
-pub use self::elements::{Argument, Description, Direction, Doc, Interface, Method, Node};
+pub use self::elements::{
+    Access, Annotation, Argument, Description, Direction, Doc, Interface, Method, Node, Property,
+    Signal,
+};
 mod elements;
 
 pub use self::parser::parse_interface;
