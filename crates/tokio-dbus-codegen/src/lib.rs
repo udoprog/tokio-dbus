@@ -19,10 +19,10 @@
 //!
 //! ```toml
 //! [dependencies]
-//! tokio-dbus-runtime = "0.0.17"
+//! tokio-dbus-runtime = "0.1.0"
 //!
 //! [build-dependencies]
-//! tokio-dbus-codegen = "0.0.17"
+//! tokio-dbus-codegen = "0.1.0"
 //! ```
 //!
 //! Then write a `build.rs` which names the interface files to read and what to
