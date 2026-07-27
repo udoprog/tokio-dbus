@@ -14,6 +14,10 @@ use super::padding_to;
 /// A read-only view into an aligned buffer.
 pub struct Aligned<'a> {
     data: ptr::NonNull<u8>,
+    /// The offset of `data` relative to the start of the buffer alignment is
+    /// calculated from. Sub-slices carry this along so that padding inside of a
+    /// container is calculated the same way it was written.
+    base: usize,
     read: usize,
     written: usize,
     _marker: PhantomData<&'a [u8]>,
@@ -29,10 +33,18 @@ impl<'a> Aligned<'a> {
     pub(crate) const fn new(data: ptr::NonNull<u8>, written: usize) -> Self {
         Self {
             data,
+            base: 0,
             read: 0,
             written,
             _marker: PhantomData,
         }
+    }
+
+    /// The offset the read cursor is at relative to the buffer alignment is
+    /// calculated from.
+    #[inline]
+    fn at(&self) -> usize {
+        self.base + self.read
     }
 
     /// Get a slice out of the buffer that has ben written to.
@@ -60,8 +72,16 @@ impl<'a> Aligned<'a> {
     pub(crate) fn read_until(&mut self, n: usize) -> Aligned<'a> {
         assert!(n <= self.len(), "requested: {n} > length: {}", self.len());
         let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
+        let base = self.at();
         self.read += n;
-        Aligned::new(data, n)
+
+        Aligned {
+            data,
+            base,
+            read: 0,
+            written: n,
+            _marker: PhantomData,
+        }
     }
 
     /// Load a frame of the given type.
@@ -69,7 +89,7 @@ impl<'a> Aligned<'a> {
     where
         T: Frame,
     {
-        let padding = padding_to::<T>(self.read);
+        let padding = padding_to::<T>(self.at());
 
         if self.read + padding + size_of::<T>() > self.written {
             return Err(Error::new(ErrorKind::BufferUnderflow));
@@ -100,8 +120,25 @@ impl<'a> Aligned<'a> {
 
     /// Align the read side of the buffer.
     pub(crate) fn align<T>(&mut self) -> Result<()> {
-        let padding = padding_to::<T>(self.read);
+        let padding = padding_to::<T>(self.at());
+        self.pad(padding)
+    }
 
+    /// Align the read side of the buffer to a dynamically determined alignment.
+    ///
+    /// # Panics
+    ///
+    /// Panics unless `align` is a non-zero power of two.
+    #[cfg(feature = "alloc")]
+    pub(crate) fn align_to(&mut self, align: usize) -> Result<()> {
+        assert!(align.is_power_of_two(), "alignment must be a power of two");
+        // SAFETY: The alignment was just asserted to be a power of two.
+        let padding = unsafe { super::padding_to_with(align, self.at()) };
+        self.pad(padding)
+    }
+
+    #[inline]
+    fn pad(&mut self, padding: usize) -> Result<()> {
         if self.read + padding > self.written {
             return Err(Error::from(ErrorKind::BufferUnderflow));
         }
@@ -158,6 +195,7 @@ impl Clone for Aligned<'_> {
     fn clone(&self) -> Self {
         Self {
             data: self.data,
+            base: self.base,
             read: self.read,
             written: self.written,
             _marker: self._marker,

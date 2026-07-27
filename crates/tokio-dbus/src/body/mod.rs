@@ -350,6 +350,47 @@ impl<'a> Body<'a> {
         E::load_struct(self)
     }
 
+    /// Read a struct whose fields are read by the given closure.
+    ///
+    /// This aligns the buffer as a struct and then hands it to `f`. It is an
+    /// escape hatch for structs which [`load_struct()`] cannot describe, such as
+    /// ones containing a variant of an unknown type.
+    ///
+    /// [`load_struct()`]: Self::load_struct
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{ty, BodyBuf, Signature};
+    ///
+    /// let mut buf = BodyBuf::new();
+    ///
+    /// buf.store_struct::<(u32, ty::Variant)>()?
+    ///     .store(42u32)
+    ///     .store_variant(Signature::new("as")?, |w| {
+    ///         w.store_array::<ty::Str>().store("Hello");
+    ///     })
+    ///     .finish();
+    ///
+    /// let mut buf = buf.as_body();
+    ///
+    /// let n = buf.load_struct_with(|b| {
+    ///     let n = b.load::<u32>()?;
+    ///     b.skip_variant()?;
+    ///     Ok(n)
+    /// })?;
+    ///
+    /// assert_eq!(n, 42);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    pub fn load_struct_with<F, O>(&mut self, f: F) -> Result<O>
+    where
+        F: FnOnce(&mut Body<'a>) -> Result<O>,
+    {
+        self.align::<u64>()?;
+        f(self)
+    }
+
     /// Load a frame of the given type.
     ///
     /// This advances the read cursor of the buffer by the alignment and size of
@@ -386,6 +427,146 @@ impl<'a> Body<'a> {
         Ok(frame)
     }
 
+    /// Load a [`bool`] from the buffer.
+    ///
+    /// The D-Bus `BOOLEAN` type is marshalled as a 32-bit integer, which is why
+    /// it cannot be loaded through [`load()`].
+    ///
+    /// [`load()`]: Self::load
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::BodyBuf;
+    ///
+    /// let mut buf = BodyBuf::new();
+    /// buf.store(true)?;
+    /// buf.store(false)?;
+    ///
+    /// let mut buf = buf.as_body();
+    /// assert!(buf.load_bool()?);
+    /// assert!(!buf.load_bool()?);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    pub fn load_bool(&mut self) -> Result<bool> {
+        Ok(self.load::<u32>()? != 0)
+    }
+
+    /// Read a [`Variant`] holding a value of a basic type from the buffer.
+    ///
+    /// [`Variant`]: crate::Variant
+    ///
+    /// # Errors
+    ///
+    /// Errors if the variant holds a container. Use [`skip_variant()`] to skip
+    /// over a variant of an unknown type instead.
+    ///
+    /// [`skip_variant()`]: Self::skip_variant
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{BodyBuf, Variant};
+    ///
+    /// let mut buf = BodyBuf::new();
+    /// buf.store(Variant::U32(42))?;
+    ///
+    /// let mut buf = buf.as_body();
+    /// assert_eq!(buf.read_variant()?, Variant::U32(42));
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    pub fn read_variant(&mut self) -> Result<crate::Variant<'a>> {
+        <ty::Variant as ty::Marker>::load_struct(self)
+    }
+
+    /// Read a variant which is expected to contain a value of type `T`.
+    ///
+    /// Unlike [`read_variant()`] this can read containers, but requires the
+    /// caller to know which type the variant contains.
+    ///
+    /// [`read_variant()`]: Self::read_variant
+    ///
+    /// # Errors
+    ///
+    /// Errors if the variant does not contain a value of type `T`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{ty, BodyBuf, Signature};
+    ///
+    /// let mut buf = BodyBuf::new();
+    ///
+    /// let mut array = buf.store_variant(Signature::new("as")?)?.store_array::<ty::Str>();
+    /// array.store("Hello");
+    /// array.store("World");
+    /// array.finish();
+    ///
+    /// let mut buf = buf.as_body();
+    /// let mut array = buf.read_variant_as::<ty::Array<ty::Str>>()?;
+    ///
+    /// assert_eq!(array.read()?, Some("Hello"));
+    /// assert_eq!(array.read()?, Some("World"));
+    /// assert_eq!(array.read()?, None);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    pub fn read_variant_as<T>(&mut self) -> Result<T::Return<'a>>
+    where
+        T: ty::Marker,
+    {
+        let signature = self.read::<Signature>()?;
+
+        let mut expected = crate::signature::SignatureBuilder::new();
+        T::write_signature(&mut expected)?;
+
+        if signature != expected.to_signature() {
+            #[cfg(feature = "alloc")]
+            return Err(crate::Error::new(
+                crate::error::ErrorKind::UnsupportedVariant(signature.into()),
+            ));
+            #[cfg(not(feature = "alloc"))]
+            return Err(crate::Error::new(
+                crate::error::ErrorKind::UnsupportedVariantNoAlloc,
+            ));
+        }
+
+        self.align::<T::Alignment>()?;
+        T::load_struct(self)
+    }
+
+    /// Skip over a variant of any type, returning the signature of the value it
+    /// contained.
+    ///
+    /// This is useful for arguments which are declared as variants but which
+    /// the receiver has no interest in, such as the `data` argument of the
+    /// `com.canonical.dbusmenu.Event` method.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{ty, BodyBuf, Signature};
+    ///
+    /// let mut buf = BodyBuf::new();
+    ///
+    /// buf.store_variant(Signature::new("as")?)?
+    ///     .store_array::<ty::Str>()
+    ///     .store("Hello");
+    /// buf.store(42u32)?;
+    ///
+    /// assert_eq!(buf.signature(), "vu");
+    ///
+    /// let mut buf = buf.as_body();
+    /// assert_eq!(buf.skip_variant()?, Signature::new("as")?);
+    /// assert_eq!(buf.load::<u32>()?, 42);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    #[cfg(feature = "alloc")]
+    pub fn skip_variant(&mut self) -> Result<&'a Signature> {
+        let signature = self.read::<Signature>()?;
+        crate::signature::skip(signature, self)?;
+        Ok(signature)
+    }
+
     /// Advance the read cursor by `n`.
     #[cfg(feature = "alloc")]
     #[inline]
@@ -397,6 +578,13 @@ impl<'a> Body<'a> {
     #[inline]
     pub(crate) fn align<T>(&mut self) -> Result<()> {
         self.data.align::<T>()
+    }
+
+    /// Align the read side of the buffer to a dynamic alignment.
+    #[cfg(feature = "alloc")]
+    #[inline]
+    pub(crate) fn align_to(&mut self, align: usize) -> Result<()> {
+        self.data.align_to(align)
     }
 
     /// Load a slice.

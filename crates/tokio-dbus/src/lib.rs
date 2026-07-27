@@ -11,6 +11,9 @@
 //! To currently see how it's used, see:
 //! * [examples/client.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/examples/client.rs)
 //! * [examples/server.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/examples/server.rs)
+//! * [examples/systray.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/examples/systray.rs),
+//!   a systray icon with a menu, implementing `org.kde.StatusNotifierItem` and
+//!   `com.canonical.dbusmenu`.
 
 #![deny(missing_docs)]
 #![allow(clippy::module_inception)]
@@ -48,7 +51,7 @@ pub(crate) mod buf;
 
 #[doc(inline)]
 #[cfg(feature = "alloc")]
-pub use self::body_buf::{BodyBuf, StoreArray, StoreStruct};
+pub use self::body_buf::{BodyBuf, StoreArray, StoreStruct, StoreVariant};
 #[cfg(feature = "alloc")]
 mod body_buf;
 

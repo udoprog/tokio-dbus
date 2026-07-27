@@ -191,6 +191,41 @@ impl Connection {
         Ok(())
     }
 
+    /// Write out every message which has been buffered for sending.
+    ///
+    /// Messages are only handed to the bus while the connection is making
+    /// progress, so this is needed to ensure that a message is on its way before
+    /// the connection is dropped.
+    ///
+    /// Note that incoming messages may be received while flushing, in which case
+    /// the last one is available through [`RecvBuf::last_message()`] just like
+    /// after a call to [`wait()`].
+    ///
+    /// [`RecvBuf::last_message()`]: crate::RecvBuf::last_message
+    /// [`wait()`]: Self::wait
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use tokio_dbus::{Buffers, Connection};
+    ///
+    /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
+    /// let mut c = Connection::session_bus()?;
+    /// let mut buf = Buffers::new();
+    /// c.connect(&mut buf).await?;
+    ///
+    /// buf.hello()?;
+    /// c.flush(&mut buf).await?;
+    /// # Ok(()) }
+    /// ```
+    pub async fn flush(&mut self, buf: &mut Buffers) -> Result<()> {
+        while !buf.send.buf().is_empty() {
+            self.io(buf).await?;
+        }
+
+        Ok(())
+    }
+
     async fn io(&mut self, buf: &mut Buffers) -> Result<()> {
         if let ConnectionState::Sasl(Sasl::Stage(initial, stage)) = self.state {
             if initial {

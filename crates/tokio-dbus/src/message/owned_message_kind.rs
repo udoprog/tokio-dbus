@@ -29,6 +29,8 @@ pub(crate) enum OwnedMessageKind {
     },
     /// Signal emission.
     Signal {
+        /// The path the signal is emitted from.
+        path: Box<ObjectPath>,
         /// The member being signalled.
         member: Box<str>,
     },
@@ -52,7 +54,10 @@ impl OwnedMessageKind {
                 error_name,
                 reply_serial,
             },
-            OwnedMessageKind::Signal { ref member } => MessageKind::Signal { member },
+            OwnedMessageKind::Signal {
+                ref path,
+                ref member,
+            } => MessageKind::Signal { path, member },
         }
     }
 }

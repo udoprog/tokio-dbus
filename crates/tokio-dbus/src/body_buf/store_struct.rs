@@ -1,9 +1,9 @@
 use std::marker::PhantomData;
 
 use crate::ty;
-use crate::{Arguments, BodyBuf, Storable};
+use crate::{Arguments, BodyBuf, Signature, Storable};
 
-use super::StoreArray;
+use super::{StoreArray, StoreVariant};
 
 /// Write a struct.
 ///
@@ -136,20 +136,75 @@ impl<'a, T> StoreStruct<'a, T> {
         StoreStruct::inner(self.buf)
     }
 
-    /// Store a value and return the builder for the next value to store.
+    /// Store a nested struct and return the builder for the next value to
+    /// store.
     ///
-    /// See [`BodyBuf::store_struct`].
+    /// # Examples
     ///
-    /// [`BodyBuf::store_struct`]: crate::BodyBuf::store_struct
+    /// ```
+    /// use tokio_dbus::{BodyBuf, Endianness};
+    /// use tokio_dbus::ty;
+    ///
+    /// let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
+    ///
+    /// buf.store_struct::<((u32, ty::Str), u8)>()?
+    ///     .store_struct(|w| {
+    ///         w.store(42u32).store("Hello World").finish();
+    ///     })
+    ///     .store(1u8)
+    ///     .finish();
+    ///
+    /// assert_eq!(buf.signature(), b"((us)y)");
+    ///
+    /// let mut buf = buf.as_body();
+    /// let ((n, string), b) = buf.load_struct::<((u32, ty::Str), u8)>()?;
+    ///
+    /// assert_eq!(n, 42);
+    /// assert_eq!(string, "Hello World");
+    /// assert_eq!(b, 1);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
     #[inline]
     pub fn store_struct<W>(self, writer: W) -> StoreStruct<'a, T::Remaining>
     where
-        W: FnOnce(&mut StoreStruct<'_, T::First>),
+        W: FnOnce(StoreStruct<'_, T::First>),
         T: ty::Fields,
         T::First: ty::Fields,
     {
-        let mut w = StoreStruct::new(self.buf);
-        writer(&mut w);
+        writer(StoreStruct::new(self.buf));
+        StoreStruct::inner(self.buf)
+    }
+
+    /// Store a variant and return the builder for the next value to store.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{ty, BodyBuf, Signature, Variant};
+    ///
+    /// let mut buf = BodyBuf::new();
+    ///
+    /// buf.store_struct::<(u32, ty::Variant)>()?
+    ///     .store(42u32)
+    ///     .store_variant(Signature::STRING, |w| w.store("Hello World!"))
+    ///     .finish();
+    ///
+    /// assert_eq!(buf.signature(), "(uv)");
+    ///
+    /// let mut buf = buf.as_body();
+    /// let (n, value) = buf.load_struct::<(u32, ty::Variant)>()?;
+    ///
+    /// assert_eq!(n, 42);
+    /// assert_eq!(value, Variant::String("Hello World!"));
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    #[inline]
+    pub fn store_variant<W>(self, signature: &Signature, writer: W) -> StoreStruct<'a, T::Remaining>
+    where
+        W: FnOnce(StoreVariant<'_>),
+        T: ty::Fields<First = ty::Variant>,
+    {
+        writer(StoreVariant::new(self.buf, signature));
         StoreStruct::inner(self.buf)
     }
 }

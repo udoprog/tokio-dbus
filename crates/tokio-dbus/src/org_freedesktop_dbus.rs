@@ -8,8 +8,37 @@ pub const DESTINATION: &str = "org.freedesktop.DBus";
 /// Well known interface name.
 pub const INTERFACE: &str = "org.freedesktop.DBus";
 
+/// The standard interface through which properties of an object are read and
+/// written.
+pub const PROPERTIES_INTERFACE: &str = "org.freedesktop.DBus.Properties";
+
+/// The standard interface through which the interfaces implemented by an object
+/// are described as XML.
+pub const INTROSPECTABLE_INTERFACE: &str = "org.freedesktop.DBus.Introspectable";
+
+/// The standard interface implemented by every peer on a connection.
+pub const PEER_INTERFACE: &str = "org.freedesktop.DBus.Peer";
+
 /// Well known D-Bus path.
 pub const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
+
+/// The error raised when a message is sent to an object which does not exist.
+pub const UNKNOWN_OBJECT_ERROR: &str = "org.freedesktop.DBus.Error.UnknownObject";
+
+/// The error raised when a message names an interface which is not implemented.
+pub const UNKNOWN_INTERFACE_ERROR: &str = "org.freedesktop.DBus.Error.UnknownInterface";
+
+/// The error raised when a message names a method which does not exist.
+pub const UNKNOWN_METHOD_ERROR: &str = "org.freedesktop.DBus.Error.UnknownMethod";
+
+/// The error raised when a message names a property which does not exist.
+pub const UNKNOWN_PROPERTY_ERROR: &str = "org.freedesktop.DBus.Error.UnknownProperty";
+
+/// The error raised when the arguments of a message are not the ones expected.
+pub const INVALID_ARGS_ERROR: &str = "org.freedesktop.DBus.Error.InvalidArgs";
+
+/// A generic error, used when no more specific error applies.
+pub const FAILED_ERROR: &str = "org.freedesktop.DBus.Error.Failed";
 
 raw_set! {
     /// The flags to a `RequestName` call.

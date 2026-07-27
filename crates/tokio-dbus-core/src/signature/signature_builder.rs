@@ -100,6 +100,35 @@ impl SignatureBuilder {
         Ok(())
     }
 
+    /// Open a dict entry in the signature.
+    ///
+    /// A dict entry is only legal directly inside of an array, and must be
+    /// populated with exactly two fields where the first one is a basic type.
+    pub fn open_dict(&mut self) -> Result<(), SignatureError> {
+        if self.structs == MAX_CONTAINER_DEPTH || self.structs + self.arrays == MAX_DEPTH {
+            return Err(SignatureError::new(
+                SignatureErrorKind::ExceededMaximumDictRecursion,
+            ));
+        }
+
+        if !self.push(b'{') {
+            return Err(SignatureError::new(SignatureErrorKind::SignatureTooLong));
+        }
+
+        self.structs += 1;
+        Ok(())
+    }
+
+    /// Close a dict entry in the signature.
+    pub fn close_dict(&mut self) -> Result<(), SignatureError> {
+        if !self.push(b'}') {
+            return Err(SignatureError::new(SignatureErrorKind::SignatureTooLong));
+        }
+
+        self.structs -= 1;
+        Ok(())
+    }
+
     /// Push a single byte onto the signature.
     fn push(&mut self, byte: u8) -> bool {
         if self.init == MAX_SIGNATURE {

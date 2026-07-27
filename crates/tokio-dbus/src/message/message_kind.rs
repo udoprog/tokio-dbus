@@ -28,6 +28,8 @@ pub enum MessageKind<'a> {
     },
     /// Signal emission.
     Signal {
+        /// The path the signal is emitted from.
+        path: &'a ObjectPath,
         /// The member being signalled.
         member: &'a str,
     },
@@ -52,7 +54,8 @@ impl MessageKind<'_> {
                 error_name: error_name.into(),
                 reply_serial,
             },
-            MessageKind::Signal { member } => OwnedMessageKind::Signal {
+            MessageKind::Signal { path, member } => OwnedMessageKind::Signal {
+                path: path.into(),
                 member: member.into(),
             },
         }
@@ -93,12 +96,14 @@ impl PartialEq<OwnedMessageKind> for MessageKind<'_> {
             ) => *error_name_left == **error_name_right && reply_serial_left == *reply_serial_right,
             (
                 MessageKind::Signal {
+                    path: path_left,
                     member: member_left,
                 },
                 OwnedMessageKind::Signal {
+                    path: path_right,
                     member: member_right,
                 },
-            ) => *member_left == **member_right,
+            ) => *path_left == **path_right && *member_left == **member_right,
             _ => false,
         }
     }

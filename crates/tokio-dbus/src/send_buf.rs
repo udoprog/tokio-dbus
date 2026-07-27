@@ -81,16 +81,18 @@ impl SendBuf {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{Message, MessageBuf, SendBuf};
+    /// use tokio_dbus::{Message, MessageBuf, ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.signal("Hello").to_owned();
-    /// let m2 = MessageBuf::signal("Hello".into(), m.serial());
+    /// let m = send.signal(PATH, "Hello").to_owned();
+    /// let m2 = MessageBuf::signal(PATH.into(), "Hello".into(), m.serial());
     /// assert_eq!(m, m2);
     /// ```
-    pub fn signal<'a>(&mut self, member: &'a str) -> Message<'a> {
-        Message::signal(member, self.next_serial())
+    pub fn signal<'a>(&mut self, path: &'a ObjectPath, member: &'a str) -> Message<'a> {
+        Message::signal(path, member, self.next_serial())
     }
 
     /// Write a message to the buffer.
@@ -151,7 +153,12 @@ impl SendBuf {
                 self.buf.write(Signature::UINT32);
                 self.buf.store(reply_serial.get());
             }
-            MessageKind::Signal { member } => {
+            MessageKind::Signal { path, member } => {
+                self.buf.align_mut::<u64>();
+                self.buf.store(proto::Variant::PATH);
+                self.buf.write(Signature::OBJECT_PATH);
+                self.buf.write(path);
+
                 self.buf.align_mut::<u64>();
                 self.buf.store(proto::Variant::MEMBER);
                 self.buf.write(Signature::STRING);

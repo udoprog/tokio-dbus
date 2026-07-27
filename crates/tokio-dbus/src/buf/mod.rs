@@ -38,8 +38,12 @@ pub(crate) fn padding_to<T>(len: usize) -> usize {
 }
 
 /// Calculate padding with the assumption that alignment is a power of two.
+///
+/// # Safety
+///
+/// The caller must ensure that `align` is a non-zero power of two.
 #[inline(always)]
-unsafe fn padding_to_with(align: usize, len: usize) -> usize {
+pub(crate) unsafe fn padding_to_with(align: usize, len: usize) -> usize {
     let mask = align - 1;
     (align - (len & mask)) & mask
 }

@@ -94,6 +94,23 @@ impl Signature {
     /// ```
     pub const VARIANT: &'static Signature = Signature::new_const(b"v");
 
+    /// A boolean value, marshalled as a 32-bit integer which is either `0` or
+    /// `1`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{BodyBuf, Signature};
+    ///
+    /// let mut body = BodyBuf::new();
+    ///
+    /// body.store(true);
+    ///
+    /// assert_eq!(body.signature(), Signature::BOOLEAN);
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    pub const BOOLEAN: &'static Signature = Signature::new_const(b"b");
+
     /// A single byte.
     ///
     /// # Examples

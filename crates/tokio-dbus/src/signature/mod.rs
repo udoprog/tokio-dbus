@@ -50,6 +50,28 @@ impl Read for Signature {
     }
 }
 
+/// The alignment of the type introduced by the given type code.
+///
+/// An absent type code cannot legally occur in a validated signature, but is
+/// treated as being byte-aligned so that the caller doesn't have to handle it.
+#[cfg(feature = "alloc")]
+fn alignment_of(byte: Option<u8>) -> usize {
+    use crate::proto::Type;
+
+    let Some(byte) = byte else {
+        return 1;
+    };
+
+    match Type::new(byte) {
+        Type::BYTE | Type::SIGNATURE | Type::VARIANT => 1,
+        Type::INT16 | Type::UINT16 => 2,
+        Type::INT64 | Type::UINT64 | Type::DOUBLE | Type::OPEN_PAREN | Type::OPEN_BRACE => 8,
+        // NB: Covers `bihu`, `so` and nested arrays, all of which are aligned
+        // to 4 bytes.
+        _ => 4,
+    }
+}
+
 /// Return the stride needed to skip over read buffer.
 #[cfg(feature = "alloc")]
 pub(crate) fn skip(this: &Signature, read: &mut Body<'_>) -> Result<()> {
@@ -68,7 +90,9 @@ pub(crate) fn skip(this: &Signature, read: &mut Body<'_>) -> Result<()> {
     let mut stack = Stack::<bool, MAX_DEPTH>::new();
     let mut arrays = 0;
 
-    for &b in this.as_bytes() {
+    let bytes = this.as_bytes();
+
+    for (n, &b) in bytes.iter().enumerate() {
         let t = Type::new(b);
 
         let step = match t {
@@ -88,25 +112,32 @@ pub(crate) fn skip(this: &Signature, read: &mut Body<'_>) -> Result<()> {
             Type::UNIX_FD => Step::Fixed(4),
             Type::ARRAY => {
                 if arrays == 0 {
-                    let n = read.load::<u32>()? as usize;
-                    read.advance(n)?;
+                    let len = read.load::<u32>()? as usize;
+                    // The length prefix is followed by padding up to the
+                    // alignment of the element type, which is not counted
+                    // towards the length.
+                    read.align_to(alignment_of(bytes.get(n + 1).copied()))?;
+                    read.advance(len)?;
                 }
 
                 arrays += 1;
                 stack.try_push(true);
                 continue;
             }
-            Type::OPEN_PAREN => {
+            Type::OPEN_PAREN | Type::OPEN_BRACE => {
+                // NB: Structs and dict entries are aligned to 8 bytes. When
+                // we're inside of an array the whole array has already been
+                // skipped over, so there is nothing to align.
+                if arrays == 0 {
+                    read.align::<u64>()?;
+                }
+
                 stack.try_push(false);
                 continue;
             }
             Type::CLOSE_PAREN => {
                 stack.pop();
                 Step::Fixed(0)
-            }
-            Type::OPEN_BRACE => {
-                stack.try_push(false);
-                continue;
             }
             Type::CLOSE_BRACE => {
                 stack.pop();
@@ -140,7 +171,7 @@ pub(crate) fn skip(this: &Signature, read: &mut Body<'_>) -> Result<()> {
                 read.advance(n.saturating_add(1))?;
             }
             Step::Variant => {
-                let _ = read.load::<u8>()?;
+                // NB: Reading the signature consumes the length prefix.
                 let sig = read.read::<Signature>()?;
                 skip(sig, read)?;
             }

@@ -98,6 +98,9 @@ impl<'a> Message<'a> {
 
     /// Construct a signal [`Message`].
     ///
+    /// A signal is emitted from an object, so it carries the path of the object
+    /// which emitted it.
+    ///
     /// # Examples
     ///
     /// ```
@@ -107,14 +110,14 @@ impl<'a> Message<'a> {
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.signal("Hello");
-    /// let m2 = Message::signal("Hello", m.serial());
+    /// let m = send.signal(PATH, "Hello");
+    /// let m2 = Message::signal(PATH, "Hello", m.serial());
     /// assert_eq!(m, m2);
     /// ```
     #[must_use]
-    pub fn signal(member: &'a str, serial: Serial) -> Self {
+    pub fn signal(path: &'a ObjectPath, member: &'a str, serial: Serial) -> Self {
         Self {
-            kind: MessageKind::Signal { member },
+            kind: MessageKind::Signal { path, member },
             serial,
             flags: Flags::EMPTY,
             interface: None,

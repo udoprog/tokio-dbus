@@ -100,18 +100,20 @@ impl MessageBuf {
     /// # Examples
     ///
     /// ```
-    /// use tokio_dbus::{MessageBuf, SendBuf};
+    /// use tokio_dbus::{MessageBuf, ObjectPath, SendBuf};
+    ///
+    /// const PATH: &ObjectPath = ObjectPath::new_const(b"/org/freedesktop/DBus");
     ///
     /// let mut send = SendBuf::new();
     ///
-    /// let m = send.signal("Hello").to_owned();
-    /// let m2 = MessageBuf::signal("Hello".into(), m.serial());
+    /// let m = send.signal(PATH, "Hello").to_owned();
+    /// let m2 = MessageBuf::signal(PATH.into(), "Hello".into(), m.serial());
     /// assert_eq!(m, m2);
     /// ```
     #[must_use]
-    pub fn signal(member: Box<str>, serial: Serial) -> Self {
+    pub fn signal(path: Box<ObjectPath>, member: Box<str>, serial: Serial) -> Self {
         Self {
-            kind: OwnedMessageKind::Signal { member },
+            kind: OwnedMessageKind::Signal { path, member },
             serial,
             flags: Flags::EMPTY,
             interface: None,

@@ -206,11 +206,15 @@ fn last_message<'a>(
             }
         }
         proto::MessageType::SIGNAL => {
+            let Some(path) = path else {
+                return Err(Error::new(ErrorKind::MissingPath));
+            };
+
             let Some(member) = member else {
                 return Err(Error::new(ErrorKind::MissingMember));
             };
 
-            MessageKind::Signal { member }
+            MessageKind::Signal { path, member }
         }
         _ => return Err(Error::new(ErrorKind::InvalidProtocol)),
     };

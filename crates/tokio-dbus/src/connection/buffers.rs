@@ -97,6 +97,73 @@ impl Buffers {
         self.send.write_message(m)?;
         Ok(serial)
     }
+
+    /// Release a name which was previously acquired with [`request_name()`].
+    ///
+    /// [`request_name()`]: Self::request_name
+    pub fn release_name(&mut self, name: &str) -> Result<Serial> {
+        self.body.clear();
+        self.body.store(name)?;
+
+        let m = self
+            .send
+            .method_call(org_freedesktop_dbus::PATH, "ReleaseName")
+            .with_destination(org_freedesktop_dbus::DESTINATION)
+            .with_body(&self.body);
+
+        let serial = m.serial();
+        self.send.write_message(m)?;
+        Ok(serial)
+    }
+
+    /// Add a match rule, causing the bus to route matching messages to this
+    /// connection.
+    ///
+    /// Signals other than the ones the bus emits directly at this connection
+    /// are only delivered once a rule matching them has been added.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use tokio_dbus::{Buffers, Connection};
+    ///
+    /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
+    /// let mut c = Connection::session_bus()?;
+    /// let mut buf = Buffers::new();
+    /// c.connect(&mut buf).await?;
+    ///
+    /// buf.hello()?;
+    /// buf.add_match(
+    ///     "type='signal',sender='org.freedesktop.DBus',\
+    ///      interface='org.freedesktop.DBus',member='NameOwnerChanged'",
+    /// )?;
+    /// # Ok(()) }
+    /// ```
+    pub fn add_match(&mut self, rule: &str) -> Result<Serial> {
+        self.match_rule("AddMatch", rule)
+    }
+
+    /// Remove a match rule which was previously added with [`add_match()`].
+    ///
+    /// [`add_match()`]: Self::add_match
+    pub fn remove_match(&mut self, rule: &str) -> Result<Serial> {
+        self.match_rule("RemoveMatch", rule)
+    }
+
+    fn match_rule(&mut self, member: &str, rule: &str) -> Result<Serial> {
+        self.body.clear();
+        self.body.store(rule)?;
+
+        let m = self
+            .send
+            .method_call(org_freedesktop_dbus::PATH, member)
+            .with_destination(org_freedesktop_dbus::DESTINATION)
+            .with_body(&self.body);
+
+        let serial = m.serial();
+        self.send.write_message(m)?;
+        Ok(serial)
+    }
 }
 
 impl Default for Buffers {

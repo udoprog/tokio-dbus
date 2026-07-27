@@ -4,6 +4,12 @@ mod store_array;
 pub use self::store_struct::StoreStruct;
 mod store_struct;
 
+pub use self::store_variant::StoreVariant;
+mod store_variant;
+
+#[cfg(test)]
+mod tests;
+
 use core::fmt;
 
 use alloc::borrow::ToOwned;
@@ -484,6 +490,57 @@ impl BodyBuf {
         // NB: We write directly onto the underlying buffer, because we've
         // already applied the correct signature.
         Ok(StoreStruct::new(self))
+    }
+
+    /// Write a variant containing a value of the given signature into the
+    /// buffer.
+    ///
+    /// The signature of the contained value is provided at runtime, which is
+    /// what makes it possible to write recursive types.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::{BodyBuf, Signature, Variant};
+    ///
+    /// let mut buf = BodyBuf::new();
+    ///
+    /// buf.store_variant(Signature::UINT32)?.store(42u32);
+    ///
+    /// assert_eq!(buf.signature(), Signature::VARIANT);
+    ///
+    /// let mut buf = buf.as_body();
+    /// assert_eq!(buf.read_variant()?, Variant::U32(42));
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    ///
+    /// Containers can be written into the variant as well:
+    ///
+    /// ```
+    /// use tokio_dbus::{ty, BodyBuf, Signature};
+    ///
+    /// let mut buf = BodyBuf::new();
+    ///
+    /// buf.store_variant(Signature::new("(iiay)")?)?
+    ///     .store_struct::<(i32, i32, ty::Array<u8>)>()
+    ///     .store(2i32)
+    ///     .store(2i32)
+    ///     .store_array(|w| w.write_slice(&[0xff; 16]))
+    ///     .finish();
+    ///
+    /// assert_eq!(buf.signature(), Signature::VARIANT);
+    ///
+    /// let mut buf = buf.as_body();
+    /// assert_eq!(buf.skip_variant()?, Signature::new("(iiay)")?);
+    /// assert!(buf.is_empty());
+    /// # Ok::<_, tokio_dbus::Error>(())
+    /// ```
+    pub fn store_variant(&mut self, signature: &Signature) -> Result<StoreVariant<'_>> {
+        if !self.signature.extend_from_signature(Signature::VARIANT) {
+            return Err(SignatureError::too_long().into());
+        }
+
+        Ok(StoreVariant::new(self, signature))
     }
 }
 

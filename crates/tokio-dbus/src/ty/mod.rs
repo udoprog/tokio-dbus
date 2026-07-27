@@ -171,13 +171,12 @@ impl_trait_unsized_marker!(ObjectPath, u8, crate::ObjectPath, OBJECT_PATH);
 /// ```
 pub struct Array<T>(PhantomData<T>);
 
-impl<T> self::aligned::sealed::Sealed for Array<T> where T: Aligned {}
+impl<T> self::aligned::sealed::Sealed for Array<T> {}
 
-impl<T> Aligned for Array<T>
-where
-    T: Aligned,
-{
-    type Alignment = T;
+impl<T> Aligned for Array<T> {
+    // NB: An array starts with a 32-bit length prefix, regardless of the
+    // alignment of its elements.
+    type Alignment = u32;
 }
 
 impl<T> self::marker::sealed::Sealed for Array<T> where T: Marker {}
@@ -202,6 +201,123 @@ where
     }
 }
 
+/// The [`Marker`] for a dict entry, which is only legal as the element type of
+/// an [`Array`].
+///
+/// The key `K` must be a basic type.
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::{ty, BodyBuf};
+///
+/// let mut buf = BodyBuf::new();
+///
+/// let mut dict = buf.store_array::<ty::Dict<ty::Str, u32>>()?;
+/// dict.store_entry().store("Hello").store(42u32).finish();
+/// dict.finish();
+///
+/// assert_eq!(buf.signature(), "a{su}");
+///
+/// let mut buf = buf.as_body();
+/// let mut dict = buf.load_array::<ty::Dict<ty::Str, u32>>()?;
+///
+/// assert_eq!(dict.load_entry()?, Some(("Hello", 42)));
+/// assert_eq!(dict.load_entry()?, None);
+/// # Ok::<_, tokio_dbus::Error>(())
+/// ```
+pub struct Dict<K, V>(PhantomData<(K, V)>);
+
+impl<K, V> self::aligned::sealed::Sealed for Dict<K, V> {}
+
+impl<K, V> Aligned for Dict<K, V> {
+    // NB: Dict entries are aligned just like structs.
+    type Alignment = u64;
+}
+
+impl<K, V> self::marker::sealed::Sealed for Dict<K, V>
+where
+    K: Marker,
+    V: Marker,
+{
+}
+
+impl<K, V> Marker for Dict<K, V>
+where
+    K: Marker,
+    V: Marker,
+{
+    type Return<'de> = (K::Return<'de>, V::Return<'de>);
+
+    #[inline]
+    fn load_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>> {
+        buf.align::<u64>()?;
+        Ok((K::load_struct(buf)?, V::load_struct(buf)?))
+    }
+
+    #[inline]
+    fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError> {
+        signature.open_dict()?;
+        K::write_signature(signature)?;
+        V::write_signature(signature)?;
+        signature.close_dict()?;
+        Ok(())
+    }
+}
+
+/// The [`Marker`] for the D-Bus `BOOLEAN` type, which is marshalled as a 32-bit
+/// integer but read and written as a [`bool`].
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::{ty, BodyBuf};
+///
+/// let mut buf = BodyBuf::new();
+///
+/// buf.store_struct::<(ty::Bool, ty::Str)>()?
+///     .store(true)
+///     .store("Hello World!")
+///     .finish();
+///
+/// assert_eq!(buf.signature(), "(bs)");
+///
+/// let mut buf = buf.as_body();
+/// let (enabled, message) = buf.load_struct::<(ty::Bool, ty::Str)>()?;
+///
+/// assert!(enabled);
+/// assert_eq!(message, "Hello World!");
+/// # Ok::<_, tokio_dbus::Error>(())
+/// ```
+#[non_exhaustive]
+pub struct Bool;
+
+impl self::aligned::sealed::Sealed for Bool {}
+
+impl Aligned for Bool {
+    type Alignment = u32;
+}
+
+impl self::marker::sealed::Sealed for Bool {}
+
+impl Marker for Bool {
+    type Return<'de> = bool;
+
+    #[inline]
+    fn load_struct<'de>(buf: &mut Body<'de>) -> Result<Self::Return<'de>> {
+        Ok(buf.load::<u32>()? != 0)
+    }
+
+    #[inline]
+    fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError> {
+        if !signature.extend_from_signature(crate::Signature::BOOLEAN) {
+            return Err(SignatureError::too_long());
+        }
+
+        Ok(())
+    }
+}
+
 /// The [`Marker`] for the [`Variant`] type.
 ///
 /// [`Variant`]: crate::Variant
@@ -211,7 +327,9 @@ pub struct Variant;
 impl self::aligned::sealed::Sealed for Variant {}
 
 impl Aligned for Variant {
-    type Alignment = u32;
+    // NB: A variant starts with its signature, which is prefixed by a single
+    // byte holding its length.
+    type Alignment = u8;
 }
 
 impl self::marker::sealed::Sealed for Variant {}
@@ -224,8 +342,18 @@ impl Marker for Variant {
         let signature: &crate::Signature = buf.read()?;
 
         let variant = match signature.as_bytes() {
-            b"s" => crate::Variant::String(buf.read()?),
+            b"b" => crate::Variant::Bool(buf.load::<u32>()? != 0),
+            b"y" => crate::Variant::U8(buf.load()?),
+            b"n" => crate::Variant::I16(buf.load()?),
+            b"q" => crate::Variant::U16(buf.load()?),
+            b"i" => crate::Variant::I32(buf.load()?),
             b"u" => crate::Variant::U32(buf.load()?),
+            b"x" => crate::Variant::I64(buf.load()?),
+            b"t" => crate::Variant::U64(buf.load()?),
+            b"d" => crate::Variant::F64(buf.load()?),
+            b"s" => crate::Variant::String(buf.read()?),
+            b"o" => crate::Variant::ObjectPath(buf.read()?),
+            b"g" => crate::Variant::Signature(buf.read()?),
             #[cfg(feature = "alloc")]
             _ => {
                 return Err(Error::new(ErrorKind::UnsupportedVariant(signature.into())));
