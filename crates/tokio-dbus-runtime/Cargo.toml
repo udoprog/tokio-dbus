@@ -1,6 +1,6 @@
 [package]
 name = "tokio-dbus-runtime"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2024"
 rust-version = "1.90"
@@ -16,8 +16,8 @@ keywords = ["async", "d-bus", "dbus", "ipc", "tokio"]
 categories = ["asynchronous", "os::unix-apis"]
 
 [dependencies]
-tokio-dbus = { path = "../tokio-dbus", version = "=0.1.0" }
-tokio-dbus-core = { path = "../tokio-dbus-core", version = "=0.1.0" }
+tokio-dbus = { path = "../tokio-dbus", version = "=0.1.1" }
+tokio-dbus-core = { path = "../tokio-dbus-core", version = "=0.1.1" }
 
 [dev-dependencies]
 tokio = { version = "1.34.0", features = ["full"] }

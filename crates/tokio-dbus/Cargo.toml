@@ -1,6 +1,6 @@
 [package]
 name = "tokio-dbus"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2024"
 rust-version = "1.90"
@@ -22,7 +22,7 @@ std = []
 tokio = ["dep:tokio", "alloc", "std"]
 
 [dependencies]
-tokio-dbus-core = { path = "../tokio-dbus-core", version = "=0.1.0" }
+tokio-dbus-core = { path = "../tokio-dbus-core", version = "=0.1.1" }
 libc = { version = "0.2.150", default-features = false, optional = true }
 tokio = { version = "1.34.0", default-features = false, optional = true, features = ["net"] }
 
