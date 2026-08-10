@@ -14,7 +14,7 @@ pub(super) const fn validate(bytes: &[u8]) -> bool {
 
     while let [b, rest @ ..] = bytes {
         match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' => {
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'_' => {
                 component = true;
             }
             b'/' => {

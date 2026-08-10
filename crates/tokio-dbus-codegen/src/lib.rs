@@ -5,8 +5,8 @@
 //! Generate asynchronous D-Bus clients and servers from interface files at
 //! build time.
 //!
-//! The generated code speaks in owned Rust types — [`String`], [`Vec`],
-//! [`HashMap`] and tuples — and is driven by a
+//! The generated code speaks in owned Rust types [`String`], [`Vec`], and
+//! [`HashMap`] and tuples and is driven by a
 //! [`tokio_dbus_runtime::Connection`], which both crates a consumer needs to
 //! depend on.
 //!
