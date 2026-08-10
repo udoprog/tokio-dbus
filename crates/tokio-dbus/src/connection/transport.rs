@@ -35,7 +35,7 @@ impl Transport {
         Self::from_env([ENV_STARTER_ADDRESS, ENV_SESSION_BUS], None)
     }
 
-    /// Construct a new connection to the session bus.
+    /// Construct a new connection to the system bus.
     ///
     /// This uses the `DBUS_SYSTEM_BUS_ADDRESS` environment variable to
     /// determine its address or fallback to the well-known address
@@ -47,10 +47,8 @@ impl Transport {
         )
     }
 
-    /// Construct a new connection to the session bus.
-    ///
-    /// This uses the `DBUS_SESSION_BUS_ADDRESS` environment variable to
-    /// determine its address.
+    /// Construct a new connection from the first of the given environment
+    /// variables which is set, falling back to `default` when none is.
     fn from_env(
         envs: impl IntoIterator<Item: AsRef<OsStr>>,
         default: Option<&str>,
@@ -87,7 +85,7 @@ impl Transport {
         Ok(())
     }
 
-    /// Constru.ct a connection directly from a unix stream.
+    /// Construct a connection directly from a unix stream.
     pub(crate) fn from_std(stream: UnixStream) -> Self {
         Self { stream }
     }
@@ -168,24 +166,34 @@ impl Transport {
         Ok(total)
     }
 
-    /// Receive a the remaining body.
+    /// Receive the remaining body.
     pub(crate) fn recv_body(&mut self, recv: &mut RecvBuf, total: usize) -> Result<()> {
-        self.recv_buf(recv.buf_mut(), total)?;
+        // The fixed header received by `idle()` is still in the buffer, so the
+        // target includes it.
+        let n = size_of::<proto::Header>()
+            .wrapping_add(size_of::<u32>())
+            .wrapping_add(total);
+
+        self.recv_buf(recv.buf_mut(), n)?;
         Ok(())
     }
 
-    /// Receive exactly `n` bytes into the receive buffer.
+    /// Receive bytes into the receive buffer until it holds `n`.
+    ///
+    /// Never reads beyond `n` bytes, since anything past that belongs to the
+    /// next message and would be lost when the buffer is cleared.
     pub(crate) fn recv_buf(&mut self, buf: &mut AlignedBuf, n: usize) -> io::Result<()> {
-        buf.reserve_bytes(n);
+        buf.reserve_bytes(n.saturating_sub(buf.len()));
 
         while buf.len() < n {
-            let n = self.stream.read(&mut buf.get_mut()[..n])?;
+            let remaining = n - buf.len();
+            let read = self.stream.read(&mut buf.get_mut()[..remaining])?;
 
-            if n == 0 {
+            if read == 0 {
                 return Err(io::Error::from(io::ErrorKind::UnexpectedEof));
             }
 
-            buf.advance(n);
+            buf.advance(read);
         }
 
         Ok(())

@@ -1,5 +1,11 @@
 use std::collections::VecDeque;
 use std::fmt;
+use std::future::Future;
+use std::pin::{Pin, pin};
+use std::task::{Context, Poll};
+use std::time::Duration;
+
+use tokio::time::{Instant, Sleep};
 
 use tokio_dbus::org_freedesktop_dbus::{self, NameFlag, NameReply};
 use tokio_dbus::{
@@ -37,6 +43,39 @@ impl Arguments {
         let mut buf = BodyBuf::new();
         buf.extend_signature(signature)?;
         Ok(Self { buf })
+    }
+
+    /// Construct an argument list matching a signature which is known at
+    /// compile time.
+    ///
+    /// This is the infallible form of [`new()`], for the common case where the
+    /// signature comes out of [`Signature::new_const`] and has therefore
+    /// already been validated at compile time.
+    ///
+    /// [`new()`]: Self::new
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::Signature;
+    /// use tokio_dbus_runtime::Arguments;
+    ///
+    /// const SIGNATURE: &Signature = Signature::new_const(b"su");
+    ///
+    /// let mut arguments = Arguments::new_const(SIGNATURE);
+    /// arguments.store("Hello World!");
+    /// arguments.store(&42u32);
+    /// ```
+    pub fn new_const(signature: &'static Signature) -> Self {
+        let mut buf = BodyBuf::new();
+
+        // NB: Extending an empty buffer with an already validated signature
+        // cannot fail, since the only failure is the combined signature growing
+        // too long.
+        buf.extend_signature(signature)
+            .expect("A validated signature cannot fail to extend an empty body");
+
+        Self { buf }
     }
 
     /// Construct an empty argument list.
@@ -196,9 +235,18 @@ pub struct Connection {
     /// Messages which arrived while waiting for the reply to a call.
     queue: VecDeque<MessageBuf>,
     unique_name: String,
+    /// How long to wait for the reply to a call before giving up.
+    timeout: Option<Duration>,
+    /// The timer driving call timeouts, created on the first timed call and
+    /// reused for every one after that. See [`wait_for()`][Self::wait_for].
+    sleep: Option<Pin<Box<Sleep>>>,
 }
 
 impl Connection {
+    /// The default for how long a call waits for its reply, matching the 25
+    /// seconds every other D-Bus implementation defaults to.
+    pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(25);
+
     /// Connect to the session bus and say `Hello`.
     pub async fn session_bus() -> Result<Self> {
         Self::start(tokio_dbus::Connection::session_bus()?).await
@@ -215,6 +263,8 @@ impl Connection {
             buffers: Buffers::new(),
             queue: VecDeque::new(),
             unique_name: String::new(),
+            timeout: Some(Self::DEFAULT_TIMEOUT),
+            sleep: None,
         };
 
         this.connection.connect(&mut this.buffers).await?;
@@ -235,10 +285,51 @@ impl Connection {
         &self.unique_name
     }
 
+    /// Set how long a call waits for its reply before failing, or `None` to
+    /// wait forever.
+    ///
+    /// The default is [`DEFAULT_TIMEOUT`], since the bus does not time method
+    /// calls out on its own, a peer which is alive but not reading its socket
+    /// would otherwise hang the caller forever. The timeout applies to
+    /// everything which waits for a reply, including [`call()`] and the name
+    /// and match management methods.
+    ///
+    /// A call which times out fails with an error for which
+    /// [`Error::is_timeout()`] is true and whose [`Error::name()`] is
+    /// `org.freedesktop.DBus.Error.NoReply`. The connection itself remains
+    /// usable, a reply which arrives after the deadline is discarded.
+    ///
+    /// The timeout is driven by the Tokio timer, which must be enabled on the
+    /// runtime. `#[tokio::main]` enables it by default.
+    ///
+    /// [`DEFAULT_TIMEOUT`]: Self::DEFAULT_TIMEOUT
+    /// [`call()`]: Self::call
+    pub fn set_default_timeout(&mut self, timeout: Option<Duration>) {
+        self.timeout = timeout;
+    }
+
+    /// How long a call waits for its reply before failing, if limited.
+    ///
+    /// See [`set_default_timeout()`][Self::set_default_timeout].
+    pub fn default_timeout(&self) -> Option<Duration> {
+        self.timeout
+    }
+
     /// Call a method and wait for its reply.
     ///
     /// An error reply is turned into an [`Error`] carrying the name the remote
     /// end used.
+    ///
+    /// The call fails with a timeout error when no reply arrives within the
+    /// configured deadline, see
+    /// [`set_default_timeout()`][Self::set_default_timeout].
+    ///
+    /// # Cancellation
+    ///
+    /// This method is cancel safe. If the future is dropped before it
+    /// completes, the call itself may still reach the peer, but the connection
+    /// remains usable and a reply which arrives later is discarded rather than
+    /// surfaced or confused with the reply to another call.
     pub async fn call(
         &mut self,
         destination: &str,
@@ -304,7 +395,7 @@ impl Connection {
             .unwrap_or(org_freedesktop_dbus::FAILED_ERROR)
             .to_owned();
 
-        let mut arguments = Arguments::new(Signature::STRING)?;
+        let mut arguments = Arguments::new_const(Signature::STRING);
         arguments.store(error.to_string().as_str());
 
         let m = call
@@ -353,6 +444,73 @@ impl Connection {
         Ok(())
     }
 
+    /// Ask the bus to route [`NameOwnerChanged`] signals for `name` here.
+    ///
+    /// Watching a name is how a client survives its peer restarting: the
+    /// signal announces both the name going away and it being claimed again.
+    /// Decode the incoming signal with [`NameOwnerChanged::decode`], and pair
+    /// this with [`name_owner()`] to learn the initial state, since the signal
+    /// only reports changes.
+    ///
+    /// [`NameOwnerChanged`]: crate::NameOwnerChanged
+    /// [`NameOwnerChanged::decode`]: crate::NameOwnerChanged::decode
+    /// [`name_owner()`]: Self::name_owner
+    pub async fn watch_name(&mut self, name: &str) -> Result<()> {
+        self.add_match(&crate::NameOwnerChanged::rule(name)).await
+    }
+
+    /// Remove the interest registered by [`watch_name()`][Self::watch_name].
+    pub async fn unwatch_name(&mut self, name: &str) -> Result<()> {
+        self.remove_match(&crate::NameOwnerChanged::rule(name))
+            .await
+    }
+
+    /// The unique name currently owning `name`, or `None` when the name has no
+    /// owner.
+    pub async fn name_owner(&mut self, name: &str) -> Result<Option<String>> {
+        let mut arguments = Arguments::new_const(Signature::STRING);
+        arguments.store(name);
+
+        let result = self
+            .call(
+                org_freedesktop_dbus::DESTINATION,
+                org_freedesktop_dbus::PATH,
+                org_freedesktop_dbus::INTERFACE,
+                "GetNameOwner",
+                &arguments,
+            )
+            .await;
+
+        match result {
+            Ok(reply) => Ok(Some(reply.read::<String>()?)),
+            Err(error) if error.name() == Some(org_freedesktop_dbus::NAME_HAS_NO_OWNER_ERROR) => {
+                Ok(None)
+            }
+            Err(error) => Err(error),
+        }
+    }
+
+    /// Reply to a method call which no dispatcher recognised.
+    ///
+    /// The generated `dispatch` functions return `false` for a call which is
+    /// not theirs, so that several interfaces can be served from one
+    /// connection. Once every dispatcher has declined, this produces the
+    /// standard `org.freedesktop.DBus.Error.UnknownMethod` reply leaving the
+    /// call unanswered would leave the caller waiting for its timeout instead.
+    pub fn reply_unknown_method(&mut self, call: &Call) -> Result<()> {
+        self.reply_error(
+            call,
+            &Error::remote(
+                org_freedesktop_dbus::UNKNOWN_METHOD_ERROR,
+                format_args!(
+                    "No such method: {}.{}",
+                    call.interface().unwrap_or_default(),
+                    call.member()
+                ),
+            ),
+        )
+    }
+
     /// Write out everything which has been buffered for sending.
     ///
     /// This is only needed before dropping the connection, since [`next()`] and
@@ -392,30 +550,112 @@ impl Connection {
         }
     }
 
-    /// Drive the connection until the reply with the given serial arrives,
-    /// queueing everything else which shows up in the meantime.
+    /// Wait for the reply with the given serial, applying the configured
+    /// timeout.
     async fn wait_for(&mut self, serial: Serial) -> Result<MessageBuf> {
-        loop {
-            self.connection.wait(&mut self.buffers).await?;
-            let message = self.buffers.recv.last_message()?;
+        let Self {
+            connection,
+            buffers,
+            queue,
+            timeout,
+            sleep,
+            ..
+        } = self;
 
-            match message.kind() {
-                MessageKind::MethodReturn { reply_serial } if reply_serial == serial => {
-                    return Ok(message.to_owned());
-                }
-                MessageKind::Error {
-                    error_name,
-                    reply_serial,
-                } if reply_serial == serial => {
-                    let text = message.body().read::<str>().unwrap_or_default();
-                    return Err(Error::remote(error_name, text));
-                }
-                _ => {
-                    let message = message.to_owned();
-                    self.queue.push_back(message);
-                }
+        let future = pin!(drive_until_reply(connection, buffers, queue, serial));
+
+        let Some(timeout) = *timeout else {
+            return future.await;
+        };
+
+        let deadline = Instant::now() + timeout;
+
+        // The timer is created on the first timed call and reset for each one
+        // after that, and is deliberately never cancelled: resetting a timer
+        // which is still registered with the runtime to a later deadline is a
+        // lock-free store, where registering a fresh one locks the timer
+        // wheel. A deadline which fires with no call outstanding wakes the
+        // last caller once, spuriously and harmlessly.
+        let sleep = match sleep {
+            Some(sleep) => {
+                sleep.as_mut().reset(deadline);
+                sleep
+            }
+            sleep => sleep.insert(Box::pin(tokio::time::sleep_until(deadline))),
+        };
+
+        Timed {
+            future,
+            sleep: sleep.as_mut(),
+            timeout,
+        }
+        .await
+    }
+}
+
+/// Drive the connection until the reply with the given serial arrives,
+/// queueing everything else which shows up in the meantime.
+///
+/// This is a function over the fields it needs rather than a method, so that
+/// the timer of the connection stays borrowable next to it.
+async fn drive_until_reply(
+    connection: &mut tokio_dbus::Connection,
+    buffers: &mut Buffers,
+    queue: &mut VecDeque<MessageBuf>,
+    serial: Serial,
+) -> Result<MessageBuf> {
+    loop {
+        connection.wait(buffers).await?;
+        let message = buffers.recv.last_message()?;
+
+        match message.kind() {
+            MessageKind::MethodReturn { reply_serial } if reply_serial == serial => {
+                return Ok(message.to_owned());
+            }
+            MessageKind::Error {
+                error_name,
+                reply_serial,
+            } if reply_serial == serial => {
+                let text = message.body().read::<str>().unwrap_or_default();
+                return Err(Error::remote(error_name, text));
+            }
+            _ => {
+                let message = message.to_owned();
+                queue.push_back(message);
             }
         }
+    }
+}
+
+/// A future bounded by the reply deadline of the connection.
+///
+/// This is `tokio::time::timeout` with the timer borrowed rather than owned, so
+/// that however the wait ends, completion, cancellation or an unwinding panic,
+/// the timer stays in the connection for the next call to reuse.
+struct Timed<'a, F> {
+    future: Pin<&'a mut F>,
+    sleep: Pin<&'a mut Sleep>,
+    timeout: Duration,
+}
+
+impl<T, F> Future for Timed<'_, F>
+where
+    F: Future<Output = Result<T>>,
+{
+    type Output = Result<T>;
+
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // NB: The future is polled first so that a reply which is ready wins
+        // over a deadline which elapsed while waiting.
+        if let Poll::Ready(result) = self.future.as_mut().poll(cx) {
+            return Poll::Ready(result);
+        }
+
+        if self.sleep.as_mut().poll(cx).is_ready() {
+            return Poll::Ready(Err(Error::new(ErrorKind::Timeout(self.timeout))));
+        }
+
+        Poll::Pending
     }
 }
 

@@ -97,6 +97,7 @@ pub(crate) fn interface(interface: &Interface<'_>, mode: Mode) -> Result<rust::T
             #![allow(
                 dead_code,
                 unused_imports,
+                unused_variables,
                 clippy::too_many_arguments,
                 clippy::type_complexity
             )]
@@ -216,7 +217,7 @@ fn client(interface: &Interface<'_>, name: &str) -> Result<rust::Tokens> {
                 &self,
                 conn: &mut Connection,
             ) -> Result<HashMap<String, Value>> {
-                let mut __arguments = Arguments::new(Signature::STRING)?;
+                let mut __arguments = Arguments::new_const(Signature::STRING);
                 __arguments.store(INTERFACE);
 
                 let __reply = conn
@@ -277,7 +278,7 @@ fn client_method(method: &Method<'_>) -> Result<rust::Tokens> {
 
     let arguments = if has_inputs {
         let signature = signature(&in_signature);
-        quote!(let mut __arguments = Arguments::new($signature)?;)
+        quote!(let mut __arguments = Arguments::new_const($signature);)
     } else {
         quote!(let __arguments = Arguments::empty();)
     };
@@ -326,7 +327,7 @@ fn client_property(property: &Property<'_>) -> Result<rust::Tokens> {
         tokens.append(quote! {
             $documentation
             pub async fn $name(&self, conn: &mut Connection) -> Result<$(ty.clone())> {
-                let mut __arguments = Arguments::new($(signature("ss")))?;
+                let mut __arguments = Arguments::new_const($(signature("ss")));
                 __arguments.store(INTERFACE);
                 __arguments.store($(quoted(property.name)));
 
@@ -357,7 +358,7 @@ fn client_property(property: &Property<'_>) -> Result<rust::Tokens> {
         tokens.append(quote! {
             $documentation
             pub async fn $name(&self, conn: &mut Connection, value: $parameter) -> Result<()> {
-                let mut __arguments = Arguments::new($(signature("ssv")))?;
+                let mut __arguments = Arguments::new_const($(signature("ssv")));
                 __arguments.store(INTERFACE);
                 __arguments.store($(quoted(property.name)));
                 __arguments.store_variant($property_signature, value);
@@ -458,7 +459,7 @@ fn signals(interface: &Interface<'_>) -> Result<rust::Tokens> {
 
         let arguments = if has_arguments {
             let signature = self::signature(&signature);
-            quote!(let mut __arguments = Arguments::new($signature)?;)
+            quote!(let mut __arguments = Arguments::new_const($signature);)
         } else {
             quote!(let __arguments = Arguments::empty();)
         };
@@ -586,7 +587,7 @@ fn server(interface: &Interface<'_>, name: &str) -> Result<rust::Tokens> {
             let mut writes = rust::Tokens::new();
 
             writes.append(
-                quote!(let mut __arguments = Arguments::new($(signature(&out_signature)))?;),
+                quote!(let mut __arguments = Arguments::new_const($(signature(&out_signature)));),
             );
             writes.push();
 
@@ -693,6 +694,7 @@ fn server(interface: &Interface<'_>, name: &str) -> Result<rust::Tokens> {
     }
 
     let properties = server_properties(interface, &trait_name)?;
+    let properties_changed = server_properties_changed(interface, &trait_name)?;
 
     Ok(quote! {
         $(lines([
@@ -733,7 +735,133 @@ fn server(interface: &Interface<'_>, name: &str) -> Result<rust::Tokens> {
         }
 
         $properties
+
+        $(if let Some(properties_changed) = properties_changed { $properties_changed })
     })
+}
+
+/// The `Property` enum and the `PropertiesChanged` emitters, generated when an
+/// interface has readable properties.
+fn server_properties_changed(
+    interface: &Interface<'_>,
+    trait_name: &str,
+) -> Result<Option<rust::Tokens>> {
+    let mut variants = rust::Tokens::new();
+    let mut names = rust::Tokens::new();
+    let mut entries = rust::Tokens::new();
+
+    for property in &interface.properties {
+        if !property.access.is_readable() {
+            continue;
+        }
+
+        let variant = pascal_case(property.name);
+        let getter = snake_case(property.name);
+        let signature = signature(property.ty.as_str());
+
+        variants.append(quote! {
+            $(doc(&property.doc, [format!("The `{}` property.", property.name)]))
+            $(variant.clone()),
+        });
+
+        variants.push();
+
+        names.append(quote!(Property::$(variant.clone()) => $(quoted(property.name)),));
+        names.push();
+
+        entries.append(quote! {
+            Property::$(variant.clone()) => {
+                __changed.entry($(quoted(property.name)), $signature, handler.$getter().await?);
+            }
+        });
+
+        entries.push();
+    }
+
+    if variants.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(quote! {
+        $(lines([
+            "A readable property of this interface, for announcing a change",
+            "with [`properties_changed()`] or [`properties_invalidated()`].",
+        ]))
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        pub enum Property {
+            $variants
+        }
+
+        impl Property {
+            $(lines(["The D-Bus name of this property."]))
+            pub fn name(&self) -> &'static str {
+                match self {
+                    $names
+                }
+            }
+        }
+
+        $(lines([
+            "Emit `org.freedesktop.DBus.Properties.PropertiesChanged` from `path`,",
+            "announcing the new values of the `changed` properties.",
+            "",
+            "Each value is read back through `handler`, so that what is announced",
+            "cannot disagree with what a subsequent `Get` would answer.",
+            "",
+            "The signal is buffered and written out the next time the connection",
+            "makes progress, see [`Connection::emit`].",
+        ]))
+        pub async fn properties_changed<T>(
+            handler: &mut T,
+            conn: &mut Connection,
+            path: &ObjectPath,
+            changed: &[Property],
+        ) -> Result<()>
+        where
+            T: ?Sized + $trait_name,
+        {
+            let mut __arguments = Arguments::new_const($(signature("sa{sv}as")));
+            __arguments.store(INTERFACE);
+
+            let mut __changed = __arguments.store_variant_dict();
+
+            for __property in changed {
+                match __property {
+                    $entries
+                }
+            }
+
+            __changed.finish();
+            __arguments.store(Vec::<String>::new());
+
+            conn.emit(path, PROPERTIES, "PropertiesChanged", &__arguments)
+        }
+
+        $(lines([
+            "Emit `org.freedesktop.DBus.Properties.PropertiesChanged` from `path`,",
+            "announcing that the `invalidated` properties changed without sending",
+            "their new values.",
+        ]))
+        pub fn properties_invalidated(
+            conn: &mut Connection,
+            path: &ObjectPath,
+            invalidated: &[Property],
+        ) -> Result<()> {
+            let mut __arguments = Arguments::new_const($(signature("sa{sv}as")));
+            __arguments.store(INTERFACE);
+            __arguments.store_variant_dict().finish();
+
+            let mut __names = Vec::<String>::new();
+
+            for __property in invalidated {
+                __names.push(String::from(__property.name()));
+            }
+
+            __arguments.store(__names);
+
+            conn.emit(path, PROPERTIES, "PropertiesChanged", &__arguments)
+        }
+    }))
 }
 
 fn server_properties(interface: &Interface<'_>, trait_name: &str) -> Result<rust::Tokens> {
@@ -754,7 +882,7 @@ fn server_properties(interface: &Interface<'_>, trait_name: &str) -> Result<rust
             gets.append(quote! {
                 $(quoted(property.name)) => match handler.$(name.clone())().await {
                     Ok(__value) => {
-                        let mut __arguments = Arguments::new(Signature::VARIANT)?;
+                        let mut __arguments = Arguments::new_const(Signature::VARIANT);
                         __arguments.store_variant($(signature.clone()), __value);
                         conn.reply(call, &__arguments)?;
                     }
@@ -830,7 +958,7 @@ fn server_properties(interface: &Interface<'_>, trait_name: &str) -> Result<rust
 
             match __values {
                 $pattern => {
-                    let mut __arguments = Arguments::new($(signature("a{sv}")))?;
+                    let mut __arguments = Arguments::new_const($(signature("a{sv}")));
                     let mut __dict = __arguments.store_variant_dict();
                     $entries
                     __dict.finish();

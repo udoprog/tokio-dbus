@@ -2,10 +2,13 @@ use core::borrow::Borrow;
 use core::fmt;
 use core::hash;
 use core::ops::Deref;
+use core::str::FromStr;
 
+use alloc::borrow::ToOwned;
+use alloc::string::String;
 use alloc::vec::Vec;
 
-use super::ObjectPath;
+use super::{ObjectPath, ObjectPathError, validate};
 
 /// A validated owned object path.
 ///
@@ -17,7 +20,7 @@ use super::ObjectPath;
 /// * The path may be of any length.
 /// * The path must begin with an ASCII '/' (integer 47) character, and must
 ///   consist of elements separated by slash characters.
-/// * Each element must only contain the ASCII characters "[A-Z][a-z][0-9]_"
+/// * Each element must only contain the ASCII characters `[A-Z][a-z][0-9]_`
 /// * No element may be the empty string.
 /// * Multiple '/' characters cannot occur in sequence.
 /// * A trailing '/' character is not allowed unless the path is the root path
@@ -42,6 +45,74 @@ impl ObjectPathBuf {
         // SAFETY: This type ensures during construction that the object path it
         // contains is valid.
         unsafe { ObjectPath::new_unchecked(&self.0) }
+    }
+}
+
+/// Construct an owned object path from a vector, taking ownership of its
+/// allocation.
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::{ObjectPath, ObjectPathBuf};
+///
+/// let path = ObjectPathBuf::try_from(b"/org/freedesktop/DBus".to_vec())?;
+/// assert_eq!(&*path, ObjectPath::new("/org/freedesktop/DBus")?);
+///
+/// assert!(ObjectPathBuf::try_from(b"org/freedesktop/DBus".to_vec()).is_err());
+/// # Ok::<_, tokio_dbus::ObjectPathError>(())
+/// ```
+impl TryFrom<Vec<u8>> for ObjectPathBuf {
+    type Error = ObjectPathError;
+
+    #[inline]
+    fn try_from(path: Vec<u8>) -> Result<Self, Self::Error> {
+        if !validate(&path) {
+            return Err(ObjectPathError);
+        }
+
+        Ok(Self(path))
+    }
+}
+
+/// Construct an owned object path from a string, taking ownership of its
+/// allocation.
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::{ObjectPath, ObjectPathBuf};
+///
+/// let path = ObjectPathBuf::try_from(String::from("/org/freedesktop/DBus"))?;
+/// assert_eq!(&*path, ObjectPath::new("/org/freedesktop/DBus")?);
+/// # Ok::<_, tokio_dbus::ObjectPathError>(())
+/// ```
+impl TryFrom<String> for ObjectPathBuf {
+    type Error = ObjectPathError;
+
+    #[inline]
+    fn try_from(path: String) -> Result<Self, Self::Error> {
+        Self::try_from(path.into_bytes())
+    }
+}
+
+/// Construct an owned object path by copying a string.
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::{ObjectPath, ObjectPathBuf};
+///
+/// let path: ObjectPathBuf = "/org/freedesktop/DBus".parse()?;
+/// assert_eq!(&*path, ObjectPath::new("/org/freedesktop/DBus")?);
+/// # Ok::<_, tokio_dbus::ObjectPathError>(())
+/// ```
+impl FromStr for ObjectPathBuf {
+    type Err = ObjectPathError;
+
+    #[inline]
+    fn from_str(path: &str) -> Result<Self, Self::Err> {
+        Ok(ObjectPath::new(path)?.to_owned())
     }
 }
 

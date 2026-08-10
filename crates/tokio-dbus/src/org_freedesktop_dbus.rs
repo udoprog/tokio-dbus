@@ -40,6 +40,25 @@ pub const INVALID_ARGS_ERROR: &str = "org.freedesktop.DBus.Error.InvalidArgs";
 /// A generic error, used when no more specific error applies.
 pub const FAILED_ERROR: &str = "org.freedesktop.DBus.Error.Failed";
 
+/// The error raised when a method call did not receive a reply, such as when
+/// it timed out.
+pub const NO_REPLY_ERROR: &str = "org.freedesktop.DBus.Error.NoReply";
+
+/// The error raised when a destination name has no owner and could not be
+/// activated.
+pub const SERVICE_UNKNOWN_ERROR: &str = "org.freedesktop.DBus.Error.ServiceUnknown";
+
+/// The error raised when a name which was asked about has no owner.
+pub const NAME_HAS_NO_OWNER_ERROR: &str = "org.freedesktop.DBus.Error.NameHasNoOwner";
+
+/// The error raised when a security policy refuses an operation, most commonly
+/// on the system bus.
+pub const ACCESS_DENIED_ERROR: &str = "org.freedesktop.DBus.Error.AccessDenied";
+
+/// The error raised when a method exists but is not supported where it was
+/// called.
+pub const NOT_SUPPORTED_ERROR: &str = "org.freedesktop.DBus.Error.NotSupported";
+
 raw_set! {
     /// The flags to a `RequestName` call.
     #[repr(u32)]

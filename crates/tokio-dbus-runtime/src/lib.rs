@@ -72,6 +72,10 @@ pub use self::connection::{
 };
 mod connection;
 
+#[doc(inline)]
+pub use self::name_owner::NameOwnerChanged;
+mod name_owner;
+
 /// Items which generated code refers to, re-exported so that it does not have to
 /// name any crate other than this one.
 #[doc(hidden)]

@@ -182,13 +182,24 @@ impl Connection {
     /// # Ok(()) }
     /// ```
     pub async fn wait(&mut self, buf: &mut Buffers) -> Result<()> {
-        buf.recv.clear();
+        // Drop the previous message, but only when it was received in full. A
+        // cancelled call leaves a partially received message behind, which the
+        // next call picks up where it left off. Clearing it would desync the
+        // stream, since the bytes already read cannot be read again.
+        if self.message_ready(buf) {
+            buf.recv.clear();
+        }
 
-        while !buf.recv.has_message() {
+        while !self.message_ready(buf) {
             self.io(buf).await?;
         }
 
         Ok(())
+    }
+
+    /// Test if a message has been received in full.
+    fn message_ready(&self, buf: &Buffers) -> bool {
+        matches!(self.state, ConnectionState::Idle) && buf.recv.has_message()
     }
 
     /// Write out every message which has been buffered for sending.

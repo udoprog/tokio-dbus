@@ -9,7 +9,7 @@ pub(crate) mod sealed {
 ///
 /// See for example [`BodyBuf::arguments`].
 ///
-/// [`WriteAligned::arguments`]: crate::WriteAligned::arguments
+/// [`BodyBuf::arguments`]: crate::BodyBuf::arguments
 pub trait Arguments: self::sealed::Sealed {
     /// Write `self` into `buf`.
     #[doc(hidden)]

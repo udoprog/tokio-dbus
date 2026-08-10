@@ -66,6 +66,38 @@ fn generates_a_server() -> Result<()> {
     assert!(out.contains("pub async fn dispatch<T>"));
     assert!(out.contains("async fn dispatch_properties<T>"));
     assert!(!out.contains("pub struct Example {"));
+    assert!(out.contains("pub enum Property"));
+    assert!(out.contains("Total,"));
+    assert!(out.contains("Label,"));
+    assert!(out.contains("Hints,"));
+    assert!(out.contains("pub async fn properties_changed<T>"));
+    assert!(out.contains("pub fn properties_invalidated("));
+    assert!(out.contains("b\"sa{sv}as\""));
+    Ok(())
+}
+
+#[test]
+fn no_property_enum_without_readable_properties() -> Result<()> {
+    const METHODS_ONLY: &str = r#"
+    <node>
+      <interface name="com.example.Bare">
+        <method name="Poke"/>
+      </interface>
+    </node>
+    "#;
+
+    let dir = std::env::temp_dir().join("tokio-dbus-codegen-tests");
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("bare.xml");
+    std::fs::write(&path, METHODS_ONLY).unwrap();
+
+    let out = Builder::new()
+        .file(&path)
+        .server("com.example.Bare")
+        .to_string()?;
+
+    assert!(!out.contains("pub enum Property"));
+    assert!(!out.contains("properties_changed"));
     Ok(())
 }
 

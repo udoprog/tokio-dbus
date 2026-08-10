@@ -2,7 +2,21 @@ use crate::error::Result;
 use crate::org_freedesktop_dbus::{self, NameFlag};
 use crate::{BodyBuf, RecvBuf, SendBuf, Serial};
 
-/// A collection of heap-allocated buffers for use in connections
+/// A collection of heap-allocated buffers for use in connections.
+///
+/// Keeping the buffers apart from the connection permits using all parts of
+/// the connection without running into borrowing issues, such as replying to a
+/// message which is still being borrowed from the receive buffer.
+///
+/// The [`RecvBuf`] instance is used to access messages received after a call to
+/// [`wait()`], through [`RecvBuf::last_message()`].
+///
+/// The [`SendBuf`] instance is where outgoing messages are built and queued.
+///
+/// The [`BodyBuf`] is the internal buffer that the client uses to construct
+/// message bodies. It is empty when it's returned.
+///
+/// [`wait()`]: crate::Connection::wait
 ///
 /// # Examples
 ///
@@ -11,23 +25,6 @@ use crate::{BodyBuf, RecvBuf, SendBuf, Serial};
 ///
 /// let buffers = Buffers::new();
 /// ```
-///
-/// The [`RecvBuf`] instance is used to access messages received after a call to
-/// [`wait()`], through [`RecvBuf::last_message()`].
-///
-/// The [`BodyBuf`] is the internal buffer that the client uses to construct
-/// message bodies. It is empty when it's returned.
-///
-/// [`wait()`]: crate::Transport::wait
-///
-/// This is useful, because it permits using all parts of the connection without
-/// running into borrowing issues.
-///
-/// [`write_message()`]: Self::write_message
-///
-/// We can address this by using [`buffers()`]:
-///
-/// [`buffers()`]: Self::buffers
 ///
 /// ```no_run
 /// use tokio_dbus::{Buffers, Connection, Message};

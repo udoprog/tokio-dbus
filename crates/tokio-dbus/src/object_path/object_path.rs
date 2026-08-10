@@ -24,7 +24,7 @@ use super::{Iter, ObjectPathError, validate};
 /// * The path may be of any length.
 /// * The path must begin with an ASCII '/' (integer 47) character, and must
 ///   consist of elements separated by slash characters.
-/// * Each element must only contain the ASCII characters "[A-Z][a-z][0-9]_"
+/// * Each element must only contain the ASCII characters `[A-Z][a-z][0-9]_`
 /// * No element may be the empty string.
 /// * Multiple '/' characters cannot occur in sequence.
 /// * A trailing '/' character is not allowed unless the path is the root path

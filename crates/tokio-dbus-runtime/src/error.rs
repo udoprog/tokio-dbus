@@ -1,6 +1,8 @@
 use std::error;
 use std::fmt;
+use std::time::Duration;
 
+use tokio_dbus::org_freedesktop_dbus;
 use tokio_dbus::{SignatureBuf, SignatureError};
 
 /// Result alias defaulting to the error type of this crate.
@@ -40,11 +42,51 @@ impl Error {
 
     /// The D-Bus error name, if this error came from, or is destined for, an
     /// error reply.
+    ///
+    /// A timeout raised by this end reports itself as
+    /// `org.freedesktop.DBus.Error.NoReply`, which is the name every
+    /// implementation uses for a call which was not answered.
     pub fn name(&self) -> Option<&str> {
         match &*self.kind {
             ErrorKind::Remote { name, .. } => Some(name),
+            ErrorKind::Timeout(..) => Some(org_freedesktop_dbus::NO_REPLY_ERROR),
             _ => None,
         }
+    }
+
+    /// Test if this error is an error reply from the remote end.
+    ///
+    /// When this is `false` the error was raised locally, such as a transport
+    /// failure or a timeout, and retrying against the same peer is unlikely to
+    /// behave differently.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus_runtime::Error;
+    ///
+    /// let error = Error::remote("com.example.Error.Busy", "Try again later");
+    /// assert!(error.is_remote());
+    /// ```
+    pub fn is_remote(&self) -> bool {
+        matches!(&*self.kind, ErrorKind::Remote { .. })
+    }
+
+    /// Test if this error was raised by [`Connection::acquire_name`] because
+    /// the name was already taken.
+    ///
+    /// [`Connection::acquire_name`]: crate::Connection::acquire_name
+    pub fn is_name_taken(&self) -> bool {
+        matches!(&*self.kind, ErrorKind::NameTaken(..))
+    }
+
+    /// Test if this error is a call which timed out.
+    ///
+    /// See [`Connection::set_default_timeout`].
+    ///
+    /// [`Connection::set_default_timeout`]: crate::Connection::set_default_timeout
+    pub fn is_timeout(&self) -> bool {
+        matches!(&*self.kind, ErrorKind::Timeout(..))
     }
 }
 
@@ -88,6 +130,9 @@ impl fmt::Display for Error {
             ErrorKind::NameTaken(name) => {
                 write!(f, "Could not acquire the name `{name}`")
             }
+            ErrorKind::Timeout(timeout) => {
+                write!(f, "Call did not receive a reply within {timeout:?}")
+            }
         }
     }
 }
@@ -113,4 +158,5 @@ pub(crate) enum ErrorKind {
     UnexpectedSignature(Box<(SignatureBuf, SignatureBuf)>),
     MissingUniqueName,
     NameTaken(Box<str>),
+    Timeout(Duration),
 }
