@@ -10,10 +10,12 @@
 //! [`tokio_dbus_runtime::Connection`], which both crates a consumer needs to
 //! depend on.
 //!
-//! [`HashMap`]: std::collections::HashMap
+//! [`HashMap`]: https://doc.rust-lang.org/std/collections/struct.HashMap.html
 //! [`tokio_dbus_runtime::Connection`]: https://docs.rs/tokio-dbus-runtime
 //!
-//! # Using it from a build script
+//! <br>
+//!
+//! ## Using it from a build script
 //!
 //! Add the generator as a build dependency and the runtime as a regular one:
 //!
@@ -45,7 +47,9 @@
 //! include!(concat!(env!("OUT_DIR"), "/notifications.rs"));
 //! ```
 //!
-//! # What is generated
+//! <br>
+//!
+//! ## What is generated
 //!
 //! For an interface `com.example.Example`, a module `example` is generated
 //! holding:
@@ -61,10 +65,12 @@
 //!   routes an incoming call to it. `dispatch()` also answers
 //!   `org.freedesktop.DBus.Properties` for the interface.
 //!
-//! [`client()`]: Builder::client
-//! [`server()`]: Builder::server
+//! [`client()`]: https://docs.rs/tokio-dbus-codegen/latest/tokio_dbus_codegen/struct.Builder.html#method.client
+//! [`server()`]: https://docs.rs/tokio-dbus-codegen/latest/tokio_dbus_codegen/struct.Builder.html#method.server
 //!
-//! # Type mapping
+//! <br>
+//!
+//! ## Type mapping
 //!
 //! | D-Bus       | Rust                            |
 //! |-------------|---------------------------------|

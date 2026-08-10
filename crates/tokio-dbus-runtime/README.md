@@ -13,11 +13,13 @@ crate speaks in the owned Rust types a caller would reach for anyway:
 a variant. That convenience is paid for with a copy of every message which
 crosses the boundary, so reach for the low level API when that matters.
 
-[`HashMap`]: std::collections::HashMap
+[`HashMap`]: https://doc.rust-lang.org/std/collections/struct.HashMap.html
 [`tokio-dbus-codegen`]: https://docs.rs/tokio-dbus-codegen
 [`tokio-dbus`]: https://docs.rs/tokio-dbus
 
-# Examples
+<br>
+
+## Examples
 
 ```rust
 use tokio_dbus::{ObjectPath, Signature};
