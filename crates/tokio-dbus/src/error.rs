@@ -10,6 +10,7 @@ use core::str::Utf8Error;
 
 #[cfg(feature = "alloc")]
 use crate::Signature;
+#[cfg(feature = "tokio")]
 use crate::connection::Sasl;
 use crate::{ObjectPathError, SignatureError};
 
@@ -84,26 +85,39 @@ impl fmt::Display for Error {
             ErrorKind::Signature(..) => write!(f, "Signature error"),
             ErrorKind::ObjectPath(..) => write!(f, "ObjectPath error"),
             ErrorKind::Utf8Error(..) => write!(f, "UTF-8 error"),
-            #[cfg(not(feature = "libc"))]
+            #[cfg(all(feature = "tokio", not(feature = "libc")))]
             ErrorKind::UnsupportedAuthUid => {
                 write!(
                     f,
                     "Authentication using the current UID requires the `libc` feature to be enabled"
                 )
             }
+            #[cfg(feature = "std")]
             ErrorKind::WouldBlock => write!(f, "Would block"),
             ErrorKind::BufferUnderflow => write!(f, "Buffer underflow"),
+            #[cfg(feature = "tokio")]
             ErrorKind::MissingBus => write!(f, "Missing bus to connect to"),
+            #[cfg(feature = "tokio")]
             ErrorKind::InvalidAddress => write!(f, "Invalid d-bus address"),
+            #[cfg(feature = "tokio")]
             ErrorKind::InvalidSaslState(state) => write!(f, "Invalid sasl state {state}"),
+            #[cfg(feature = "tokio")]
             ErrorKind::InvalidSasl => write!(f, "Invalid SASL message"),
+            #[cfg(feature = "tokio")]
             ErrorKind::InvalidSaslResponse => write!(f, "Invalid SASL command"),
+            #[cfg(feature = "alloc")]
             ErrorKind::InvalidProtocol => write!(f, "Invalid protocol"),
+            #[cfg(feature = "alloc")]
             ErrorKind::MissingPath => write!(f, "Missing required PATH header"),
+            #[cfg(feature = "alloc")]
             ErrorKind::MissingMember => write!(f, "Missing required MEMBER header"),
+            #[cfg(feature = "alloc")]
             ErrorKind::MissingReplySerial => write!(f, "Missing required REPLY_SERIAL header"),
+            #[cfg(feature = "tokio")]
             ErrorKind::ZeroSerial => write!(f, "Zero in header serial"),
+            #[cfg(feature = "alloc")]
             ErrorKind::ZeroReplySerial => write!(f, "Zero REPLY_SERIAL header"),
+            #[cfg(feature = "alloc")]
             ErrorKind::MissingErrorName => write!(f, "Missing required ERROR_NAME header"),
             ErrorKind::NotNullTerminated => {
                 write!(f, "String is not null terminated")
@@ -111,15 +125,18 @@ impl fmt::Display for Error {
             ErrorKind::ArrayTooLong(length) => {
                 write!(f, "Array of length {length} is too long (max is 67108864)")
             }
+            #[cfg(feature = "alloc")]
             ErrorKind::BodyTooLong(length) => {
                 write!(f, "Body of length {length} is too long (max is 134217728)")
             }
+            #[cfg(feature = "alloc")]
             ErrorKind::HeaderTooLong(length) => {
                 write!(
                     f,
                     "Header of length {length} is too long (max is 134217728)"
                 )
             }
+            #[cfg(feature = "alloc")]
             ErrorKind::MissingMessage => {
                 write!(f, "No message")
             }
@@ -155,26 +172,42 @@ pub(crate) enum ErrorKind {
     Signature(SignatureError),
     ObjectPath(ObjectPathError),
     Utf8Error(Utf8Error),
-    #[cfg(not(feature = "libc"))]
+    #[cfg(all(feature = "tokio", not(feature = "libc")))]
     UnsupportedAuthUid,
+    #[cfg(feature = "std")]
     WouldBlock,
     BufferUnderflow,
+    #[cfg(feature = "tokio")]
     MissingBus,
+    #[cfg(feature = "tokio")]
     InvalidAddress,
+    #[cfg(feature = "tokio")]
     InvalidSaslState(Sasl),
+    #[cfg(feature = "tokio")]
     InvalidSasl,
+    #[cfg(feature = "tokio")]
     InvalidSaslResponse,
+    #[cfg(feature = "alloc")]
     InvalidProtocol,
+    #[cfg(feature = "alloc")]
     MissingPath,
+    #[cfg(feature = "alloc")]
     MissingMember,
+    #[cfg(feature = "alloc")]
     MissingReplySerial,
+    #[cfg(feature = "tokio")]
     ZeroSerial,
+    #[cfg(feature = "alloc")]
     ZeroReplySerial,
+    #[cfg(feature = "alloc")]
     MissingErrorName,
     NotNullTerminated,
     ArrayTooLong(u32),
+    #[cfg(feature = "alloc")]
     BodyTooLong(u32),
+    #[cfg(feature = "alloc")]
     HeaderTooLong(u32),
+    #[cfg(feature = "alloc")]
     MissingMessage,
     #[cfg(feature = "alloc")]
     UnsupportedVariant(Box<Signature>),

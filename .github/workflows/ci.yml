@@ -37,6 +37,19 @@ jobs:
         components: clippy
     - run: cargo clippy --workspace --all-features --all-targets -- -D warnings
 
+  features:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dtolnay/rust-toolchain@stable
+      with:
+        components: clippy
+    - run: cargo clippy -p tokio-dbus-core --no-default-features -- -D warnings
+    - run: cargo clippy -p tokio-dbus --no-default-features -- -D warnings
+    - run: cargo clippy -p tokio-dbus --no-default-features --features alloc -- -D warnings
+    - run: cargo clippy -p tokio-dbus --no-default-features --features alloc,std -- -D warnings
+    - run: cargo clippy -p tokio-dbus --no-default-features --features alloc,std,libc -- -D warnings
+
   rustfmt:
     runs-on: ubuntu-latest
     steps:

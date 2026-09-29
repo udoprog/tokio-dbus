@@ -359,6 +359,7 @@ impl AsRef<Signature> for Signature {
     }
 }
 
+#[cfg(feature = "alloc")]
 impl ToOwned for Signature {
     type Owned = SignatureBuf;
 

@@ -1,7 +1,6 @@
 #[cfg(test)]
 mod tests;
 
-#[cfg(feature = "alloc")]
 mod stack;
 
 #[doc(inline)]
@@ -54,7 +53,6 @@ impl Read for Signature {
 ///
 /// An absent type code cannot legally occur in a validated signature, but is
 /// treated as being byte-aligned so that the caller doesn't have to handle it.
-#[cfg(feature = "alloc")]
 fn alignment_of(byte: Option<u8>) -> Alignment {
     use crate::proto::Type;
 
@@ -75,7 +73,6 @@ fn alignment_of(byte: Option<u8>) -> Alignment {
 }
 
 /// Return the stride needed to skip over read buffer.
-#[cfg(feature = "alloc")]
 pub(crate) fn skip(this: &Signature, read: &mut Body<'_>) -> Result<()> {
     use crate::proto::Type;
 

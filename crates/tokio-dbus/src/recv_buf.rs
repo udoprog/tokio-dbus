@@ -45,24 +45,28 @@ impl RecvBuf {
     }
 
     /// Access the underlying buffer.
+    #[cfg(feature = "tokio")]
     #[inline]
     pub(crate) fn buf(&self) -> &AlignedBuf {
         &self.buf
     }
 
     /// Access the underlying buffer mutably.
+    #[cfg(feature = "tokio")]
     #[inline]
     pub(crate) fn buf_mut(&mut self) -> &mut AlignedBuf {
         &mut self.buf
     }
 
     /// Set last serial.
+    #[cfg(feature = "tokio")]
     #[inline]
     pub(crate) fn set_last_message(&mut self, message_ref: MessageRef) {
         self.last_message = Some(message_ref);
     }
 
     /// Set endianness of buffer content.
+    #[cfg(feature = "tokio")]
     pub(crate) fn set_endianness(&mut self, endianness: Endianness) {
         self.endianness = endianness;
     }

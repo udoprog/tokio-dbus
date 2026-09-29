@@ -1,9 +1,11 @@
 #[cfg(feature = "alloc")]
 use alloc::boxed::Box;
 
-use crate::proto::{Flags, MessageType};
+use crate::proto::Flags;
 use crate::{AsBody, Body, MessageKind, ObjectPath, Serial, Signature};
 
+#[cfg(feature = "alloc")]
+use crate::proto::MessageType;
 #[cfg(feature = "alloc")]
 use crate::{BodyBuf, MessageBuf};
 
@@ -536,7 +538,7 @@ impl<'a> Message<'a> {
     }
 
     #[cfg(feature = "alloc")]
-    pub(crate) fn message_type(&self) -> crate::proto::MessageType {
+    pub(crate) fn message_type(&self) -> MessageType {
         match self.kind {
             MessageKind::MethodCall { .. } => MessageType::METHOD_CALL,
             MessageKind::MethodReturn { .. } => MessageType::METHOD_RETURN,

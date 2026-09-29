@@ -16,16 +16,16 @@ pub(crate) use self::unaligned_buf::UnalignedBuf;
 #[cfg(feature = "alloc")]
 mod unaligned_buf;
 
-#[cfg(feature = "tokio")]
+#[cfg(feature = "alloc")]
 pub(crate) use self::alloc::Alloc;
-#[cfg(feature = "tokio")]
+#[cfg(feature = "alloc")]
 mod alloc;
 
 /// The maximum length of an array in bytes.
 pub(crate) const MAX_ARRAY_LENGTH: u32 = 1u32 << 26;
 
 /// The maximum length of a body in bytes.
-#[cfg(feature = "alloc")]
+#[cfg(feature = "tokio")]
 pub(crate) const MAX_BODY_LENGTH: u32 = 1u32 << 27;
 
 use core::mem::align_of;

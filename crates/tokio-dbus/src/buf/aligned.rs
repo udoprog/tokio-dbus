@@ -104,7 +104,6 @@ impl<'a> Aligned<'a> {
     }
 
     /// Advance the read cursor by `n`.
-    #[cfg(feature = "alloc")]
     pub(crate) fn advance(&mut self, n: usize) -> Result<()> {
         if n == 0 {
             return Ok(());
@@ -129,7 +128,6 @@ impl<'a> Aligned<'a> {
     /// # Panics
     ///
     /// Panics unless `align` is a non-zero power of two.
-    #[cfg(feature = "alloc")]
     pub(crate) fn align_to(&mut self, align: usize) -> Result<()> {
         assert!(align.is_power_of_two(), "alignment must be a power of two");
         // SAFETY: The alignment was just asserted to be a power of two.

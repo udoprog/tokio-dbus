@@ -1,5 +1,5 @@
-use std::marker::PhantomData;
-use std::mem::ManuallyDrop;
+use core::marker::PhantomData;
+use core::mem::ManuallyDrop;
 
 use crate::buf::Alloc;
 use crate::ty;
