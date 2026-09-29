@@ -36,7 +36,7 @@ impl SignatureBuf {
 
     /// Convert an owned signature into its raw parts.
     pub const fn into_raw_parts(self) -> ([MaybeUninit<u8>; MAX_SIGNATURE], usize) {
-        (self.data, 0)
+        (self.data, self.init)
     }
 
     /// Construct a new signature with validation inside of a constant context.
