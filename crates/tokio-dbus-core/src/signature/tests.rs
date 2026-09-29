@@ -115,3 +115,15 @@ fn test_iter() -> Result<(), SignatureError> {
     assert_eq!(value, Signature::BYTE);
     Ok(())
 }
+
+#[test]
+fn signature_buf_raw_parts_round_trip() {
+    use super::{SignatureBuf, SignatureBuilder};
+
+    let sig = SignatureBuf::new(b"a(is)").unwrap();
+    let (_, init) = sig.clone().into_raw_parts();
+    assert_eq!(init, 5);
+
+    let builder = SignatureBuilder::from_owned_signature(sig);
+    assert_eq!(builder.to_signature().as_bytes(), b"a(is)");
+}
