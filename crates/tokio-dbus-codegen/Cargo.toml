@@ -1,6 +1,6 @@
 [package]
 name = "tokio-dbus-codegen"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2024"
 rust-version = "1.90"
@@ -16,6 +16,6 @@ keywords = ["async", "d-bus", "dbus", "ipc", "tokio"]
 categories = ["asynchronous", "development-tools::build-utils", "os::unix-apis"]
 
 [dependencies]
-tokio-dbus-core = { path = "../tokio-dbus-core", version = "=0.2.0" }
-tokio-dbus-xml = { path = "../tokio-dbus-xml", version = "=0.2.0" }
+tokio-dbus-core = { path = "../tokio-dbus-core", version = "=0.2.1" }
+tokio-dbus-xml = { path = "../tokio-dbus-xml", version = "=0.2.1" }
 genco = "0.19.0"
