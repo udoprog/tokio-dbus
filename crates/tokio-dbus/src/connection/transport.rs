@@ -1,6 +1,8 @@
 use core::mem::size_of;
 use core::num::NonZeroU32;
 
+use alloc::vec::Vec;
+
 use std::env;
 use std::ffi::OsStr;
 use std::io;
@@ -72,11 +74,7 @@ impl Transport {
             return Err(Error::new(ErrorKind::MissingBus));
         };
 
-        let stream = match parse_address(address)? {
-            Address::Unix(address) => UnixStream::connect(OsStr::from_bytes(address))?,
-        };
-
-        Ok(Self::from_std(stream))
+        Ok(Self::from_std(connect(address.as_bytes())?))
     }
 
     /// Set the connection as non-blocking.
@@ -219,31 +217,226 @@ impl Write for Transport {
     }
 }
 
-enum Address<'a> {
-    Unix(&'a [u8]),
-}
-
-#[cfg(unix)]
-fn parse_address(string: &OsStr) -> Result<Address<'_>> {
-    parse_address_bytes(string.as_bytes())
-}
-
-fn parse_address_bytes(bytes: &[u8]) -> Result<Address<'_>> {
-    let Some(index) = bytes.iter().position(|&b| b == b'=') else {
-        return Err(Error::new(ErrorKind::InvalidAddress));
-    };
-
-    let (head, tail) = bytes.split_at(index);
-
-    match head {
-        b"unix:path" => Ok(Address::Unix(&tail[1..])),
-        _ => Err(Error::new(ErrorKind::InvalidAddress)),
-    }
-}
-
 impl AsRawFd for Transport {
     #[inline]
     fn as_raw_fd(&self) -> RawFd {
         self.stream.as_raw_fd()
+    }
+}
+
+/// A connectable endpoint parsed from one entry of a server address.
+#[derive(Debug, PartialEq, Eq)]
+enum Endpoint {
+    /// `unix:path=`.
+    Path(Vec<u8>),
+    /// `unix:abstract=`.
+    Abstract(Vec<u8>),
+}
+
+/// Connect to the first usable entry of a `;`-separated address list.
+///
+/// Returns the last error encountered, or `InvalidAddress` if no entry was
+/// usable at all.
+fn connect(address: &[u8]) -> Result<UnixStream> {
+    let mut last_error = None;
+
+    for entry in parse_address_list(address) {
+        let endpoint = match entry {
+            Ok(Some(endpoint)) => endpoint,
+            Ok(None) => continue,
+            Err(error) => {
+                last_error = Some(error);
+                continue;
+            }
+        };
+
+        match connect_endpoint(&endpoint) {
+            Ok(stream) => return Ok(stream),
+            Err(error) => last_error = Some(Error::from(error)),
+        }
+    }
+
+    Err(last_error.unwrap_or_else(|| Error::new(ErrorKind::InvalidAddress)))
+}
+
+fn connect_endpoint(endpoint: &Endpoint) -> io::Result<UnixStream> {
+    match endpoint {
+        Endpoint::Path(path) => UnixStream::connect(OsStr::from_bytes(path)),
+        #[cfg(any(target_os = "linux", target_os = "android"))]
+        Endpoint::Abstract(name) => {
+            #[cfg(target_os = "android")]
+            use std::os::android::net::SocketAddrExt;
+            #[cfg(target_os = "linux")]
+            use std::os::linux::net::SocketAddrExt;
+            use std::os::unix::net::SocketAddr;
+
+            UnixStream::connect_addr(&SocketAddr::from_abstract_name(name)?)
+        }
+        #[cfg(not(any(target_os = "linux", target_os = "android")))]
+        Endpoint::Abstract(..) => Err(io::Error::from(io::ErrorKind::Unsupported)),
+    }
+}
+
+/// Parse each entry of a `;`-separated server address list.
+///
+/// An entry yields `Ok(None)` when it is well-formed but not usable by this
+/// client, such as an unsupported transport.
+fn parse_address_list(bytes: &[u8]) -> impl Iterator<Item = Result<Option<Endpoint>>> + '_ {
+    bytes
+        .split(|&b| b == b';')
+        .filter(|entry| !entry.is_empty())
+        .map(parse_address)
+}
+
+/// Parse a single server address of the form `transport:key=value,...`.
+fn parse_address(bytes: &[u8]) -> Result<Option<Endpoint>> {
+    let Some(index) = bytes.iter().position(|&b| b == b':') else {
+        return Err(Error::new(ErrorKind::InvalidAddress));
+    };
+
+    let (transport, rest) = bytes.split_at(index);
+    let rest = rest.get(1..).unwrap_or_default();
+
+    if transport.is_empty() {
+        return Err(Error::new(ErrorKind::InvalidAddress));
+    }
+
+    let mut path = None;
+    let mut abstract_name = None;
+
+    for pair in rest.split(|&b| b == b',').filter(|pair| !pair.is_empty()) {
+        let Some(index) = pair.iter().position(|&b| b == b'=') else {
+            return Err(Error::new(ErrorKind::InvalidAddress));
+        };
+
+        let (key, value) = pair.split_at(index);
+        let value = unescape(value.get(1..).unwrap_or_default())?;
+
+        if key.is_empty() {
+            return Err(Error::new(ErrorKind::InvalidAddress));
+        }
+
+        match key {
+            b"path" => path = Some(value),
+            b"abstract" => abstract_name = Some(value),
+            _ => {}
+        }
+    }
+
+    if transport != b"unix" {
+        return Ok(None);
+    }
+
+    Ok(match (path, abstract_name) {
+        (Some(path), _) => Some(Endpoint::Path(path)),
+        (None, Some(name)) => Some(Endpoint::Abstract(name)),
+        (None, None) => None,
+    })
+}
+
+/// Percent-unescape an address value.
+fn unescape(bytes: &[u8]) -> Result<Vec<u8>> {
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut it = bytes.iter();
+
+    while let Some(&b) = it.next() {
+        if b != b'%' {
+            out.push(b);
+            continue;
+        }
+
+        let (Some(hi), Some(lo)) = (
+            it.next().and_then(|&b| hex(b)),
+            it.next().and_then(|&b| hex(b)),
+        ) else {
+            return Err(Error::new(ErrorKind::InvalidAddress));
+        };
+
+        out.push((hi << 4) | lo);
+    }
+
+    Ok(out)
+}
+
+fn hex(b: u8) -> Option<u8> {
+    match b {
+        b'0'..=b'9' => Some(b - b'0'),
+        b'a'..=b'f' => Some(b - b'a' + 10),
+        b'A'..=b'F' => Some(b - b'A' + 10),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::string::ToString;
+    use alloc::vec::Vec;
+
+    use super::{Endpoint, Error, ErrorKind, parse_address, parse_address_list};
+
+    fn list(address: &str) -> Vec<Option<Endpoint>> {
+        parse_address_list(address.as_bytes())
+            .collect::<Result<_, _>>()
+            .unwrap()
+    }
+
+    fn invalid(address: &str) -> bool {
+        let expected = Error::new(ErrorKind::InvalidAddress).to_string();
+        parse_address(address.as_bytes()).is_err_and(|e| e.to_string() == expected)
+    }
+
+    #[test]
+    fn path_with_guid() {
+        assert_eq!(
+            list("unix:path=/tmp/dbus-AbCdEf,guid=0123456789abcdef0123456789abcdef"),
+            [Some(Endpoint::Path(b"/tmp/dbus-AbCdEf".to_vec()))]
+        );
+    }
+
+    #[test]
+    fn abstract_with_guid() {
+        assert_eq!(
+            list("unix:abstract=/tmp/dbus-x,guid=0123456789abcdef0123456789abcdef"),
+            [Some(Endpoint::Abstract(b"/tmp/dbus-x".to_vec()))]
+        );
+    }
+
+    #[test]
+    fn escaped_path() {
+        assert_eq!(
+            list("unix:path=/tmp/a%2cb%2Cc%3d%25"),
+            [Some(Endpoint::Path(b"/tmp/a,b,c=%".to_vec()))]
+        );
+    }
+
+    #[test]
+    fn address_list() {
+        assert_eq!(
+            list("tcp:host=localhost,port=1234;unix:path=/a;unix:abstract=b"),
+            [
+                None,
+                Some(Endpoint::Path(b"/a".to_vec())),
+                Some(Endpoint::Abstract(b"b".to_vec())),
+            ]
+        );
+    }
+
+    #[test]
+    fn unusable_unix() {
+        assert_eq!(list("unix:dir=/tmp,guid=00"), [None]);
+    }
+
+    #[test]
+    fn malformed() {
+        assert!(parse_address_list(b"").next().is_none());
+        assert!(invalid(""));
+        assert!(invalid("unix"));
+        assert!(invalid("/tmp/socket"));
+        assert!(invalid(":path=/a"));
+        assert!(invalid("unix:path"));
+        assert!(invalid("unix:=/a"));
+        assert!(invalid("unix:path=/a%"));
+        assert!(invalid("unix:path=/a%2"));
+        assert!(invalid("unix:path=/a%zz"));
     }
 }
