@@ -1,7 +1,6 @@
 use core::alloc::Layout;
 use core::mem::size_of;
 use core::ptr;
-use core::slice::{from_raw_parts, from_raw_parts_mut};
 
 use alloc::alloc::{alloc, dealloc, handle_alloc_error, realloc};
 
@@ -141,6 +140,7 @@ impl UnalignedBuf {
         self.written += len;
     }
 
+    #[cfg(feature = "tokio")]
     /// Reserve space for `bytes` additional bytes in the buffer.
     pub(crate) fn reserve_bytes(&mut self, bytes: usize) {
         let requested = self.written + bytes;
@@ -159,28 +159,32 @@ impl UnalignedBuf {
         self.written - self.read
     }
 
+    #[cfg(feature = "tokio")]
     /// Get a slice out of the buffer that has ben written to.
     pub(crate) fn get(&self) -> &[u8] {
         unsafe {
             let at = self.data.as_ptr().add(self.read);
-            from_raw_parts(at, self.len())
+            core::slice::from_raw_parts(at, self.len())
         }
     }
 
+    #[cfg(feature = "tokio")]
     /// Get remaining slice of the buffer that can be written.
     pub(crate) fn get_mut(&mut self) -> &mut [u8] {
         unsafe {
             let len = self.capacity - self.written;
             let at = self.data.as_ptr().add(self.written);
-            from_raw_parts_mut(at, len)
+            core::slice::from_raw_parts_mut(at, len)
         }
     }
 
+    #[cfg(feature = "tokio")]
     /// Indicate that we've written `n` bytes to the buffer.
     pub(crate) fn advance_mut(&mut self, n: usize) {
         self.written += n;
     }
 
+    #[cfg(feature = "tokio")]
     /// Indicate that we've read `n` bytes from the buffer.
     pub(crate) fn advance(&mut self, n: usize) {
         self.read += n;
@@ -190,6 +194,7 @@ impl UnalignedBuf {
         }
     }
 
+    #[cfg(feature = "tokio")]
     /// Clear the current buffer.
     pub(crate) fn clear(&mut self) {
         self.read = 0;

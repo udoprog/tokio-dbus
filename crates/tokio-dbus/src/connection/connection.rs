@@ -8,6 +8,7 @@ use tokio::io::{Interest, Ready};
 use crate::connection::builder::AuthKind;
 use crate::error::{Error, ErrorKind, Result};
 use crate::lossy_str::LossyStr;
+#[cfg(feature = "libc")]
 use crate::sasl::Auth;
 use crate::{Buffers, SendBuf};
 

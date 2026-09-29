@@ -108,9 +108,10 @@ pub use self::connection::Buffers;
 #[cfg(feature = "tokio")]
 #[doc(inline)]
 pub use self::connection::{Connection, ConnectionBuilder};
+#[cfg(feature = "alloc")]
 mod connection;
 
-#[cfg(feature = "tokio")]
+#[cfg(all(feature = "tokio", feature = "libc"))]
 mod sasl;
 
 #[cfg(feature = "tokio")]

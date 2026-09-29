@@ -1,6 +1,4 @@
 use crate::error::Result;
-#[cfg(not(feature = "libc"))]
-use crate::error::{Error, ErrorKind};
 
 use super::{Connection, Transport};
 
@@ -16,6 +14,7 @@ pub(crate) enum AuthKind {
     /// Authenticate using the current UID.
     ///
     /// This is only supported if the `libc` feature is enabled.
+    #[cfg_attr(not(feature = "libc"), allow(dead_code))]
     Uid,
 }
 

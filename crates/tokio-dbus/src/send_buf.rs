@@ -43,16 +43,19 @@ impl SendBuf {
         self.buf.is_empty()
     }
 
+    #[cfg(feature = "tokio")]
     /// Extend the buffer with a slice.
     pub(crate) fn extend_from_slice(&mut self, bytes: &[u8]) {
         self.buf.extend_from_slice(bytes);
     }
 
+    #[cfg(feature = "tokio")]
     /// Access the underlying buffer.
     pub(crate) fn buf(&mut self) -> &UnalignedBuf {
         &self.buf
     }
 
+    #[cfg(feature = "tokio")]
     /// Access the underlying buffer mutably.
     pub(crate) fn buf_mut(&mut self) -> &mut UnalignedBuf {
         &mut self.buf

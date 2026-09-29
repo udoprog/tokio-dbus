@@ -2,7 +2,7 @@ use core::alloc::Layout;
 use core::fmt;
 use core::mem::{align_of, size_of};
 use core::ptr;
-use core::slice::{from_raw_parts, from_raw_parts_mut};
+use core::slice::from_raw_parts;
 
 use alloc::alloc::{alloc, dealloc, handle_alloc_error, realloc};
 
@@ -120,6 +120,7 @@ impl AlignedBuf {
         self.len += bytes.len() + 1;
     }
 
+    #[cfg(feature = "tokio")]
     /// Reserve space for `bytes` additional bytes in the buffer.
     pub(crate) fn reserve_bytes(&mut self, bytes: usize) {
         let requested = self.len + bytes;
@@ -146,16 +147,18 @@ impl AlignedBuf {
         }
     }
 
+    #[cfg(feature = "tokio")]
     /// Get remaining slice of the buffer that has not been written to, but is
     /// zeroed.
     pub(crate) fn get_mut(&mut self) -> &mut [u8] {
         unsafe {
             let len = self.capacity - self.len;
             let at = self.data.as_ptr().add(self.len);
-            from_raw_parts_mut(at, len)
+            core::slice::from_raw_parts_mut(at, len)
         }
     }
 
+    #[cfg(feature = "tokio")]
     /// Indicate that we've written `n` bytes to the buffer.
     pub(crate) fn advance(&mut self, n: usize) {
         self.len += n;

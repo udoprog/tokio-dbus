@@ -560,7 +560,6 @@ impl<'a> Body<'a> {
     /// assert_eq!(buf.load::<u32>()?, 42);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    #[cfg(feature = "alloc")]
     pub fn skip_variant(&mut self) -> Result<&'a Signature> {
         let signature = self.read::<Signature>()?;
         crate::signature::skip(signature, self)?;
@@ -593,7 +592,6 @@ impl<'a> Body<'a> {
     /// assert_eq!(buf.load::<u32>()?, 3);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    #[cfg(feature = "alloc")]
     pub fn align_to(&mut self, alignment: crate::Alignment) -> Result<()> {
         self.data.align_to(alignment.in_bytes())
     }
@@ -629,7 +627,6 @@ impl<'a> Body<'a> {
     /// assert_eq!(out, ["Hello", "World"]);
     /// # Ok::<_, tokio_dbus::Error>(())
     /// ```
-    #[cfg(feature = "alloc")]
     pub fn load_raw_array(&mut self, alignment: crate::Alignment) -> Result<Body<'a>> {
         let bytes = self.load::<u32>()?;
 
@@ -644,7 +641,6 @@ impl<'a> Body<'a> {
     }
 
     /// Advance the read cursor by `n`.
-    #[cfg(feature = "alloc")]
     #[inline]
     pub(crate) fn advance(&mut self, n: usize) -> Result<()> {
         self.data.advance(n)
