@@ -211,6 +211,18 @@ where
     T::decode(body)
 }
 
+/// Check that a message body carries arguments of exactly the expected types.
+pub(crate) fn checked<'a>(body: Body<'a>, expected: &Signature) -> Result<Body<'a>> {
+    if body.signature() != expected {
+        return Err(Error::new(ErrorKind::UnexpectedArguments(Box::new((
+            expected.to_owned(),
+            body.signature().to_owned(),
+        )))));
+    }
+
+    Ok(body)
+}
+
 impl fmt::Debug for Arguments {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Arguments")
@@ -519,7 +531,9 @@ impl Connection {
             .await;
 
         match result {
-            Ok(reply) => Ok(Some(reply.read::<String>()?)),
+            Ok(reply) => Ok(Some(String::decode(
+                &mut reply.checked_body(Signature::STRING)?,
+            )?)),
             Err(error) if error.name() == Some(org_freedesktop_dbus::NAME_HAS_NO_OWNER_ERROR) => {
                 Ok(None)
             }
@@ -716,7 +730,19 @@ impl Reply {
         self.message.body()
     }
 
+    /// The body of the reply, after checking that its signature is
+    /// `expected`.
+    ///
+    /// A mismatch is an error whose [`Error::name()`] is
+    /// `org.freedesktop.DBus.Error.InvalidArgs`.
+    pub fn checked_body(&self, expected: &Signature) -> Result<Body<'_>> {
+        checked(self.message.body(), expected)
+    }
+
     /// Read a single return value.
+    ///
+    /// This does not check the signature of the reply, see
+    /// [`checked_body()`][Self::checked_body].
     pub fn read<T>(&self) -> Result<T>
     where
         T: Decode,
@@ -788,6 +814,18 @@ impl Call {
     pub fn body(&self) -> Body<'_> {
         self.message.body()
     }
+
+    /// The body of the call, after checking that its signature is
+    /// `expected`.
+    ///
+    /// A mismatch is an error whose [`Error::name()`] is
+    /// `org.freedesktop.DBus.Error.InvalidArgs`.
+    ///
+    /// Passing that error to [`Connection::reply_error`] answers a call made
+    /// with the wrong arguments the way the specification expects.
+    pub fn checked_body(&self, expected: &Signature) -> Result<Body<'_>> {
+        checked(self.message.body(), expected)
+    }
 }
 
 impl fmt::Debug for Call {
@@ -835,6 +873,15 @@ impl SignalMessage {
     /// The body of the signal, from which its arguments are read.
     pub fn body(&self) -> Body<'_> {
         self.message.body()
+    }
+
+    /// The body of the signal, after checking that its signature is
+    /// `expected`.
+    ///
+    /// A mismatch is an error whose [`Error::name()`] is
+    /// `org.freedesktop.DBus.Error.InvalidArgs`.
+    pub fn checked_body(&self, expected: &Signature) -> Result<Body<'_>> {
+        checked(self.message.body(), expected)
     }
 }
 

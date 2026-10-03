@@ -1,6 +1,10 @@
 use tokio_dbus::org_freedesktop_dbus;
 
+use tokio_dbus::Signature;
+
 use crate::{Result, SignalMessage};
+
+const SIGNATURE: &Signature = Signature::new_const(b"sss");
 
 /// The `org.freedesktop.DBus.NameOwnerChanged` signal, which the bus emits
 /// when the ownership of a well known name changes.
@@ -61,7 +65,7 @@ impl NameOwnerChanged {
             return Ok(None);
         }
 
-        let mut body = message.body();
+        let mut body = message.checked_body(SIGNATURE)?;
         let name = body.read::<str>()?.to_owned();
         let old_owner = body.read::<str>()?;
         let new_owner = body.read::<str>()?;

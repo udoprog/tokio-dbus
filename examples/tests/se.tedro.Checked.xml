@@ -1,0 +1,14 @@
+<node>
+  <interface name="se.tedro.Checked">
+    <method name="Add">
+      <arg name="a" type="i" direction="in"/>
+      <arg name="b" type="i" direction="in"/>
+      <arg name="sum" type="i" direction="out"/>
+    </method>
+    <method name="Poke"/>
+    <signal name="Changed">
+      <arg name="value" type="i"/>
+    </signal>
+    <property name="Label" type="s" access="readwrite"/>
+  </interface>
+</node>

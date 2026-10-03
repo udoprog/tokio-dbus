@@ -52,6 +52,9 @@ fn generates_a_client() -> Result<()> {
     assert!(out.contains("pub enum Signal"));
     assert!(out.contains("Changed { "));
     assert!(!out.contains("ExampleServer"));
+    assert!(out.contains("__reply.checked_body(Signature::new_const(b\"i\"))?"));
+    assert!(out.contains("__reply.checked_body(Signature::EMPTY)?"));
+    assert!(out.contains("message.checked_body(Signature::new_const(b\"i\"))?"));
     Ok(())
 }
 
@@ -73,6 +76,9 @@ fn generates_a_server() -> Result<()> {
     assert!(out.contains("pub async fn properties_changed<T>"));
     assert!(out.contains("pub fn properties_invalidated("));
     assert!(out.contains("b\"sa{sv}as\""));
+    assert!(out.contains("call.checked_body(Signature::new_const(b\"ii\"))?"));
+    assert!(out.contains("fn __decode_reset(call: &Call) -> Result<()>"));
+    assert!(out.contains("call.checked_body(Signature::EMPTY)?"));
     Ok(())
 }
 

@@ -397,3 +397,30 @@ fn struct_in_nested_variants_limit() -> Result<()> {
     assert_error(Value::decode(&mut build(64).as_body()), too_deep);
     Ok(())
 }
+
+/// Arguments or a variant of the wrong type are reported back to a caller as
+/// `InvalidArgs`.
+#[test]
+fn unexpected_signatures() -> Result<()> {
+    use tokio_dbus::org_freedesktop_dbus::INVALID_ARGS_ERROR;
+
+    let mut buf = BodyBuf::new();
+    buf.store(1u32)?;
+
+    assert!(crate::connection::checked(buf.as_body(), Signature::UINT32).is_ok());
+
+    let error = crate::connection::checked(buf.as_body(), Signature::INT32).unwrap_err();
+    assert_eq!(error.to_string(), "Expected arguments `i`, got `u`");
+    assert_eq!(error.name(), Some(INVALID_ARGS_ERROR));
+    assert!(!error.is_remote());
+
+    let error = crate::connection::checked(buf.as_body(), Signature::EMPTY).unwrap_err();
+    assert_eq!(error.to_string(), "Expected arguments ``, got `u`");
+
+    let mut buf = BodyBuf::new();
+    buf.store_variant(Signature::UINT32)?.store(1u32);
+
+    let error = crate::decode_variant::<i32>(&mut buf.as_body(), Signature::INT32).unwrap_err();
+    assert_eq!(error.name(), Some(INVALID_ARGS_ERROR));
+    Ok(())
+}

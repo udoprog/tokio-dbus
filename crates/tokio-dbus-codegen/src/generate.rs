@@ -26,6 +26,10 @@ fn signature_of<'a>(arguments: impl IntoIterator<Item = &'a Argument<'a>>) -> Re
 
 /// A `Signature::new_const(b"...")` expression.
 fn signature(signature: &str) -> rust::Tokens {
+    if signature.is_empty() {
+        return quote!(Signature::EMPTY);
+    }
+
     quote!(Signature::new_const($(format!("b{signature:?}"))))
 }
 
@@ -224,7 +228,8 @@ fn client(interface: &Interface<'_>, name: &str) -> Result<rust::Tokens> {
                     .call(&self.destination, &self.path, PROPERTIES, "GetAll", &__arguments)
                     .await?;
 
-                __reply.read::<HashMap<String, Value>>()
+                let mut __body = __reply.checked_body($(signature("a{sv}")))?;
+                <HashMap<String, Value> as Decode>::decode(&mut __body)
             }
         });
     }
@@ -273,6 +278,7 @@ fn client_method(method: &Method<'_>) -> Result<rust::Tokens> {
     let (ret, reads) = outputs(method)?;
 
     let in_signature = signature_of(method.inputs())?;
+    let out_signature = signature(&signature_of(method.outputs())?);
     let has_inputs = method.inputs().next().is_some();
     let has_outputs = method.outputs().next().is_some();
 
@@ -302,9 +308,9 @@ fn client_method(method: &Method<'_>) -> Result<rust::Tokens> {
                 .await?;
 
             $(if has_outputs {
-                let mut __body = __reply.body();
+                let mut __body = __reply.checked_body($out_signature)?;
             } else {
-                let _ = __reply;
+                __reply.checked_body($out_signature)?;
             })
             $reads
         }
@@ -335,7 +341,7 @@ fn client_property(property: &Property<'_>) -> Result<rust::Tokens> {
                     .call(&self.destination, &self.path, PROPERTIES, "Get", &__arguments)
                     .await?;
 
-                let mut __body = __reply.body();
+                let mut __body = __reply.checked_body(Signature::VARIANT)?;
                 tokio_dbus_runtime::decode_variant::<$(ty.clone())>(
                     &mut __body,
                     $(property_signature.clone()),
@@ -364,7 +370,8 @@ fn client_property(property: &Property<'_>) -> Result<rust::Tokens> {
                 __arguments.store_variant($property_signature, value);
 
                 conn.call(&self.destination, &self.path, PROPERTIES, "Set", &__arguments)
-                    .await?;
+                    .await?
+                    .checked_body(Signature::EMPTY)?;
 
                 Ok(())
             }
@@ -428,14 +435,25 @@ fn signals(interface: &Interface<'_>) -> Result<rust::Tokens> {
 
         variants.push();
 
+        let signature = signature_of(signal.arguments.iter())?;
+
         if has_arguments {
             decodes.append(quote! {
-                $(quoted(signal.name)) => Signal::$(variant.clone()) {
-                    $reads
-                },
+                $(quoted(signal.name)) => {
+                    let mut __body = message.checked_body($(self::signature(&signature)))?;
+
+                    Signal::$(variant.clone()) {
+                        $reads
+                    }
+                }
             });
         } else {
-            decodes.append(quote!($(quoted(signal.name)) => Signal::$(variant.clone()),));
+            decodes.append(quote! {
+                $(quoted(signal.name)) => {
+                    message.checked_body(Signature::EMPTY)?;
+                    Signal::$(variant.clone())
+                }
+            });
         }
 
         decodes.push();
@@ -454,8 +472,6 @@ fn signals(interface: &Interface<'_>) -> Result<rust::Tokens> {
 
         members.append(quote!($ignored => $(quoted(signal.name)),));
         members.push();
-
-        let signature = signature_of(signal.arguments.iter())?;
 
         let arguments = if has_arguments {
             let signature = self::signature(&signature);
@@ -494,9 +510,6 @@ fn signals(interface: &Interface<'_>) -> Result<rust::Tokens> {
                 if message.interface() != Some(INTERFACE) {
                     return Ok(None);
                 }
-
-                #[allow(unused_mut)]
-                let mut __body = message.body();
 
                 Ok(Some(match message.member() {
                     $decodes
@@ -611,28 +624,29 @@ fn server(interface: &Interface<'_>, name: &str) -> Result<rust::Tokens> {
             }
         };
 
-        let call = if count == 0 {
-            quote!(handler.$(name.clone())().await)
-        } else {
-            let decoder = format!("__decode_{name}");
+        let decoder = format!("__decode_{name}");
+        let in_signature = signature(&signature_of(method.inputs())?);
 
-            decoders.append(quote! {
-                $(lines([format!("Read the arguments of a call to `{}`.", method.name)]))
-                fn $(decoder.clone())(call: &Call) -> Result<($types$(if count == 1 { , }))> {
-                    let mut __body = call.body();
-                    Ok(($reads))
+        decoders.append(quote! {
+            $(lines([format!("Read the arguments of a call to `{}`.", method.name)]))
+            fn $(decoder.clone())(call: &Call) -> Result<($types$(if count == 1 { , }))> {
+                $(if count > 0 {
+                    let mut __body = call.checked_body($in_signature)?;
+                } else {
+                    call.checked_body($in_signature)?;
+                })
+                Ok(($reads))
+            }
+        });
+
+        decoders.line();
+
+        let call = quote! {
+            match $decoder(call) {
+                Ok(($(names.clone())$(if count == 1 { , }))) => {
+                    handler.$(name.clone())($names).await
                 }
-            });
-
-            decoders.line();
-
-            quote! {
-                match $decoder(call) {
-                    Ok(($(names.clone())$(if count == 1 { , }))) => {
-                        handler.$(name.clone())($names).await
-                    }
-                    Err(__error) => Err(__error),
-                }
+                Err(__error) => Err(__error),
             }
         };
 
@@ -1016,8 +1030,21 @@ fn server_properties(interface: &Interface<'_>, trait_name: &str) -> Result<rust
         where
             T: ?Sized + $trait_name,
         {
+            let __expected = match call.member() {
+                "Get" => $(signature("ss")),
+                "GetAll" => Signature::STRING,
+                "Set" => $(signature("ssv")),
+                _ => return Ok(false),
+            };
+
             #[allow(unused_mut, unused_variables)]
-            let mut __body = call.body();
+            let mut __body = match call.checked_body(__expected) {
+                Ok(__body) => __body,
+                Err(__error) => {
+                    conn.reply_error(call, &__error)?;
+                    return Ok(true);
+                }
+            };
 
             let __interface = match <String as Decode>::decode(&mut __body) {
                 Ok(__interface) => __interface,

@@ -20,5 +20,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .client("org.kde.StatusNotifierWatcher")
         .generate("systray.rs")?;
 
+    // Both halves of a small interface, for the tests which check how
+    // generated code treats arguments of the wrong type.
+    tokio_dbus_codegen::Builder::new()
+        .file("tests/se.tedro.Checked.xml")
+        .both("se.tedro.Checked")
+        .generate("checked.rs")?;
+
     Ok(())
 }

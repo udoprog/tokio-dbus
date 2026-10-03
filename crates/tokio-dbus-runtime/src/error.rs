@@ -45,11 +45,20 @@ impl Error {
     ///
     /// A timeout raised by this end reports itself as
     /// `org.freedesktop.DBus.Error.NoReply`, which is the name every
-    /// implementation uses for a call which was not answered.
+    /// implementation uses for a call which was not answered. Arguments or a
+    /// variant of the wrong type report themselves as
+    /// `org.freedesktop.DBus.Error.InvalidArgs`, so that a server passing such
+    /// an error to [`Connection::reply_error`] answers the way the
+    /// specification expects.
+    ///
+    /// [`Connection::reply_error`]: crate::Connection::reply_error
     pub fn name(&self) -> Option<&str> {
         match &*self.kind {
             ErrorKind::Remote { name, .. } => Some(name),
             ErrorKind::Timeout(..) => Some(org_freedesktop_dbus::NO_REPLY_ERROR),
+            ErrorKind::UnexpectedSignature(..) | ErrorKind::UnexpectedArguments(..) => {
+                Some(org_freedesktop_dbus::INVALID_ARGS_ERROR)
+            }
             _ => None,
         }
     }
@@ -124,6 +133,10 @@ impl fmt::Display for Error {
                 let (expected, actual) = &**signatures;
                 write!(f, "Expected a value of type `{expected}`, got `{actual}`")
             }
+            ErrorKind::UnexpectedArguments(signatures) => {
+                let (expected, actual) = &**signatures;
+                write!(f, "Expected arguments `{expected}`, got `{actual}`")
+            }
             ErrorKind::MissingUniqueName => {
                 write!(f, "The bus did not reply to `Hello` with a unique name")
             }
@@ -154,11 +167,16 @@ impl error::Error for Error {
 pub(crate) enum ErrorKind {
     Dbus(tokio_dbus::Error),
     Signature(SignatureError),
-    Remote { name: Box<str>, message: Box<str> },
+    Remote {
+        name: Box<str>,
+        message: Box<str>,
+    },
     UnsupportedType(Box<SignatureBuf>),
     // NB: Boxed because a `SignatureBuf` is an inline buffer, so a variant with
     // two of them is much larger than any of the others.
     UnexpectedSignature(Box<(SignatureBuf, SignatureBuf)>),
+    /// A message body whose signature is not the expected one.
+    UnexpectedArguments(Box<(SignatureBuf, SignatureBuf)>),
     MissingUniqueName,
     NameTaken(Box<str>),
     Timeout(Duration),
