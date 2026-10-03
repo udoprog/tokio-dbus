@@ -49,6 +49,9 @@ fn signature_tests() {
     test!(b"a{ia}", Err(MissingArrayElementType));
     test!(b"a{}", Err(DictEntryHasNoFields));
     test!(b"a{aii}", Err(DictKeyMustBeBasicType));
+    test!(b"a{vs}", Err(DictKeyMustBeBasicType));
+    test!(b"a{hs}", Ok(..));
+    test!(b"a{sv}", Ok(..));
     test!(b" ", Err(UnknownTypeCode(..)));
     test!(b"not a valid signature", Err(UnknownTypeCode(..)));
     test!(b"123", Err(UnknownTypeCode(..)));

@@ -91,7 +91,7 @@ impl Validator {
                 return Err(SignatureError::new(DictEntryHasTooManyFields));
             }
 
-            if *n == 0 && matches!(b, b'a' | b'(' | b'{') {
+            if *n == 0 && matches!(b, b'a' | b'(' | b'{' | b'v') {
                 return Err(SignatureError::new(DictKeyMustBeBasicType));
             }
         }
