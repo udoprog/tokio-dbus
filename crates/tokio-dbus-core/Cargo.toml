@@ -5,7 +5,7 @@ authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2024"
 rust-version = "1.90"
 description = """
-Pure Rust D-Bus implementation for Tokio.
+Core types for the D-Bus protocol.
 """
 documentation = "https://docs.rs/tokio-dbus"
 readme = "README.md"
