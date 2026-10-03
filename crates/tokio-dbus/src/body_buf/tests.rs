@@ -226,3 +226,21 @@ fn from_partially_read_body() -> Result<()> {
     assert!(body.is_empty());
     Ok(())
 }
+
+/// A container whose signature does not fit leaves the signature of the buffer
+/// as it was, rather than with an array missing its element type.
+#[test]
+fn store_array_signature_too_long() -> Result<()> {
+    let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
+    buf.extend_signature(Signature::new(&[b'y'; 254])?)?;
+
+    assert!(buf.store_array::<u32>().is_err());
+    assert!(buf.store_struct::<(u8, u8)>().is_err());
+    assert_eq!(buf.signature(), &[b'y'; 254][..]);
+    assert!(buf.get().is_empty());
+
+    buf.store(1u8)?;
+    assert_eq!(buf.signature(), &[b'y'; 255][..]);
+    assert_eq!(buf.get(), &[1]);
+    Ok(())
+}

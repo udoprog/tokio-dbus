@@ -3,6 +3,8 @@ use std::hash::BuildHasher;
 
 use tokio_dbus::{Alignment, ObjectPath, ObjectPathBuf, Raw, Signature, SignatureBuf};
 
+use crate::Result;
+
 /// A Rust value which can be written to a D-Bus message body.
 ///
 /// This is implemented for the owned types that generated code uses, and for
@@ -26,7 +28,25 @@ pub trait Encode {
     const ALIGNMENT: Alignment;
 
     /// Write the value, without writing its signature.
+    ///
+    /// This may only write a valid encoding once [`validate()`] has succeeded.
+    ///
+    /// [`validate()`]: Self::validate
     fn encode(&self, raw: &mut Raw<'_>);
+
+    /// Check that the value can be encoded.
+    ///
+    /// This is called by [`Arguments`] before [`encode()`]. Types holding a
+    /// [`Value`] must forward to it, since a [`Value`] can be built which does
+    /// not describe a valid D-Bus value. The default accepts every value.
+    ///
+    /// [`Arguments`]: crate::Arguments
+    /// [`encode()`]: Self::encode
+    /// [`Value`]: crate::Value
+    #[inline]
+    fn validate(&self) -> Result<()> {
+        Ok(())
+    }
 }
 
 impl<T> Encode for &T
@@ -38,6 +58,11 @@ where
     #[inline]
     fn encode(&self, raw: &mut Raw<'_>) {
         (**self).encode(raw);
+    }
+
+    #[inline]
+    fn validate(&self) -> Result<()> {
+        (**self).validate()
     }
 }
 
@@ -138,6 +163,11 @@ where
             value.encode(&mut array.as_raw());
         }
     }
+
+    #[inline]
+    fn validate(&self) -> Result<()> {
+        self.iter().try_for_each(T::validate)
+    }
 }
 
 impl<T> Encode for Vec<T>
@@ -149,6 +179,11 @@ where
     #[inline]
     fn encode(&self, raw: &mut Raw<'_>) {
         <[T] as Encode>::encode(self, raw);
+    }
+
+    #[inline]
+    fn validate(&self) -> Result<()> {
+        <[T] as Encode>::validate(self)
     }
 }
 
@@ -162,6 +197,26 @@ where
     fn encode(&self, raw: &mut Raw<'_>) {
         <[T] as Encode>::encode(self, raw);
     }
+
+    #[inline]
+    fn validate(&self) -> Result<()> {
+        <[T] as Encode>::validate(self)
+    }
+}
+
+/// Validate the entries of a map.
+fn validate_entries<'a, K, V, I>(entries: I) -> Result<()>
+where
+    K: 'a + Encode,
+    V: 'a + Encode,
+    I: IntoIterator<Item = (&'a K, &'a V)>,
+{
+    for (key, value) in entries {
+        key.validate()?;
+        value.validate()?;
+    }
+
+    Ok(())
 }
 
 /// Write a map as an array of dict entries.
@@ -194,6 +249,11 @@ where
     fn encode(&self, raw: &mut Raw<'_>) {
         encode_entries(raw, self);
     }
+
+    #[inline]
+    fn validate(&self) -> Result<()> {
+        validate_entries(self)
+    }
 }
 
 impl<K, V> Encode for BTreeMap<K, V>
@@ -206,6 +266,11 @@ where
     #[inline]
     fn encode(&self, raw: &mut Raw<'_>) {
         encode_entries(raw, self);
+    }
+
+    #[inline]
+    fn validate(&self) -> Result<()> {
+        validate_entries(self)
     }
 }
 
@@ -223,6 +288,13 @@ macro_rules! encode_tuple {
                 let ($($var,)*) = self;
                 raw.align(Alignment::U64);
                 $($var.encode(raw);)*
+            }
+
+            #[inline]
+            fn validate(&self) -> Result<()> {
+                let ($($var,)*) = self;
+                $($var.validate()?;)*
+                Ok(())
             }
         }
     }

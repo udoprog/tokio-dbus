@@ -6,7 +6,7 @@ use crate::proto::Type;
 /// Detailed errors raised when validation of a [`Signature`] fails.
 ///
 /// [`Signature`]: crate::signature::Signature
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SignatureError {
     pub(super) kind: SignatureErrorKind,
 }
@@ -26,7 +26,7 @@ impl SignatureError {
 }
 
 #[allow(missing_docs)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum SignatureErrorKind {
     UnknownTypeCode(Type),
     SignatureTooLong,
@@ -44,6 +44,7 @@ pub(crate) enum SignatureErrorKind {
     ExceededMaximumStructRecursion,
     ExceededMaximumDictRecursion,
     DictEntryHasTooManyFields,
+    ArrayEndedButNotStarted,
 }
 
 impl fmt::Display for SignatureError {
@@ -96,6 +97,9 @@ impl fmt::Display for SignatureError {
             }
             SignatureErrorKind::DictEntryHasTooManyFields => {
                 write!(f, "Dict entry has too many fields")
+            }
+            SignatureErrorKind::ArrayEndedButNotStarted => {
+                write!(f, "Array ended but not started")
             }
         }
     }

@@ -27,6 +27,10 @@ mod signature_error;
 #[doc(hidden)]
 pub const MAX_SIGNATURE: usize = 256;
 
+/// The maximum length of a valid signature, which is prefixed by its length as a
+/// single byte on the wire.
+pub(crate) const MAX_SIGNATURE_LEN: usize = u8::MAX as usize;
+
 /// The maximum individual container depth.
 #[doc(hidden)]
 pub const MAX_CONTAINER_DEPTH: usize = 32;

@@ -122,39 +122,31 @@ impl Value {
     }
 
     fn write_signature(&self, builder: &mut SignatureBuilder) -> Result<()> {
-        fn extend(builder: &mut SignatureBuilder, signature: &Signature) -> Result<()> {
-            if !builder.extend_from_signature(signature) {
-                return Err(Error::from(tokio_dbus::SignatureError::too_long()));
-            }
-
-            Ok(())
-        }
-
         match self {
-            Value::Bool(..) => extend(builder, Signature::BOOLEAN)?,
-            Value::U8(..) => extend(builder, Signature::BYTE)?,
-            Value::I16(..) => extend(builder, Signature::INT16)?,
-            Value::U16(..) => extend(builder, Signature::UINT16)?,
-            Value::I32(..) => extend(builder, Signature::INT32)?,
-            Value::U32(..) => extend(builder, Signature::UINT32)?,
-            Value::I64(..) => extend(builder, Signature::INT64)?,
-            Value::U64(..) => extend(builder, Signature::UINT64)?,
-            Value::F64(..) => extend(builder, Signature::DOUBLE)?,
-            Value::String(..) => extend(builder, Signature::STRING)?,
-            Value::ObjectPath(..) => extend(builder, Signature::OBJECT_PATH)?,
-            Value::Signature(..) => extend(builder, Signature::SIGNATURE)?,
+            Value::Bool(..) => builder.try_extend_from_signature(Signature::BOOLEAN)?,
+            Value::U8(..) => builder.try_extend_from_signature(Signature::BYTE)?,
+            Value::I16(..) => builder.try_extend_from_signature(Signature::INT16)?,
+            Value::U16(..) => builder.try_extend_from_signature(Signature::UINT16)?,
+            Value::I32(..) => builder.try_extend_from_signature(Signature::INT32)?,
+            Value::U32(..) => builder.try_extend_from_signature(Signature::UINT32)?,
+            Value::I64(..) => builder.try_extend_from_signature(Signature::INT64)?,
+            Value::U64(..) => builder.try_extend_from_signature(Signature::UINT64)?,
+            Value::F64(..) => builder.try_extend_from_signature(Signature::DOUBLE)?,
+            Value::String(..) => builder.try_extend_from_signature(Signature::STRING)?,
+            Value::ObjectPath(..) => builder.try_extend_from_signature(Signature::OBJECT_PATH)?,
+            Value::Signature(..) => builder.try_extend_from_signature(Signature::SIGNATURE)?,
             Value::Array { element, .. } => {
                 builder.open_array()?;
-                extend(builder, element)?;
-                builder.close_array();
+                builder.try_extend_from_signature(single_type(element)?)?;
+                builder.close_array()?;
             }
             Value::Dict { key, value, .. } => {
                 builder.open_array()?;
                 builder.open_dict()?;
-                extend(builder, key)?;
-                extend(builder, value)?;
+                builder.try_extend_from_signature(single_type(key)?)?;
+                builder.try_extend_from_signature(single_type(value)?)?;
                 builder.close_dict()?;
-                builder.close_array();
+                builder.close_array()?;
             }
             Value::Struct(fields) => {
                 builder.open_struct()?;
@@ -165,7 +157,90 @@ impl Value {
 
                 builder.close_struct()?;
             }
-            Value::Variant(..) => extend(builder, Signature::VARIANT)?,
+            Value::Variant(..) => builder.try_extend_from_signature(Signature::VARIANT)?,
+        }
+
+        Ok(())
+    }
+
+    /// Check that this value can be encoded.
+    ///
+    /// This fails if its [`signature()`] cannot be built, such as for an empty
+    /// [`Value::Struct`] or a declared element type which does not name exactly
+    /// one type, if an element, key or value does not match the type declared
+    /// for it, or if containers are nested more deeply than D-Bus allows.
+    ///
+    /// [`Arguments`] performs this check before writing a value, and refuses to
+    /// send arguments for which it failed.
+    ///
+    /// [`signature()`]: Self::signature
+    /// [`Arguments`]: crate::Arguments
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::Signature;
+    /// use tokio_dbus_runtime::Value;
+    ///
+    /// let value = Value::array("s")?;
+    /// assert!(value.validate().is_ok());
+    ///
+    /// let value = Value::Array {
+    ///     element: Signature::STRING.to_owned(),
+    ///     values: vec![Value::U8(1)],
+    /// };
+    ///
+    /// assert!(value.validate().is_err());
+    /// assert!(Value::Struct(vec![]).validate().is_err());
+    /// # Ok::<_, tokio_dbus_runtime::Error>(())
+    /// ```
+    pub fn validate(&self) -> Result<()> {
+        // NB: A value is encoded inside of a variant, which is a container.
+        self.validate_at(1)
+    }
+
+    /// Validate a value which is written along with its own signature, where
+    /// `depth` is the number of containers enclosing it.
+    fn validate_at(&self, depth: usize) -> Result<()> {
+        self.signature()?;
+        self.validate_contents(depth)
+    }
+
+    /// Validate what this value holds, once its own signature is known to be
+    /// valid.
+    fn validate_contents(&self, depth: usize) -> Result<()> {
+        match self {
+            Value::Array { element, values } => {
+                let depth = enter(depth)?;
+
+                for value in values {
+                    validate_element(value, element, depth)?;
+                }
+            }
+            Value::Dict {
+                key,
+                value: signature,
+                entries,
+            } => {
+                // NB: Both the array and each dict entry are containers.
+                let depth = enter(enter(depth)?)?;
+
+                for (key_value, value) in entries {
+                    validate_element(key_value, key, depth)?;
+                    validate_element(value, signature, depth)?;
+                }
+            }
+            Value::Struct(fields) => {
+                let depth = enter(depth)?;
+
+                for field in fields {
+                    field.validate_contents(depth)?;
+                }
+            }
+            Value::Variant(value) => {
+                value.validate_at(enter(depth)?)?;
+            }
+            _ => {}
         }
 
         Ok(())
@@ -194,16 +269,16 @@ impl Value {
                 }
             }
             Value::Dict {
+                key: key_signature,
                 value: signature,
                 entries,
-                ..
             } => {
                 let mut array = raw.store_array(Alignment::U64);
 
                 for (key, value) in entries {
                     let mut entry = array.as_raw();
                     entry.align(Alignment::U64);
-                    key.encode_value(&mut entry);
+                    encode_element(key, key_signature, &mut entry);
                     encode_element(value, signature, &mut entry);
                 }
             }
@@ -218,10 +293,7 @@ impl Value {
                 // NB: This is the signature of the value inside the nested
                 // variant, which is data rather than part of the signature of
                 // the surrounding buffer.
-                if let Ok(signature) = value.signature() {
-                    raw.store_signature(&signature);
-                    value.encode_value(raw);
-                }
+                value.encode(raw);
             }
         }
     }
@@ -372,6 +444,44 @@ fn enter(depth: usize) -> Result<usize> {
     Ok(depth + 1)
 }
 
+/// The signature of an element, key or value of a container, which must name
+/// exactly one type.
+fn single_type(signature: &Signature) -> Result<&Signature> {
+    if single(signature).is_none() {
+        return Err(Error::new(ErrorKind::UnsupportedType(Box::new(
+            signature.to_owned(),
+        ))));
+    }
+
+    Ok(signature)
+}
+
+/// Validate one element of a container whose declared element type is
+/// `signature`, where `depth` is the number of containers enclosing it.
+///
+/// This accepts what [`encode_element`] accepts.
+fn validate_element(value: &Value, signature: &Signature, depth: usize) -> Result<()> {
+    if signature.as_bytes() == b"v" {
+        let depth = enter(depth)?;
+
+        return match value {
+            Value::Variant(inner) => inner.validate_at(depth),
+            value => value.validate_at(depth),
+        };
+    }
+
+    let actual = value.signature()?;
+
+    if actual != *signature {
+        return Err(Error::new(ErrorKind::UnexpectedSignature(Box::new((
+            signature.to_owned(),
+            actual,
+        )))));
+    }
+
+    value.validate_contents(depth)
+}
+
 /// The single type named by a signature, if it names exactly one.
 fn single(signature: &Signature) -> Option<signature::Type<'_>> {
     let mut iter = signature.iter();
@@ -417,11 +527,28 @@ impl Encode for Value {
     // prefixed by a single byte holding its length.
     const ALIGNMENT: Alignment = Alignment::BYTE;
 
+    /// Write the value along with its signature.
+    ///
+    /// The value must be checked with [`validate()`] first, which [`Arguments`]
+    /// does. What is written for an invalid value is not a valid variant.
+    ///
+    /// [`validate()`]: Value::validate
+    /// [`Arguments`]: crate::Arguments
     fn encode(&self, raw: &mut Raw<'_>) {
-        if let Ok(signature) = self.signature() {
-            raw.store_signature(&signature);
-            self.encode_value(raw);
+        match self.signature() {
+            Ok(signature) => {
+                raw.store_signature(&signature);
+                self.encode_value(raw);
+            }
+            Err(..) => {
+                raw.store_signature(Signature::empty());
+            }
         }
+    }
+
+    #[inline]
+    fn validate(&self) -> Result<()> {
+        Value::validate(self)
     }
 }
 

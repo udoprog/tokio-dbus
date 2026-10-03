@@ -2,6 +2,7 @@ use std::collections::VecDeque;
 use std::fmt;
 use std::future::Future;
 use std::pin::{Pin, pin};
+use std::sync::Arc;
 use std::task::{Context, Poll};
 use std::time::Duration;
 
@@ -35,6 +36,9 @@ use crate::{Decode, Encode, Error, Result};
 #[derive(Default)]
 pub struct Arguments {
     buf: BodyBuf,
+    /// The first argument which failed validation, after which nothing more
+    /// is written.
+    invalid: Option<Arc<Error>>,
 }
 
 impl Arguments {
@@ -42,7 +46,7 @@ impl Arguments {
     pub fn new(signature: &Signature) -> Result<Self> {
         let mut buf = BodyBuf::new();
         buf.extend_signature(signature)?;
-        Ok(Self { buf })
+        Ok(Self { buf, invalid: None })
     }
 
     /// Construct an argument list matching a signature which is known at
@@ -75,7 +79,7 @@ impl Arguments {
         buf.extend_signature(signature)
             .expect("A validated signature cannot fail to extend an empty body");
 
-        Self { buf }
+        Self { buf, invalid: None }
     }
 
     /// Construct an empty argument list.
@@ -84,11 +88,32 @@ impl Arguments {
     }
 
     /// Write the next argument.
+    ///
+    /// If the value fails [`Encode::validate`], such as a [`Value`] whose
+    /// elements do not match its declared element type, nothing more is
+    /// written and sending these arguments fails with that error.
+    ///
+    /// [`Value`]: crate::Value
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tokio_dbus::Signature;
+    /// use tokio_dbus_runtime::{Arguments, Value};
+    ///
+    /// let mut arguments = Arguments::new(Signature::VARIANT)?;
+    /// arguments.store(Value::Struct(vec![]));
+    /// assert!(arguments.validate().is_err());
+    /// # Ok::<_, tokio_dbus_runtime::Error>(())
+    /// ```
     pub fn store<T>(&mut self, value: T) -> &mut Self
     where
         T: Encode,
     {
-        value.encode(&mut self.buf.raw());
+        if check(&mut self.invalid, &value) {
+            value.encode(&mut self.buf.raw());
+        }
+
         self
     }
 
@@ -112,9 +137,12 @@ impl Arguments {
     where
         T: Encode,
     {
-        let mut raw = self.buf.raw();
-        raw.store_signature(signature);
-        value.encode(&mut raw);
+        if check(&mut self.invalid, &value) {
+            let mut raw = self.buf.raw();
+            raw.store_signature(signature);
+            value.encode(&mut raw);
+        }
+
         self
     }
 
@@ -139,16 +167,47 @@ impl Arguments {
         VariantDict {
             // NB: Dict entries are aligned just like structs.
             array: self.buf.raw().into_array(Alignment::U64),
+            invalid: &mut self.invalid,
         }
     }
 
-    fn body(&self) -> Body<'_> {
-        self.buf.as_body()
+    /// Check that every argument written so far passed validation, which is
+    /// what sending them requires.
+    pub fn validate(&self) -> Result<()> {
+        match &self.invalid {
+            Some(error) => Err(Error::new(ErrorKind::InvalidArguments(error.clone()))),
+            None => Ok(()),
+        }
+    }
+
+    fn body(&self) -> Result<Body<'_>> {
+        self.validate()?;
+        Ok(self.buf.as_body())
     }
 
     #[cfg(test)]
     pub(crate) fn body_for_test(&self) -> Body<'_> {
-        self.body()
+        self.buf.as_body()
+    }
+}
+
+/// Validate a value about to be written, recording the first failure.
+///
+/// Returns `true` if the value should be written.
+fn check<T>(invalid: &mut Option<Arc<Error>>, value: &T) -> bool
+where
+    T: Encode,
+{
+    if invalid.is_some() {
+        return false;
+    }
+
+    match value.validate() {
+        Ok(()) => true,
+        Err(error) => {
+            *invalid = Some(Arc::new(error));
+            false
+        }
     }
 }
 
@@ -157,6 +216,7 @@ impl Arguments {
 /// See [`Arguments::store_variant_dict`].
 pub struct VariantDict<'a> {
     array: RawArray<'a>,
+    invalid: &'a mut Option<Arc<Error>>,
 }
 
 impl VariantDict<'_> {
@@ -166,11 +226,14 @@ impl VariantDict<'_> {
     where
         T: Encode,
     {
-        let mut entry = self.array.as_raw();
-        entry.align(Alignment::U64);
-        name.encode(&mut entry);
-        entry.store_signature(signature);
-        value.encode(&mut entry);
+        if check(self.invalid, &value) {
+            let mut entry = self.array.as_raw();
+            entry.align(Alignment::U64);
+            name.encode(&mut entry);
+            entry.store_signature(signature);
+            value.encode(&mut entry);
+        }
+
         self
     }
 
@@ -387,13 +450,14 @@ impl Connection {
         member: &str,
         arguments: &Arguments,
     ) -> Result<Reply> {
+        let body = arguments.body()?;
         let m = self
             .buffers
             .send
             .method_call(path, member)
             .with_destination(destination)
             .with_interface(interface)
-            .with_body(arguments.body());
+            .with_body(body);
 
         let serial = m.serial();
         self.buffers.send.write_message(m)?;
@@ -414,12 +478,13 @@ impl Connection {
         member: &str,
         arguments: &Arguments,
     ) -> Result<()> {
+        let body = arguments.body()?;
         let m = self
             .buffers
             .send
             .signal(path, member)
             .with_interface(interface)
-            .with_body(arguments.body());
+            .with_body(body);
 
         self.buffers.send.write_message(m)?;
         Ok(())
@@ -427,11 +492,12 @@ impl Connection {
 
     /// Reply to a method call.
     pub fn reply(&mut self, call: &Call, arguments: &Arguments) -> Result<()> {
+        let body = arguments.body()?;
         let m = call
             .message
             .borrow()
             .method_return(self.buffers.send.next_serial())
-            .with_body(arguments.body());
+            .with_body(body);
 
         self.buffers.send.write_message(m)?;
         Ok(())
@@ -447,11 +513,13 @@ impl Connection {
         let mut arguments = Arguments::new_const(Signature::STRING);
         arguments.store(error.to_string().as_str());
 
+        let body = arguments.body()?;
+
         let m = call
             .message
             .borrow()
             .error(&name, self.buffers.send.next_serial())
-            .with_body(arguments.body());
+            .with_body(body);
 
         self.buffers.send.write_message(m)?;
         Ok(())

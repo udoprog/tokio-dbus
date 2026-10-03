@@ -6,6 +6,11 @@ impl StackValue for bool {
     const DEFAULT: Self = false;
 }
 
+impl StackValue for u8 {
+    const DEFAULT: Self = 0;
+}
+
+#[derive(Clone, Copy)]
 pub(crate) struct Stack<T, const N: usize> {
     pub(crate) data: [T; N],
     pub(crate) len: usize,

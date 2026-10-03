@@ -1,5 +1,6 @@
 use std::error;
 use std::fmt;
+use std::sync::Arc;
 use std::time::Duration;
 
 use tokio_dbus::org_freedesktop_dbus;
@@ -149,6 +150,9 @@ impl fmt::Display for Error {
             ErrorKind::NestingTooDeep => {
                 write!(f, "Containers are nested too deeply (max is 64)")
             }
+            ErrorKind::InvalidArguments(..) => {
+                write!(f, "Arguments hold a value which cannot be encoded")
+            }
         }
     }
 }
@@ -158,6 +162,7 @@ impl error::Error for Error {
         match &*self.kind {
             ErrorKind::Dbus(error) => Some(error),
             ErrorKind::Signature(error) => Some(error),
+            ErrorKind::InvalidArguments(error) => Some(&**error),
             _ => None,
         }
     }
@@ -181,4 +186,6 @@ pub(crate) enum ErrorKind {
     NameTaken(Box<str>),
     Timeout(Duration),
     NestingTooDeep,
+    /// Arguments which could not be written, see `Arguments::store`.
+    InvalidArguments(Arc<Error>),
 }

@@ -196,8 +196,7 @@ where
     fn write_signature(signature: &mut SignatureBuilder) -> Result<(), SignatureError> {
         signature.open_array()?;
         T::write_signature(signature)?;
-        signature.close_array();
-        Ok(())
+        signature.close_array()
     }
 }
 

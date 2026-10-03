@@ -182,3 +182,36 @@ async fn stale_replies_are_not_queued() -> Result<()> {
     assert_eq!(expect_ping(client.next().await?), 1);
     Ok(())
 }
+
+/// Arguments holding a value which cannot be encoded are not sent.
+#[tokio::test]
+async fn invalid_arguments_are_not_sent() -> Result<()> {
+    use tokio_dbus::Signature;
+
+    use crate::Value;
+
+    let (mut client, mut peer) = pair().await?;
+
+    let mut arguments = Arguments::new(Signature::VARIANT)?;
+    arguments.store(Value::Struct(vec![]));
+
+    let error = client
+        .call(":1.0", PATH, INTERFACE, "Echo", &arguments)
+        .await
+        .unwrap_err();
+    assert_eq!(
+        error.to_string(),
+        "Arguments hold a value which cannot be encoded"
+    );
+
+    assert!(client.emit(PATH, INTERFACE, "Bad", &arguments).is_err());
+    client.emit(PATH, INTERFACE, "Pong", &Arguments::empty())?;
+    client.flush().await?;
+
+    let pong = peer.recv().await?;
+    assert!(matches!(
+        pong.kind(),
+        MessageKind::Signal { member: "Pong", .. }
+    ));
+    Ok(())
+}

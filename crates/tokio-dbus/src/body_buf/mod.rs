@@ -443,7 +443,7 @@ impl BodyBuf {
     where
         E: ty::Marker,
     {
-        <ty::Array<E> as ty::Marker>::write_signature(&mut self.signature)?;
+        self.extend_signature_with(<ty::Array<E> as ty::Marker>::write_signature)?;
         // NB: We write directly onto the underlying buffer, because we've
         // already applied the correct signature.
         Ok(StoreArray::new(self))
@@ -498,7 +498,7 @@ impl BodyBuf {
     where
         E: ty::Fields,
     {
-        E::write_signature(&mut self.signature)?;
+        self.extend_signature_with(E::write_signature)?;
         // NB: We write directly onto the underlying buffer, because we've
         // already applied the correct signature.
         Ok(StoreStruct::new(self))
@@ -623,6 +623,19 @@ impl BodyBuf {
             return Err(SignatureError::too_long().into());
         }
 
+        Ok(())
+    }
+
+    /// Extend the signature of the buffer with the complete types written by
+    /// `f`, leaving it unchanged if that fails part of the way through.
+    fn extend_signature_with(
+        &mut self,
+        f: impl FnOnce(&mut SignatureBuilder) -> Result<(), SignatureError>,
+    ) -> Result<()> {
+        let mut signature = SignatureBuilder::new();
+        f(&mut signature)?;
+        self.signature
+            .try_extend_from_signature(signature.to_signature())?;
         Ok(())
     }
 

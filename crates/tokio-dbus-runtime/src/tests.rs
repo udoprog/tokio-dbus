@@ -424,3 +424,208 @@ fn unexpected_signatures() -> Result<()> {
     assert_eq!(error.name(), Some(INVALID_ARGS_ERROR));
     Ok(())
 }
+
+/// The message at the end of the chain of sources of an error.
+fn root_message(error: &dyn std::error::Error) -> String {
+    match error.source() {
+        Some(source) => root_message(source),
+        None => error.to_string(),
+    }
+}
+
+fn sig(signature: &str) -> tokio_dbus::SignatureBuf {
+    Signature::new(signature).unwrap().to_owned()
+}
+
+/// Values which do not describe a valid D-Bus value are rejected, and
+/// [`Arguments`] writes nothing once one has been stored.
+///
+/// [`Arguments`]: crate::Arguments
+#[test]
+fn invalid_values() -> Result<()> {
+    use crate::Arguments;
+
+    fn variants(depth: usize, value: Value) -> Value {
+        (0..depth).fold(value, |value, _| Value::Variant(Box::new(value)))
+    }
+
+    let too_deep = "Containers are nested too deeply (max is 64)";
+
+    let cases = [
+        (
+            Value::Array {
+                element: sig("s"),
+                values: vec![Value::U8(1)],
+            },
+            "Expected a value of type `s`, got `y`",
+        ),
+        (
+            Value::Array {
+                element: sig("ai"),
+                values: vec![Value::Array {
+                    element: sig("i"),
+                    values: vec![Value::U8(1)],
+                }],
+            },
+            "Expected a value of type `i`, got `y`",
+        ),
+        (
+            Value::Array {
+                element: sig("(i)"),
+                values: vec![Value::Struct(vec![Value::String("a".into())])],
+            },
+            "Expected a value of type `(i)`, got `(s)`",
+        ),
+        (
+            Value::Array {
+                element: sig("ii"),
+                values: vec![],
+            },
+            "Cannot represent a value of type `ii`",
+        ),
+        (
+            Value::Array {
+                element: sig(""),
+                values: vec![],
+            },
+            "Cannot represent a value of type ``",
+        ),
+        (
+            Value::Dict {
+                key: sig("s"),
+                value: sig("u"),
+                entries: vec![(Value::U32(1), Value::U32(2))],
+            },
+            "Expected a value of type `s`, got `u`",
+        ),
+        (
+            Value::Dict {
+                key: sig("s"),
+                value: sig("u"),
+                entries: vec![(Value::String("a".into()), Value::String("b".into()))],
+            },
+            "Expected a value of type `u`, got `s`",
+        ),
+        (
+            Value::Dict {
+                key: sig("ai"),
+                value: sig("u"),
+                entries: vec![],
+            },
+            "Dict key must be basic type",
+        ),
+        (Value::Struct(vec![]), "Struct has no fields"),
+        (
+            Value::Struct(vec![Value::Struct(vec![])]),
+            "Struct has no fields",
+        ),
+        (
+            Value::Variant(Box::new(Value::Struct(vec![]))),
+            "Struct has no fields",
+        ),
+        (
+            Value::Array {
+                element: sig("v"),
+                values: vec![Value::Struct(vec![])],
+            },
+            "Struct has no fields",
+        ),
+        (
+            Value::Array {
+                element: sig("v"),
+                values: vec![Value::Variant(Box::new(Value::Struct(vec![])))],
+            },
+            "Struct has no fields",
+        ),
+        (
+            Value::Array {
+                element: sig("v"),
+                values: vec![Value::Array {
+                    element: sig("s"),
+                    values: vec![Value::U8(1)],
+                }],
+            },
+            "Expected a value of type `s`, got `y`",
+        ),
+        (variants(64, Value::U32(42)), too_deep),
+        (variants(63, Value::Struct(vec![Value::U32(42)])), too_deep),
+    ];
+
+    for (value, expected) in cases {
+        assert_eq!(root_message(&value.validate().unwrap_err()), expected);
+
+        let mut arguments = Arguments::new(Signature::new("vu")?)?;
+        arguments.store(&value).store(1u32);
+        assert_eq!(root_message(&arguments.validate().unwrap_err()), expected);
+        assert!(arguments.body_for_test().is_empty());
+
+        let mut arguments = Arguments::new(Signature::new("av")?)?;
+        arguments.store(vec![value.clone()]);
+        assert!(arguments.validate().is_err());
+
+        let mut arguments = Arguments::new(Signature::new("a{sv}")?)?;
+        arguments.store(HashMap::from([(String::from("key"), value.clone())]));
+        assert!(arguments.validate().is_err());
+
+        let mut arguments = Arguments::new(Signature::new("(uv)")?)?;
+        arguments.store((1u32, &value));
+        assert!(arguments.validate().is_err());
+
+        let mut arguments = Arguments::new(Signature::new("v")?)?;
+        arguments.store_variant(Signature::VARIANT, &value);
+        assert!(arguments.validate().is_err());
+
+        let mut arguments = Arguments::new(Signature::new("a{sv}")?)?;
+        arguments
+            .store_variant_dict()
+            .entry("key", Signature::VARIANT, &value);
+        assert!(arguments.validate().is_err());
+    }
+
+    Ok(())
+}
+
+/// Values at the limits are accepted, and encode to exactly what the decoder
+/// reads back.
+#[test]
+fn valid_values() -> Result<()> {
+    let deepest = (0..63).fold(Value::U32(42), |value, _| Value::Variant(Box::new(value)));
+    deepest.validate()?;
+    round_trip("v", deepest)?;
+
+    let mut buf = BodyBuf::with_endianness(tokio_dbus::Endianness::LITTLE);
+    buf.extend_signature(Signature::VARIANT)?;
+
+    let value = Value::Array {
+        element: sig("v"),
+        values: vec![Value::U8(1), Value::Variant(Box::new(Value::U8(2)))],
+    };
+
+    value.validate()?;
+    value.encode(&mut buf.raw());
+
+    #[rustfmt::skip]
+    assert_eq!(buf.get(), &[
+        // signature of the variant
+        2, b'a', b'v', 0,
+        // length of the array
+        8, 0, 0, 0,
+        // the bare value, written as a variant
+        1, b'y', 0, 1,
+        // the wrapped value
+        1, b'y', 0, 2,
+    ]);
+    Ok(())
+}
+
+/// A value written without being validated first still occupies its variant,
+/// rather than leaving the variant with nothing behind it.
+#[test]
+fn unvalidated_value() {
+    let mut buf = BodyBuf::with_endianness(tokio_dbus::Endianness::LITTLE);
+    Value::Struct(vec![]).encode(&mut buf.raw());
+    Value::Variant(Box::new(Value::Struct(vec![]))).encode(&mut buf.raw());
+
+    // NB: The second one is a variant holding a variant which is empty.
+    assert_eq!(buf.get(), &[0, 0, 1, b'v', 0, 0, 0]);
+}

@@ -1,7 +1,9 @@
 use crate::proto::Type;
 
 use super::stack::{Stack, StackValue};
-use super::{MAX_CONTAINER_DEPTH, MAX_DEPTH, SignatureError, SignatureErrorKind};
+use super::{
+    MAX_CONTAINER_DEPTH, MAX_DEPTH, MAX_SIGNATURE_LEN, SignatureError, SignatureErrorKind,
+};
 
 #[derive(Default, Debug, Clone, Copy)]
 #[repr(u8)]
@@ -21,22 +23,79 @@ impl StackValue for Kind {
     const DEFAULT: Self = Kind::None;
 }
 
-#[allow(unused_assignments)]
+/// Validate a complete signature.
 pub(super) const fn validate(bytes: &[u8]) -> Result<(), SignatureError> {
-    use SignatureErrorKind::*;
-
-    if bytes.len() > u8::MAX as usize {
-        return Err(SignatureError::new(SignatureTooLong));
+    if bytes.len() > MAX_SIGNATURE_LEN {
+        return Err(SignatureError::new(SignatureErrorKind::SignatureTooLong));
     }
 
-    let mut stack = Stack::<(Kind, u8), MAX_DEPTH>::new();
-    let mut arrays = 0;
-    let mut structs = 0;
+    let mut validator = Validator::new();
     let mut n = 0;
 
     while n < bytes.len() {
-        let b = bytes[n];
+        if let Err(error) = validator.push(bytes[n]) {
+            return Err(error);
+        }
+
         n += 1;
+    }
+
+    validator.finish()
+}
+
+/// Incremental signature validation, one type code at a time.
+///
+/// Every prefix accepted by [`Validator::push`] can be completed into a valid
+/// signature, length aside, and [`Validator::depth`] is zero exactly when the prefix pushed so
+/// far is a sequence of complete types.
+#[derive(Clone, Copy)]
+pub(super) struct Validator {
+    stack: Stack<(Kind, u8), MAX_DEPTH>,
+    arrays: usize,
+    structs: usize,
+}
+
+impl Validator {
+    pub(super) const fn new() -> Self {
+        Self {
+            stack: Stack::new(),
+            arrays: 0,
+            structs: 0,
+        }
+    }
+
+    /// The number of containers which are currently open.
+    #[inline]
+    pub(super) const fn depth(&self) -> usize {
+        self.stack.len
+    }
+
+    /// Test if the innermost open container is an array.
+    #[inline]
+    pub(super) const fn in_array(&self) -> bool {
+        matches!(stack_peek!(self.stack), Some((Kind::Array, _)))
+    }
+
+    /// Push a single type code.
+    ///
+    /// On error the validator may be left in an inconsistent state and must be
+    /// discarded.
+    #[allow(unused_assignments)]
+    pub(super) const fn push(&mut self, b: u8) -> Result<(), SignatureError> {
+        use SignatureErrorKind::*;
+
+        // NB: Reject a dict entry field as soon as it starts, so that a prefix
+        // which has been accepted can always be completed.
+        if let Some((Kind::Dict, n)) = stack_peek!(self.stack) {
+            if *n >= 2 && b != b'}' {
+                return Err(SignatureError::new(DictEntryHasTooManyFields));
+            }
+
+            if *n == 0 && matches!(b, b'a' | b'(' | b'{') {
+                return Err(SignatureError::new(DictKeyMustBeBasicType));
+            }
+        }
+
         let t = Type::new(b);
 
         let mut is_basic = match t {
@@ -55,23 +114,27 @@ pub(super) const fn validate(bytes: &[u8]) -> Result<(), SignatureError> {
             Type::VARIANT => true,
             Type::UNIX_FD => true,
             Type::ARRAY => {
-                if !stack_try_push!(stack, (Kind::Array, 0)) || arrays == MAX_CONTAINER_DEPTH {
+                if self.arrays == MAX_CONTAINER_DEPTH
+                    || !stack_try_push!(self.stack, (Kind::Array, 0))
+                {
                     return Err(SignatureError::new(ExceededMaximumArrayRecursion));
                 }
 
-                arrays += 1;
-                continue;
+                self.arrays += 1;
+                return Ok(());
             }
             Type::OPEN_PAREN => {
-                if !stack_try_push!(stack, (Kind::Struct, 0)) || structs == MAX_CONTAINER_DEPTH {
+                if self.structs == MAX_CONTAINER_DEPTH
+                    || !stack_try_push!(self.stack, (Kind::Struct, 0))
+                {
                     return Err(SignatureError::new(ExceededMaximumStructRecursion));
                 }
 
-                structs += 1;
-                continue;
+                self.structs += 1;
+                return Ok(());
             }
             Type::CLOSE_PAREN => {
-                let n = match stack_pop!(stack, (Kind, u8)) {
+                let n = match stack_pop!(self.stack, (Kind, u8)) {
                     Some((Kind::Struct, n)) => n,
                     Some((Kind::Array, _)) => {
                         return Err(SignatureError::new(MissingArrayElementType));
@@ -85,18 +148,18 @@ pub(super) const fn validate(bytes: &[u8]) -> Result<(), SignatureError> {
                     return Err(SignatureError::new(StructHasNoFields));
                 }
 
-                structs -= 1;
+                self.structs -= 1;
                 false
             }
             Type::OPEN_BRACE => {
-                if !stack_try_push!(stack, (Kind::Dict, 0)) {
+                if !stack_try_push!(self.stack, (Kind::Dict, 0)) {
                     return Err(SignatureError::new(ExceededMaximumDictRecursion));
                 }
 
-                continue;
+                return Ok(());
             }
             Type::CLOSE_BRACE => {
-                let n = match stack_pop!(stack, (Kind, u8)) {
+                let n = match stack_pop!(self.stack, (Kind, u8)) {
                     Some((Kind::Dict, n)) => n,
                     Some((Kind::Array, _)) => {
                         return Err(SignatureError::new(MissingArrayElementType));
@@ -119,7 +182,7 @@ pub(super) const fn validate(bytes: &[u8]) -> Result<(), SignatureError> {
                     }
                 }
 
-                if !matches!(stack_peek!(stack), Some((Kind::Array, _))) {
+                if !self.in_array() {
                     return Err(SignatureError::new(DictEntryNotInsideArray));
                 }
 
@@ -128,34 +191,35 @@ pub(super) const fn validate(bytes: &[u8]) -> Result<(), SignatureError> {
             t => return Err(SignatureError::new(UnknownTypeCode(t))),
         };
 
-        while let Some((Kind::Array, _)) = stack_peek!(stack) {
-            stack_pop!(stack, (Kind, u8));
+        // NB: A complete type closes every array directly enclosing it.
+        while let Some((Kind::Array, _)) = stack_peek!(self.stack) {
+            stack_pop!(self.stack, (Kind, u8));
+            self.arrays -= 1;
             is_basic = false;
         }
 
-        if let Some((Kind::Dict, 0)) = stack_peek!(stack)
+        if let Some((Kind::Dict, 0)) = stack_peek!(self.stack)
             && !is_basic
         {
             return Err(SignatureError::new(DictKeyMustBeBasicType));
         }
 
-        if let Some((kind, n)) = stack_pop!(stack, (Kind, u8)) {
-            stack_try_push!(stack, (kind, n + 1));
+        if let Some((kind, n)) = stack_pop!(self.stack, (Kind, u8)) {
+            stack_try_push!(self.stack, (kind, n + 1));
         }
+
+        Ok(())
     }
 
-    match stack_pop!(stack, (Kind, u8)) {
-        Some((Kind::Array, _)) => {
-            return Err(SignatureError::new(MissingArrayElementType));
-        }
-        Some((Kind::Struct, _)) => {
-            return Err(SignatureError::new(StructStartedButNotEnded));
-        }
-        Some((Kind::Dict, _)) => {
-            return Err(SignatureError::new(DictStartedButNotEnded));
-        }
-        _ => {}
-    }
+    /// Check that no container is left open.
+    pub(super) const fn finish(&self) -> Result<(), SignatureError> {
+        use SignatureErrorKind::*;
 
-    Ok(())
+        match stack_peek!(self.stack) {
+            Some((Kind::Array, _)) => Err(SignatureError::new(MissingArrayElementType)),
+            Some((Kind::Struct, _)) => Err(SignatureError::new(StructStartedButNotEnded)),
+            Some((Kind::Dict, _)) => Err(SignatureError::new(DictStartedButNotEnded)),
+            _ => Ok(()),
+        }
+    }
 }
