@@ -133,6 +133,9 @@ impl fmt::Display for Error {
             ErrorKind::Timeout(timeout) => {
                 write!(f, "Call did not receive a reply within {timeout:?}")
             }
+            ErrorKind::NestingTooDeep => {
+                write!(f, "Containers are nested too deeply (max is 64)")
+            }
         }
     }
 }
@@ -159,4 +162,5 @@ pub(crate) enum ErrorKind {
     MissingUniqueName,
     NameTaken(Box<str>),
     Timeout(Duration),
+    NestingTooDeep,
 }

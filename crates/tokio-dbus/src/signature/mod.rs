@@ -72,8 +72,13 @@ fn alignment_of(byte: Option<u8>) -> Alignment {
     }
 }
 
-/// Return the stride needed to skip over read buffer.
-pub(crate) fn skip(this: &Signature, read: &mut Body<'_>) -> Result<()> {
+/// Skip over the values described by `this` in the read buffer.
+///
+/// `depth` is the number of containers (variants included) enclosing the
+/// values, which together with the containers inside of them may not exceed
+/// [`MAX_DEPTH`]. This bounds the recursion through nested variants.
+pub(crate) fn skip(this: &Signature, read: &mut Body<'_>, depth: usize) -> Result<()> {
+    use crate::error::{Error, ErrorKind};
     use crate::proto::Type;
 
     use self::stack::Stack;
@@ -110,6 +115,10 @@ pub(crate) fn skip(this: &Signature, read: &mut Body<'_>) -> Result<()> {
             Type::VARIANT => Step::Variant,
             Type::UNIX_FD => Step::Fixed(4),
             Type::ARRAY => {
+                if depth + stack.len >= MAX_DEPTH {
+                    return Err(Error::new(ErrorKind::NestingTooDeep));
+                }
+
                 if arrays == 0 {
                     let len = read.load::<u32>()? as usize;
                     // The length prefix is followed by padding up to the
@@ -124,6 +133,10 @@ pub(crate) fn skip(this: &Signature, read: &mut Body<'_>) -> Result<()> {
                 continue;
             }
             Type::OPEN_PAREN | Type::OPEN_BRACE => {
+                if depth + stack.len >= MAX_DEPTH {
+                    return Err(Error::new(ErrorKind::NestingTooDeep));
+                }
+
                 // NB: Structs and dict entries are aligned to 8 bytes. When
                 // we're inside of an array the whole array has already been
                 // skipped over, so there is nothing to align.
@@ -170,9 +183,13 @@ pub(crate) fn skip(this: &Signature, read: &mut Body<'_>) -> Result<()> {
                 read.advance(n.saturating_add(1))?;
             }
             Step::Variant => {
+                if depth + stack.len >= MAX_DEPTH {
+                    return Err(Error::new(ErrorKind::NestingTooDeep));
+                }
+
                 // NB: Reading the signature consumes the length prefix.
                 let sig = read.read::<Signature>()?;
-                skip(sig, read)?;
+                skip(sig, read, depth + stack.len + 1)?;
             }
         }
     }

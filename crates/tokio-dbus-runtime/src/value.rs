@@ -227,8 +227,13 @@ impl Value {
     }
 
     /// Read a value whose type is described by `signature`, which must name
-    /// exactly one type.
-    pub(crate) fn decode_as(body: &mut Body<'_>, signature: &Signature) -> Result<Value> {
+    /// exactly one type. `depth` is the number of containers (variants
+    /// included) enclosing it.
+    pub(crate) fn decode_as(
+        body: &mut Body<'_>,
+        signature: &Signature,
+        depth: usize,
+    ) -> Result<Value> {
         let mut iter = signature.iter();
 
         let Some(ty) = iter.next() else {
@@ -245,84 +250,126 @@ impl Value {
             ))));
         }
 
-        Value::decode_type(body, ty)
+        Value::decode_type(body, ty, depth)
     }
 
-    fn decode_type(body: &mut Body<'_>, ty: signature::Type<'_>) -> Result<Value> {
+    /// Decode a single type, where `depth` is the number of containers
+    /// (variants included) enclosing it.
+    // NB: Each kind of value is decoded by a function of its own, because a
+    // `Value` is large and an unoptimized frame holding a temporary for every
+    // kind of value would overflow the stack before the depth limit is reached.
+    fn decode_type(body: &mut Body<'_>, ty: signature::Type<'_>, depth: usize) -> Result<Value> {
         match ty {
-            signature::Type::Signature(signature) => match signature.as_bytes() {
-                b"b" => Ok(Value::Bool(body.load_bool()?)),
-                b"y" => Ok(Value::U8(body.load()?)),
-                b"n" => Ok(Value::I16(body.load()?)),
-                b"q" => Ok(Value::U16(body.load()?)),
-                b"i" => Ok(Value::I32(body.load()?)),
-                b"u" => Ok(Value::U32(body.load()?)),
-                b"x" => Ok(Value::I64(body.load()?)),
-                b"t" => Ok(Value::U64(body.load()?)),
-                b"d" => Ok(Value::F64(body.load()?)),
-                b"s" => Ok(Value::String(body.read::<str>()?.to_owned())),
-                b"o" => Ok(Value::ObjectPath(body.read::<ObjectPath>()?.to_owned())),
-                b"g" => Ok(Value::Signature(body.read::<Signature>()?.to_owned())),
-                b"v" => {
-                    let inner = body.read::<Signature>()?;
-                    Ok(Value::Variant(Box::new(Value::decode_as(body, inner)?)))
-                }
-                _ => Err(Error::new(ErrorKind::UnsupportedType(Box::new(
-                    signature.to_owned(),
-                )))),
-            },
-            signature::Type::Array(element) => {
-                let mut array = body.load_raw_array(alignment_of(element))?;
-
-                // NB: A dict entry is only legal as the element type of an
-                // array, which is why it is handled here rather than as a type
-                // of its own.
-                if let Some(signature::Type::Dict(key, value)) = single(element) {
-                    let mut entries = Vec::new();
-
-                    while !array.is_empty() {
-                        array.align_to(Alignment::U64)?;
-                        let key = Value::decode_as(&mut array, key)?;
-                        let value = Value::decode_as(&mut array, value)?;
-                        entries.push((key, value));
-                    }
-
-                    return Ok(Value::Dict {
-                        key: key.to_owned(),
-                        value: value.to_owned(),
-                        entries,
-                    });
-                }
-
-                let mut values = Vec::new();
-
-                while !array.is_empty() {
-                    values.push(Value::decode_as(&mut array, element)?);
-                }
-
-                Ok(Value::Array {
-                    element: element.to_owned(),
-                    values,
-                })
+            signature::Type::Signature(signature) if signature == Signature::VARIANT => {
+                decode_variant(body, depth)
             }
-            signature::Type::Struct(fields) => {
-                body.align_to(Alignment::U64)?;
-                let mut values = Vec::new();
-
-                for field in fields.iter() {
-                    values.push(Value::decode_type(body, field)?);
-                }
-
-                Ok(Value::Struct(values))
-            }
-            signature::Type::Dict(key, value) => {
-                body.align_to(Alignment::U64)?;
-                let key = Value::decode_as(body, key)?;
-                let value = Value::decode_as(body, value)?;
-                Ok(Value::Struct(vec![key, value]))
-            }
+            signature::Type::Signature(signature) => decode_basic(body, signature),
+            signature::Type::Array(element) => decode_array(body, element, depth),
+            signature::Type::Struct(fields) => decode_struct(body, fields, depth),
+            signature::Type::Dict(key, value) => decode_dict_entry(body, key, value, depth),
         }
     }
+}
+
+fn decode_basic(body: &mut Body<'_>, signature: &Signature) -> Result<Value> {
+    match signature.as_bytes() {
+        b"b" => Ok(Value::Bool(body.load_bool()?)),
+        b"y" => Ok(Value::U8(body.load()?)),
+        b"n" => Ok(Value::I16(body.load()?)),
+        b"q" => Ok(Value::U16(body.load()?)),
+        b"i" => Ok(Value::I32(body.load()?)),
+        b"u" => Ok(Value::U32(body.load()?)),
+        b"x" => Ok(Value::I64(body.load()?)),
+        b"t" => Ok(Value::U64(body.load()?)),
+        b"d" => Ok(Value::F64(body.load()?)),
+        b"s" => Ok(Value::String(body.read::<str>()?.to_owned())),
+        b"o" => Ok(Value::ObjectPath(body.read::<ObjectPath>()?.to_owned())),
+        b"g" => Ok(Value::Signature(body.read::<Signature>()?.to_owned())),
+        _ => Err(Error::new(ErrorKind::UnsupportedType(Box::new(
+            signature.to_owned(),
+        )))),
+    }
+}
+
+fn decode_variant(body: &mut Body<'_>, depth: usize) -> Result<Value> {
+    let depth = enter(depth)?;
+    let inner = body.read::<Signature>()?;
+    let value = Value::decode_as(body, inner, depth)?;
+    Ok(Value::Variant(Box::new(value)))
+}
+
+fn decode_array(body: &mut Body<'_>, element: &Signature, depth: usize) -> Result<Value> {
+    let depth = enter(depth)?;
+    let mut array = body.load_raw_array(alignment_of(element))?;
+
+    // NB: A dict entry is only legal as the element type of an array, which is
+    // why it is handled here rather than as a type of its own.
+    if let Some(signature::Type::Dict(key, value)) = single(element) {
+        let mut entries = Vec::new();
+
+        while !array.is_empty() {
+            array.align_to(Alignment::U64)?;
+            // NB: The dict entry is a container of its own.
+            let depth = enter(depth)?;
+            let key = Value::decode_as(&mut array, key, depth)?;
+            let value = Value::decode_as(&mut array, value, depth)?;
+            entries.push((key, value));
+        }
+
+        return Ok(Value::Dict {
+            key: key.to_owned(),
+            value: value.to_owned(),
+            entries,
+        });
+    }
+
+    let mut values = Vec::new();
+
+    while !array.is_empty() {
+        values.push(Value::decode_as(&mut array, element, depth)?);
+    }
+
+    Ok(Value::Array {
+        element: element.to_owned(),
+        values,
+    })
+}
+
+fn decode_struct(body: &mut Body<'_>, fields: &Signature, depth: usize) -> Result<Value> {
+    let depth = enter(depth)?;
+    body.align_to(Alignment::U64)?;
+    let mut values = Vec::new();
+
+    for field in fields.iter() {
+        values.push(Value::decode_type(body, field, depth)?);
+    }
+
+    Ok(Value::Struct(values))
+}
+
+fn decode_dict_entry(
+    body: &mut Body<'_>,
+    key: &Signature,
+    value: &Signature,
+    depth: usize,
+) -> Result<Value> {
+    let depth = enter(depth)?;
+    body.align_to(Alignment::U64)?;
+    let key = Value::decode_as(body, key, depth)?;
+    let value = Value::decode_as(body, value, depth)?;
+    Ok(Value::Struct(vec![key, value]))
+}
+
+/// Enter a container at `depth`, returning the depth of its contents.
+///
+/// Bounds the recursion of decoding, since the nesting of variants is only
+/// limited by the size of the message.
+fn enter(depth: usize) -> Result<usize> {
+    if depth >= signature::MAX_DEPTH {
+        return Err(Error::new(ErrorKind::NestingTooDeep));
+    }
+
+    Ok(depth + 1)
 }
 
 /// The single type named by a signature, if it names exactly one.
@@ -383,7 +430,8 @@ impl Decode for Value {
 
     fn decode(body: &mut Body<'_>) -> Result<Self> {
         let signature = body.read::<Signature>()?;
-        Value::decode_as(body, signature)
+        // NB: The variant this value was read from is a container.
+        Value::decode_as(body, signature, 1)
     }
 }
 

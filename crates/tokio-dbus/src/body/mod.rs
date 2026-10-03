@@ -1,3 +1,6 @@
+#[cfg(test)]
+mod tests;
+
 pub use self::load_array::LoadArray;
 mod load_array;
 
@@ -224,9 +227,9 @@ impl<'a> Body<'a> {
     /// Read `len` bytes from the buffer and make accessible through another
     /// [`Body`] instance constituting that sub-slice.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// This panics if `len` is larger than [`len()`].
+    /// Errors if `len` is larger than [`len()`].
     ///
     /// [`len()`]: Self::len
     ///
@@ -236,10 +239,10 @@ impl<'a> Body<'a> {
     /// use tokio_dbus::{Result, Body};
     ///
     /// fn read(buf: &mut Body<'_>) -> Result<()> {
-    ///     let mut read_buf = buf.read_until(6);
+    ///     let mut read_buf = buf.read_until(6)?;
     ///     assert_eq!(read_buf.load::<u32>()?, 4);
     ///
-    ///     let mut read_buf2 = read_buf.read_until(2);
+    ///     let mut read_buf2 = read_buf.read_until(2)?;
     ///     assert_eq!(read_buf2.load::<u8>()?, 1);
     ///     assert_eq!(read_buf2.load::<u8>()?, 2);
     ///
@@ -250,8 +253,9 @@ impl<'a> Body<'a> {
     ///     Ok(())
     /// }
     /// ```
-    pub fn read_until(&mut self, len: usize) -> Body<'a> {
-        Body::from_raw_parts(self.data.read_until(len), self.endianness, self.signature)
+    pub fn read_until(&mut self, len: usize) -> Result<Body<'a>> {
+        let data = self.data.read_until(len)?;
+        Ok(Body::from_raw_parts(data, self.endianness, self.signature))
     }
 
     /// Read an array from the buffer.
@@ -562,7 +566,7 @@ impl<'a> Body<'a> {
     /// ```
     pub fn skip_variant(&mut self) -> Result<&'a Signature> {
         let signature = self.read::<Signature>()?;
-        crate::signature::skip(signature, self)?;
+        crate::signature::skip(signature, self, 1)?;
         Ok(signature)
     }
 
@@ -637,7 +641,7 @@ impl<'a> Body<'a> {
         }
 
         self.align_to(alignment)?;
-        Ok(self.read_until(bytes as usize))
+        self.read_until(bytes as usize)
     }
 
     /// Advance the read cursor by `n`.

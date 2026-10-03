@@ -149,7 +149,7 @@ fn test_read_buf() -> Result<()> {
 
     let mut buf = buf.as_body();
 
-    let mut read_buf = buf.read_until(6);
+    let mut read_buf = buf.read_until(6)?;
 
     assert_eq!(read_buf.load::<u32>()?, 4);
     assert_eq!(read_buf.load::<u8>()?, 1);
@@ -166,7 +166,7 @@ fn test_read_buf_load() -> Result<()> {
 
     let mut buf = buf.as_body();
 
-    let mut read_buf = buf.read_until(6);
+    let mut read_buf = buf.read_until(6)?;
 
     assert_eq!(read_buf.load::<u32>()?, 7u32);
     assert_eq!(read_buf.load::<u8>()?, b'f');
@@ -183,7 +183,7 @@ fn test_read_buf_read() -> Result<()> {
 
     let mut buf = buf.as_body();
 
-    let mut read_buf = buf.read_until(6);
+    let mut read_buf = buf.read_until(6)?;
 
     assert_eq!(read_buf.load::<u32>()?, 4);
     assert_eq!(read_buf.load::<u8>()?, 1);
@@ -191,7 +191,7 @@ fn test_read_buf_read() -> Result<()> {
     assert!(read_buf.load::<u8>().is_err());
     assert!(read_buf.is_empty());
 
-    let _ = buf.read_until(3);
+    let _ = buf.read_until(3)?;
     assert!(buf.is_empty());
     Ok(())
 }
@@ -204,10 +204,10 @@ fn test_nested_read_buf() -> Result<()> {
 
     let mut buf = buf.as_body();
 
-    let mut read_buf = buf.read_until(6);
+    let mut read_buf = buf.read_until(6)?;
     assert_eq!(read_buf.load::<u32>()?, 4);
 
-    let mut read_buf2 = read_buf.read_until(2);
+    let mut read_buf2 = read_buf.read_until(2)?;
     assert_eq!(read_buf2.load::<u8>()?, 1);
     assert_eq!(read_buf2.load::<u8>()?, 2);
 

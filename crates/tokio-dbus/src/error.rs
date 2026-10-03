@@ -122,6 +122,17 @@ impl fmt::Display for Error {
             ErrorKind::NotNullTerminated => {
                 write!(f, "String is not null terminated")
             }
+            ErrorKind::NestingTooDeep => {
+                write!(f, "Containers are nested too deeply (max is 64)")
+            }
+            #[cfg(feature = "tokio")]
+            ErrorKind::InvalidEndianness(endianness) => {
+                write!(f, "Invalid endianness {endianness:?} in message header")
+            }
+            #[cfg(feature = "tokio")]
+            ErrorKind::UnsupportedProtocolVersion(version) => {
+                write!(f, "Unsupported protocol version {version} (expected 1)")
+            }
             ErrorKind::ArrayTooLong(length) => {
                 write!(f, "Array of length {length} is too long (max is 67108864)")
             }
@@ -202,6 +213,11 @@ pub(crate) enum ErrorKind {
     #[cfg(feature = "alloc")]
     MissingErrorName,
     NotNullTerminated,
+    NestingTooDeep,
+    #[cfg(feature = "tokio")]
+    InvalidEndianness(crate::proto::Endianness),
+    #[cfg(feature = "tokio")]
+    UnsupportedProtocolVersion(u8),
     ArrayTooLong(u32),
     #[cfg(feature = "alloc")]
     BodyTooLong(u32),

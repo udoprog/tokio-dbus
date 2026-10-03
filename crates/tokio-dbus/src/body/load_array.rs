@@ -32,7 +32,7 @@ where
         // not counted towards the encoded length.
         buf.align::<T::Alignment>()?;
 
-        let buf = buf.read_until(bytes as usize);
+        let buf = buf.read_until(bytes as usize)?;
         Ok(LoadArray::new(buf))
     }
 }

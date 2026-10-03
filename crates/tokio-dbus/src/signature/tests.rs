@@ -14,7 +14,7 @@ fn signature_skip() -> Result<()> {
 
     let mut read_buf = buf.as_body();
 
-    super::skip(sig, &mut read_buf)?;
+    super::skip(sig, &mut read_buf, 0)?;
 
     let _ = read_buf.read::<str>()?;
 
@@ -46,7 +46,7 @@ fn signature_skip_array() -> Result<()> {
 
     let mut read_buf = buf.as_body();
 
-    super::skip(sig, &mut read_buf)?;
+    super::skip(sig, &mut read_buf, 0)?;
 
     assert!(read_buf.is_empty(), "{:?}", read_buf.get());
     Ok(())

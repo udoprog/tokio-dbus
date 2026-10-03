@@ -21,6 +21,8 @@ const ENV_STARTER_ADDRESS: &str = "DBUS_STARTER_ADDRESS";
 const ENV_SESSION_BUS: &str = "DBUS_SESSION_BUS_ADDRESS";
 const ENV_SYSTEM_BUS: &str = "DBUS_SYSTEM_BUS_ADDRESS";
 const DEFAULT_SYSTEM_BUS: &str = "unix:path=/var/run/dbus/system_bus_socket";
+/// The major protocol version this implementation speaks.
+const PROTOCOL_VERSION: u8 = 1;
 
 /// A connection to a d-bus session.
 pub struct Transport {
@@ -126,6 +128,20 @@ impl Transport {
         let mut read_buf = recv.buf().as_aligned();
 
         let mut header = read_buf.load::<proto::Header>()?;
+
+        if !matches!(
+            header.endianness,
+            proto::Endianness::LITTLE | proto::Endianness::BIG
+        ) {
+            return Err(Error::new(ErrorKind::InvalidEndianness(header.endianness)));
+        }
+
+        if header.version != PROTOCOL_VERSION {
+            return Err(Error::new(ErrorKind::UnsupportedProtocolVersion(
+                header.version,
+            )));
+        }
+
         let mut headers = read_buf.load::<u32>()?;
 
         header.adjust(header.endianness);
@@ -370,9 +386,17 @@ fn hex(b: u8) -> Option<u8> {
 #[cfg(test)]
 mod tests {
     use alloc::string::ToString;
+    use alloc::vec;
     use alloc::vec::Vec;
 
-    use super::{Endpoint, Error, ErrorKind, parse_address, parse_address_list};
+    use std::io::Write;
+    use std::os::unix::net::UnixStream;
+
+    use crate::RecvBuf;
+    use crate::error::Result;
+    use crate::proto::Endianness;
+
+    use super::{Endpoint, Error, ErrorKind, Transport, parse_address, parse_address_list};
 
     fn list(address: &str) -> Vec<Option<Endpoint>> {
         parse_address_list(address.as_bytes())
@@ -438,5 +462,93 @@ mod tests {
         assert!(invalid("unix:path=/a%"));
         assert!(invalid("unix:path=/a%2"));
         assert!(invalid("unix:path=/a%zz"));
+    }
+
+    /// Receive `message` through a transport and parse it.
+    fn recv(message: &[u8]) -> Result<()> {
+        let (mut peer, stream) = UnixStream::pair()?;
+        peer.write_all(message)?;
+
+        let mut transport = Transport::from_std(stream);
+        let mut recv = RecvBuf::new();
+        let total = transport.idle(&mut recv)?;
+        transport.recv_body(&mut recv, total)?;
+        recv.last_message()?;
+        Ok(())
+    }
+
+    #[track_caller]
+    fn assert_error(result: Result<()>, kind: ErrorKind) {
+        let expected = Error::new(kind).to_string();
+
+        match result {
+            Ok(()) => panic!("Expected error `{expected}`"),
+            Err(error) => assert_eq!(error.to_string(), expected),
+        }
+    }
+
+    /// A little endian signal with serial 1, an empty body and the given
+    /// header fields.
+    fn signal(endianness: u8, version: u8, fields: &[u8]) -> Vec<u8> {
+        let mut message = vec![endianness, 4, 0, version];
+        message.extend_from_slice(&0u32.to_le_bytes());
+        message.extend_from_slice(&1u32.to_le_bytes());
+        message.extend_from_slice(&(fields.len() as u32).to_le_bytes());
+        message.extend_from_slice(fields);
+
+        while message.len() % 8 != 0 {
+            message.push(0);
+        }
+
+        message
+    }
+
+    /// The PATH `/` and MEMBER `A` header fields followed by a field with an
+    /// unknown code whose value is a byte in `variants` nested variants.
+    fn nested_field(variants: usize) -> Vec<u8> {
+        let mut field = Vec::new();
+        field.extend_from_slice(b"\x01\x01o\x00\x01\x00\x00\x00/\x00\x00\x00\x00\x00\x00\x00");
+        field.extend_from_slice(b"\x03\x01s\x00\x01\x00\x00\x00A\x00\x00\x00\x00\x00\x00\x00");
+        field.push(200);
+
+        for _ in 1..variants {
+            field.extend_from_slice(b"\x01v\x00");
+        }
+
+        field.extend_from_slice(b"\x01y\x00\x2a");
+        field
+    }
+
+    #[test]
+    fn valid_header() -> Result<()> {
+        recv(&signal(b'l', 1, &nested_field(1)))?;
+        recv(&signal(b'l', 1, &nested_field(62)))?;
+        Ok(())
+    }
+
+    #[test]
+    fn invalid_endianness() {
+        assert_error(
+            recv(&signal(b'x', 1, &[])),
+            ErrorKind::InvalidEndianness(Endianness::new(b'x')),
+        );
+    }
+
+    #[test]
+    fn unsupported_version() {
+        assert_error(
+            recv(&signal(b'l', 2, &[])),
+            ErrorKind::UnsupportedProtocolVersion(2),
+        );
+    }
+
+    #[test]
+    fn header_field_nested_too_deep() {
+        // The header field is already inside of an array and a struct, so 62
+        // variants is the most it can hold.
+        assert_error(
+            recv(&signal(b'l', 1, &nested_field(63))),
+            ErrorKind::NestingTooDeep,
+        );
     }
 }

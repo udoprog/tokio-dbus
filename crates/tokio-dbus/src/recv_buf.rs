@@ -127,7 +127,7 @@ fn last_message<'a>(
     // the received endianness.
     let mut buf = Body::from_raw_parts(buf, endianness, Signature::empty());
 
-    let mut st = buf.read_until(headers);
+    let mut st = buf.read_until(headers)?;
 
     while !st.is_empty() {
         // NB: Structs are aligned to 8 bytes.
@@ -164,7 +164,9 @@ fn last_message<'a>(
                 sender = Some(st.read::<str>()?);
             }
             (_, _) => {
-                crate::signature::skip(sig, &mut st)?;
+                // NB: Header field values sit in a variant inside of the
+                // struct elements of the `a(yv)` header array.
+                crate::signature::skip(sig, &mut st, 3)?;
             }
         }
     }

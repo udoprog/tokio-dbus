@@ -172,7 +172,7 @@ fn recursive_menu_layout() -> Result<()> {
 
     let mut body = buf.as_body();
     assert_eq!(u32::decode(&mut body)?, 1);
-    let actual = Value::decode_as(&mut body, Signature::new("(ia{sv}av)")?)?;
+    let actual = Value::decode_as(&mut body, Signature::new("(ia{sv}av)")?, 0)?;
     assert_eq!(actual, value.1);
     assert!(body.is_empty());
     Ok(())
@@ -280,6 +280,118 @@ fn bare_values_in_variant_positions() -> Result<()> {
 
     // What comes back out is always the wrapped form.
     let mut body = left.as_body();
-    assert_eq!(Value::decode_as(&mut body, Signature::new("av")?)?, wrapped);
+    assert_eq!(
+        Value::decode_as(&mut body, Signature::new("av")?, 0)?,
+        wrapped
+    );
+    Ok(())
+}
+
+/// The message of an error, or of the low-level error it wraps.
+fn message(error: &crate::Error) -> String {
+    use std::error::Error as _;
+
+    match error.source() {
+        Some(source) => source.to_string(),
+        None => error.to_string(),
+    }
+}
+
+#[track_caller]
+fn assert_error<T>(result: Result<T>, expected: &str)
+where
+    T: std::fmt::Debug,
+{
+    match result {
+        Ok(value) => panic!("Expected error `{expected}`, got {value:?}"),
+        Err(error) => assert_eq!(message(&error), expected),
+    }
+}
+
+/// An array length prefix of 1000 without any elements following it must not
+/// be trusted.
+#[test]
+fn short_array() -> Result<()> {
+    let mut buf = BodyBuf::with_endianness(tokio_dbus::Endianness::LITTLE);
+    buf.raw().store(1000u32);
+    assert_eq!(buf.get(), b"\xe8\x03\x00\x00");
+
+    assert_error(Vec::<u32>::decode(&mut buf.as_body()), "Buffer underflow");
+    assert_error(
+        HashMap::<String, u32>::decode(&mut buf.as_body()),
+        "Buffer underflow",
+    );
+    assert_error(
+        Value::decode_as(&mut buf.as_body(), Signature::new("au")?, 0),
+        "Buffer underflow",
+    );
+    Ok(())
+}
+
+/// A body holding `depth` variants nested inside of each other, with a `u32`
+/// in the innermost one.
+fn nested_variants(depth: usize) -> BodyBuf {
+    let mut buf = BodyBuf::with_endianness(tokio_dbus::Endianness::LITTLE);
+    let mut raw = buf.raw();
+
+    for _ in 1..depth {
+        raw.store_signature(Signature::VARIANT);
+    }
+
+    raw.store_signature(Signature::UINT32);
+    raw.store(42u32);
+    buf
+}
+
+#[test]
+fn nested_variants_limit() -> Result<()> {
+    let buf = nested_variants(64);
+    let mut body = buf.as_body();
+    let mut value = Value::decode(&mut body)?;
+    assert!(body.is_empty());
+
+    for _ in 1..64 {
+        let Value::Variant(inner) = value else {
+            panic!("Expected a variant, got {value:?}");
+        };
+
+        value = *inner;
+    }
+
+    assert_eq!(value, Value::U32(42));
+
+    let too_deep = "Containers are nested too deeply (max is 64)";
+    assert_error(Value::decode(&mut nested_variants(65).as_body()), too_deep);
+    assert_error(
+        Value::decode(&mut nested_variants(1_000_000).as_body()),
+        too_deep,
+    );
+    Ok(())
+}
+
+#[test]
+fn struct_in_nested_variants_limit() -> Result<()> {
+    /// A `(u)` inside of `variants` nested variants.
+    fn build(variants: usize) -> BodyBuf {
+        let mut buf = BodyBuf::with_endianness(tokio_dbus::Endianness::LITTLE);
+        let mut raw = buf.raw();
+
+        for _ in 1..variants {
+            raw.store_signature(Signature::VARIANT);
+        }
+
+        raw.store_signature(Signature::new_const(b"(u)"));
+        raw.align(tokio_dbus::Alignment::U64);
+        raw.store(42u32);
+        buf
+    }
+
+    let buf = build(63);
+    let mut body = buf.as_body();
+    Value::decode(&mut body)?;
+    assert!(body.is_empty());
+
+    let too_deep = "Containers are nested too deeply (max is 64)";
+    assert_error(Value::decode(&mut build(64).as_body()), too_deep);
     Ok(())
 }

@@ -69,19 +69,27 @@ impl<'a> Aligned<'a> {
 
     /// Read `len` bytes from the buffer and make accessible through another
     /// [`Aligned`] instance constituting that sub-slice.
-    pub(crate) fn read_until(&mut self, n: usize) -> Aligned<'a> {
-        assert!(n <= self.len(), "requested: {n} > length: {}", self.len());
+    ///
+    /// Errors with [`ErrorKind::BufferUnderflow`] if fewer than `n` bytes
+    /// remain.
+    pub(crate) fn read_until(&mut self, n: usize) -> Result<Aligned<'a>> {
+        if n > self.len() {
+            return Err(Error::new(ErrorKind::BufferUnderflow));
+        }
+
+        // SAFETY: `read <= written`, so the pointer is in bounds of the buffer
+        // (or one past its end) and derived from a non-null pointer.
         let data = unsafe { ptr::NonNull::new_unchecked(self.data.as_ptr().add(self.read)) };
         let base = self.at();
         self.read += n;
 
-        Aligned {
+        Ok(Aligned {
             data,
             base,
             read: 0,
             written: n,
             _marker: PhantomData,
-        }
+        })
     }
 
     /// Load a frame of the given type.
