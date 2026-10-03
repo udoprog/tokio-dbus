@@ -17,3 +17,6 @@ mod connection;
 
 mod buffers;
 pub use self::buffers::Buffers;
+
+#[cfg(all(test, feature = "tokio"))]
+mod tests;

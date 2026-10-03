@@ -4,6 +4,8 @@ use tokio_dbus::{BodyBuf, Signature};
 
 use crate::{Decode, Encode, Result, Value};
 
+mod connection;
+
 /// Round trip a value through a body buffer, checking that it comes back
 /// unchanged and that the whole body was consumed.
 #[track_caller]

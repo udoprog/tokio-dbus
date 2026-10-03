@@ -229,11 +229,25 @@ impl fmt::Debug for Arguments {
 /// Incoming messages are copied out of the receive buffer so that the connection
 /// stays usable while one is being handled. Use the low level API directly if
 /// that copy matters.
+///
+/// # Queued messages
+///
+/// Method calls and signals which arrive while waiting for a reply, or during
+/// [`flush()`], are queued and returned by [`next()`] in arrival order. The
+/// queue is not bounded, since dropping a call would leave its caller waiting
+/// and dropping a signal would lose it silently. A connection which receives
+/// calls or has match rules installed should therefore keep calling
+/// [`next()`], or its memory grows with every message it does not handle.
+/// Replies which nothing is waiting for anymore, such as one arriving after
+/// its call timed out, are discarded instead of queued.
+///
+/// [`flush()`]: Self::flush
+/// [`next()`]: Self::next
 pub struct Connection {
     connection: tokio_dbus::Connection,
     buffers: Buffers,
-    /// Messages which arrived while waiting for the reply to a call.
-    queue: VecDeque<MessageBuf>,
+    /// Messages which arrived while waiting for something else.
+    queue: VecDeque<Incoming>,
     unique_name: String,
     /// How long to wait for the reply to a call before giving up.
     timeout: Option<Duration>,
@@ -249,15 +263,38 @@ impl Connection {
 
     /// Connect to the session bus and say `Hello`.
     pub async fn session_bus() -> Result<Self> {
-        Self::start(tokio_dbus::Connection::session_bus()?).await
+        Self::from_connection(tokio_dbus::Connection::session_bus()?).await
     }
 
     /// Connect to the system bus and say `Hello`.
     pub async fn system_bus() -> Result<Self> {
-        Self::start(tokio_dbus::Connection::system_bus()?).await
+        Self::from_connection(tokio_dbus::Connection::system_bus()?).await
     }
 
-    async fn start(connection: tokio_dbus::Connection) -> Result<Self> {
+    /// Take over a low level connection which has not said `Hello` yet, then
+    /// connect it and say `Hello`.
+    ///
+    /// This is how a connection is set up over something other than the
+    /// session or system bus, see [`ConnectionBuilder`].
+    ///
+    /// [`ConnectionBuilder`]: tokio_dbus::ConnectionBuilder
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// use std::os::unix::net::UnixStream;
+    ///
+    /// use tokio_dbus::ConnectionBuilder;
+    /// use tokio_dbus_runtime::Connection;
+    ///
+    /// # #[tokio::main] async fn main() -> tokio_dbus_runtime::Result<()> {
+    /// let stream = UnixStream::connect("/run/my-bus/socket")?;
+    /// let connection = ConnectionBuilder::new().build_with_stream(stream)?;
+    /// let connection = Connection::from_connection(connection).await?;
+    /// println!("{}", connection.unique_name());
+    /// # Ok(()) }
+    /// ```
+    pub async fn from_connection(connection: tokio_dbus::Connection) -> Result<Self> {
         let mut this = Self {
             connection,
             buffers: Buffers::new(),
@@ -514,17 +551,19 @@ impl Connection {
     /// Write out everything which has been buffered for sending.
     ///
     /// This is only needed before dropping the connection, since [`next()`] and
-    /// [`call()`] both drive writes as a side effect.
+    /// [`call()`] both drive writes as a side effect. A message which arrives
+    /// while flushing is queued for [`next()`].
     ///
     /// [`next()`]: Self::next
     /// [`call()`]: Self::call
     pub async fn flush(&mut self) -> Result<()> {
         self.connection.flush(&mut self.buffers).await?;
 
+        // NB: Every message handed out is cleared from the receive buffer, so
+        // one which is left was received during the flush.
         if self.buffers.recv.has_message() {
-            let message = self.buffers.recv.last_message()?.to_owned();
-            self.queue.push_back(message);
-            self.buffers.recv.clear();
+            let message = take_message(&mut self.buffers)?;
+            self.queue.extend(Incoming::new(message));
         }
 
         Ok(())
@@ -532,22 +571,22 @@ impl Connection {
 
     /// Wait for the next method call or signal directed at this connection.
     pub async fn next(&mut self) -> Result<Incoming> {
+        if let Some(incoming) = self.queue.pop_front() {
+            return Ok(incoming);
+        }
+
         loop {
-            if let Some(message) = self.queue.pop_front() {
-                if let Some(incoming) = Incoming::new(message) {
-                    return Ok(incoming);
-                }
-
-                continue;
-            }
-
             self.connection.wait(&mut self.buffers).await?;
-            let message = self.buffers.recv.last_message()?.to_owned();
 
-            if let Some(incoming) = Incoming::new(message) {
+            if let Some(incoming) = Incoming::new(take_message(&mut self.buffers)?) {
                 return Ok(incoming);
             }
         }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn queued(&self) -> usize {
+        self.queue.len()
     }
 
     /// Wait for the reply with the given serial, applying the configured
@@ -601,16 +640,16 @@ impl Connection {
 async fn drive_until_reply(
     connection: &mut tokio_dbus::Connection,
     buffers: &mut Buffers,
-    queue: &mut VecDeque<MessageBuf>,
+    queue: &mut VecDeque<Incoming>,
     serial: Serial,
 ) -> Result<MessageBuf> {
     loop {
         connection.wait(buffers).await?;
-        let message = buffers.recv.last_message()?;
+        let message = take_message(buffers)?;
 
         match message.kind() {
             MessageKind::MethodReturn { reply_serial } if reply_serial == serial => {
-                return Ok(message.to_owned());
+                return Ok(message);
             }
             MessageKind::Error {
                 error_name,
@@ -620,11 +659,18 @@ async fn drive_until_reply(
                 return Err(Error::remote(error_name, text));
             }
             _ => {
-                let message = message.to_owned();
-                queue.push_back(message);
+                queue.extend(Incoming::new(message));
             }
         }
     }
+}
+
+/// Copy the received message out and clear it from the receive buffer, so that
+/// a later flush cannot mistake it for one which arrived during the flush.
+fn take_message(buffers: &mut Buffers) -> Result<MessageBuf> {
+    let message = buffers.recv.last_message()?.to_owned();
+    buffers.recv.clear();
+    Ok(message)
 }
 
 /// A future bounded by the reply deadline of the connection.

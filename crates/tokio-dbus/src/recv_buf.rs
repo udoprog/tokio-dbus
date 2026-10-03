@@ -15,6 +15,7 @@ use crate::{Body, Endianness, Message, MessageKind, ObjectPath, Serial, Signatur
 /// [`Connection::read_message`]: crate::Connection::read_message
 /// [`RecvBuf::read_message`]: crate::RecvBuf::read_message
 /// [`RecvBuf`]: crate::RecvBuf
+#[derive(Debug, Clone, Copy)]
 pub(crate) struct MessageRef {
     pub(crate) serial: Serial,
     pub(crate) message_type: proto::MessageType,
@@ -77,7 +78,7 @@ impl RecvBuf {
         self.last_message = None;
     }
 
-    /// Test if a message has been received.
+    /// Test if a message has been received in full.
     pub fn has_message(&self) -> bool {
         self.last_message.is_some()
     }

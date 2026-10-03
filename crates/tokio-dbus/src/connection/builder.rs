@@ -1,3 +1,5 @@
+use std::os::unix::net::UnixStream;
+
 use crate::error::Result;
 
 use super::{Connection, Transport};
@@ -104,6 +106,29 @@ impl ConnectionBuilder {
         };
 
         Ok(Connection::new(self.auth, transport)?)
+    }
+
+    /// Construct a [`Connection`] over an already connected stream, such as
+    /// one end of a socket pair or a peer-to-peer connection, instead of
+    /// connecting to a bus. The bus selected on the builder is ignored.
+    ///
+    /// The connection authenticates as configured once
+    /// [`Connection::connect()`] is called.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use std::os::unix::net::UnixStream;
+    ///
+    /// use tokio_dbus::ConnectionBuilder;
+    ///
+    /// # #[tokio::main] async fn main() -> tokio_dbus::Result<()> {
+    /// let (stream, _peer) = UnixStream::pair()?;
+    /// let c = ConnectionBuilder::new().no_auth().build_with_stream(stream)?;
+    /// # Ok(()) }
+    /// ```
+    pub fn build_with_stream(&self, stream: UnixStream) -> Result<Connection> {
+        Ok(Connection::new(self.auth, Transport::from_std(stream))?)
     }
 }
 

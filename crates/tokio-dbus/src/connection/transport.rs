@@ -119,7 +119,9 @@ impl Transport {
         Ok(())
     }
 
-    pub(crate) fn idle(&mut self, recv: &mut RecvBuf) -> Result<usize> {
+    /// Receive the fixed header of the next message, returning how many more
+    /// bytes it needs and a reference to publish once they have arrived.
+    pub(crate) fn idle(&mut self, recv: &mut RecvBuf) -> Result<(usize, MessageRef)> {
         self.recv_buf(
             recv.buf_mut(),
             size_of::<proto::Header>().wrapping_add(size_of::<u32>()),
@@ -176,8 +178,7 @@ impl Transport {
         };
 
         recv.set_endianness(header.endianness);
-        recv.set_last_message(message_ref);
-        Ok(total)
+        Ok((total, message_ref))
     }
 
     /// Receive the remaining body.
@@ -471,8 +472,9 @@ mod tests {
 
         let mut transport = Transport::from_std(stream);
         let mut recv = RecvBuf::new();
-        let total = transport.idle(&mut recv)?;
+        let (total, message_ref) = transport.idle(&mut recv)?;
         transport.recv_body(&mut recv, total)?;
+        recv.set_last_message(message_ref);
         recv.last_message()?;
         Ok(())
     }

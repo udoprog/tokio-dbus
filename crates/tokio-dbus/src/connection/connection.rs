@@ -8,6 +8,7 @@ use tokio::io::{Interest, Ready};
 use crate::connection::builder::AuthKind;
 use crate::error::{Error, ErrorKind, Result};
 use crate::lossy_str::LossyStr;
+use crate::recv_buf::MessageRef;
 #[cfg(feature = "libc")]
 use crate::sasl::Auth;
 use crate::{Buffers, SendBuf};
@@ -57,8 +58,11 @@ enum ConnectionState {
     Sasl(Sasl),
     /// Connection is idle.
     Idle,
-    /// Body is being received.
-    Message(usize),
+    /// Body is being received. The message only becomes visible through
+    /// [`RecvBuf::has_message()`] once it is complete.
+    ///
+    /// [`RecvBuf::has_message()`]: crate::RecvBuf::has_message
+    Message(usize, MessageRef),
 }
 
 impl ConnectionState {
@@ -67,7 +71,7 @@ impl ConnectionState {
     fn is_writing(&self) -> bool {
         matches!(
             self,
-            Self::Sasl(Sasl::Send(..)) | Self::Message(_) | Self::Idle
+            Self::Sasl(Sasl::Send(..)) | Self::Message(..) | Self::Idle
         )
     }
 }
@@ -136,7 +140,7 @@ impl Connection {
     pub fn is_connected(&self) -> bool {
         matches!(
             self.state,
-            ConnectionState::Idle | ConnectionState::Message(_)
+            ConnectionState::Idle | ConnectionState::Message(..)
         )
     }
 
@@ -209,11 +213,17 @@ impl Connection {
     /// progress, so this is needed to ensure that a message is on its way before
     /// the connection is dropped.
     ///
-    /// Note that incoming messages may be received while flushing, in which case
-    /// the last one is available through [`RecvBuf::last_message()`] just like
-    /// after a call to [`wait()`].
+    /// Flushing also reads, so that a peer which is itself blocked on sending
+    /// cannot stall it, but only while no received message is pending. Once a
+    /// message has been received in full, [`RecvBuf::has_message()`] is true
+    /// and it is available through [`RecvBuf::last_message()`] just like after
+    /// a call to [`wait()`]. Nothing more is read until it is consumed, either
+    /// by [`RecvBuf::clear()`] or by the next call to [`wait()`], which drops
+    /// it.
     ///
+    /// [`RecvBuf::has_message()`]: crate::RecvBuf::has_message
     /// [`RecvBuf::last_message()`]: crate::RecvBuf::last_message
+    /// [`RecvBuf::clear()`]: crate::RecvBuf::clear
     /// [`wait()`]: Self::wait
     ///
     /// # Examples
@@ -256,11 +266,17 @@ impl Connection {
             }
         }
 
-        let mut interest = Interest::READABLE;
+        // NB: A received message has to be consumed before the next one is
+        // read, since both would share the receive buffer.
+        let reading = !self.message_ready(buf);
+        let writing = self.state.is_writing() && !buf.send.buf().is_empty();
 
-        if self.state.is_writing() && !buf.send.buf().is_empty() {
-            interest |= Interest::WRITABLE;
-        }
+        let interest = match (reading, writing) {
+            (true, true) => Interest::READABLE | Interest::WRITABLE,
+            (true, false) => Interest::READABLE,
+            (false, true) => Interest::WRITABLE,
+            (false, false) => return Ok(()),
+        };
 
         let mut guard = self.transport.ready_mut(interest).await?;
 
@@ -295,7 +311,7 @@ impl Connection {
                 continue;
             }
 
-            if guard.ready().is_readable() {
+            if reading && guard.ready().is_readable() {
                 match recv(self.state, guard.get_inner_mut(), buf) {
                     Ok(state) => {
                         self.state = state;
@@ -352,11 +368,12 @@ fn recv(
             Ok(state)
         }
         ConnectionState::Idle => {
-            let total = transport.idle(&mut buf.recv)?;
-            Ok(ConnectionState::Message(total))
+            let (total, message_ref) = transport.idle(&mut buf.recv)?;
+            Ok(ConnectionState::Message(total, message_ref))
         }
-        ConnectionState::Message(total) => {
+        ConnectionState::Message(total, message_ref) => {
             transport.recv_body(&mut buf.recv, total)?;
+            buf.recv.set_last_message(message_ref);
             Ok(ConnectionState::Idle)
         }
     }
