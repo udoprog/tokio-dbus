@@ -9,7 +9,7 @@ use crate::{Error, Frame};
 
 #[cfg(feature = "alloc")]
 use super::AlignedBuf;
-use super::padding_to;
+use super::{BufAlign, padding_to};
 
 /// A read-only view into an aligned buffer.
 pub struct Aligned<'a> {
@@ -26,7 +26,7 @@ pub struct Aligned<'a> {
 impl<'a> Aligned<'a> {
     /// Construct an empty read buffer.
     pub(crate) const fn empty() -> Self {
-        Self::new(ptr::NonNull::<u64>::dangling().cast(), 0)
+        Self::new(ptr::NonNull::<BufAlign>::dangling().cast(), 0)
     }
 
     /// Construct a new read buffer wrapping pointed to data.
@@ -53,6 +53,13 @@ impl<'a> Aligned<'a> {
             let at = self.data.as_ptr().add(self.read);
             from_raw_parts(at, self.len())
         }
+    }
+
+    /// Get the whole slice, including what has already been read.
+    #[cfg(feature = "alloc")]
+    pub(crate) fn get_all(&self) -> &'a [u8] {
+        // SAFETY: `data` points to `written` initialized bytes for `'a`.
+        unsafe { from_raw_parts(self.data.as_ptr(), self.written) }
     }
 
     /// Test if the slice is empty.
@@ -126,7 +133,10 @@ impl<'a> Aligned<'a> {
     }
 
     /// Align the read side of the buffer.
-    pub(crate) fn align<T>(&mut self) -> Result<()> {
+    pub(crate) fn align<T>(&mut self) -> Result<()>
+    where
+        T: Frame,
+    {
         let padding = padding_to::<T>(self.at());
         self.pad(padding)
     }

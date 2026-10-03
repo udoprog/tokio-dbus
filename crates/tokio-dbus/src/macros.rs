@@ -195,6 +195,7 @@ macro_rules! implement_remote {
 
             unsafe impl crate::frame::Frame for $ty {
                 const SIGNATURE: &'static $crate::signature::Signature = <$remote as $crate::frame::Frame>::SIGNATURE;
+                const ALIGNMENT: $crate::Alignment = <$remote as $crate::frame::Frame>::ALIGNMENT;
 
                 #[inline]
                 fn adjust(&mut self, endianness: $crate::proto::Endianness) {

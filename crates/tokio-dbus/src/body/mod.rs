@@ -652,7 +652,10 @@ impl<'a> Body<'a> {
 
     /// Align the read side of the buffer.
     #[inline]
-    pub(crate) fn align<T>(&mut self) -> Result<()> {
+    pub(crate) fn align<T>(&mut self) -> Result<()>
+    where
+        T: Frame,
+    {
         self.data.align::<T>()
     }
 

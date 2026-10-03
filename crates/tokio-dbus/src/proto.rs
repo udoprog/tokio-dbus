@@ -4,7 +4,7 @@
 pub use tokio_dbus_core::proto::{Endianness, Flags, MessageType, Type, Variant};
 
 #[cfg(feature = "alloc")]
-use crate::{Frame, Signature};
+use crate::{Alignment, Frame, Signature};
 
 /// A protocol header.
 #[cfg(feature = "alloc")]
@@ -25,6 +25,7 @@ impl crate::frame::sealed::Sealed for Header {}
 #[cfg(feature = "alloc")]
 unsafe impl Frame for Header {
     const SIGNATURE: &'static Signature = Signature::new_const(b"yyyyuu");
+    const ALIGNMENT: Alignment = Alignment::U32;
 
     fn adjust(&mut self, endianness: Endianness) {
         self.body_length.adjust(endianness);

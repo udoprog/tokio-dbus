@@ -217,3 +217,57 @@ fn test_nested_read_buf() -> Result<()> {
     assert_eq!(buf.get(), &[3, 4, 0]);
     Ok(())
 }
+
+/// The unwritten capacity handed to socket reads must be initialized, both
+/// after the first allocation and after growing an existing one.
+#[test]
+#[cfg(feature = "tokio")]
+fn get_mut_is_initialized() {
+    use crate::buf::{AlignedBuf, UnalignedBuf};
+
+    let mut buf = AlignedBuf::new();
+    buf.reserve_bytes(4);
+    assert!(buf.get_mut().iter().all(|b| *b == 0));
+    buf.extend_from_slice(&[1; 16]);
+    buf.reserve_bytes(64);
+    assert!(buf.get_mut().iter().all(|b| *b == 0));
+
+    let mut buf = UnalignedBuf::new();
+    buf.reserve_bytes(4);
+    assert!(buf.get_mut().iter().all(|b| *b == 0));
+    buf.extend_from_slice(&[1; 16]);
+    buf.reserve_bytes(64);
+    assert!(buf.get_mut().iter().all(|b| *b == 0));
+}
+
+/// D-Bus alignment is fixed by the specification, regardless of the alignment
+/// the target gives the corresponding Rust type.
+#[test]
+fn wire_alignment_is_fixed() -> Result<()> {
+    use crate::Alignment;
+
+    assert_eq!(Alignment::of::<u64>(), Alignment::U64);
+    assert_eq!(Alignment::of::<i64>(), Alignment::U64);
+    assert_eq!(Alignment::of::<f64>(), Alignment::U64);
+    assert_eq!(Alignment::of::<(u8, u8)>(), Alignment::U64);
+
+    let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
+    buf.store(1u32)?;
+    buf.store(2u64)?;
+    buf.store(3u8)?;
+    buf.store(4.0f64)?;
+    buf.store_struct::<(u8,)>()?.store(5u8).finish();
+
+    assert_eq!(buf.signature(), "utyd(y)");
+    #[rustfmt::skip]
+    assert_eq!(buf.get(), &[
+        1, 0, 0, 0, 0, 0, 0, 0,
+        2, 0, 0, 0, 0, 0, 0, 0,
+        3, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0x10, 0x40,
+        5,
+    ]);
+
+    assert_eq!(buf.get().as_ptr() as usize % 8, 0);
+    Ok(())
+}

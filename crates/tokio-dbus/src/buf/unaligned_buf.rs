@@ -2,7 +2,7 @@ use core::alloc::Layout;
 use core::mem::size_of;
 use core::ptr;
 
-use alloc::alloc::{alloc, dealloc, handle_alloc_error, realloc};
+use alloc::alloc::{alloc_zeroed, dealloc, handle_alloc_error, realloc};
 
 use crate::buf::{max_size_for_align, padding_to};
 use crate::{Frame, Write, WriteUnaligned};
@@ -13,7 +13,8 @@ use super::Alloc;
 pub struct UnalignedBuf {
     /// Pointed to data of the buffer.
     data: ptr::NonNull<u8>,
-    /// The initialized capacity of the buffer.
+    /// The capacity of the buffer. All of it is initialized, since growth
+    /// zeroes the new region.
     capacity: usize,
     /// Write position in the buffer.
     written: usize,
@@ -169,8 +170,13 @@ impl UnalignedBuf {
     }
 
     #[cfg(feature = "tokio")]
-    /// Get remaining slice of the buffer that can be written.
+    /// Get the remaining capacity of the buffer that has not been written to.
+    ///
+    /// Its contents are unspecified: zeroes, or bytes left over from before the
+    /// buffer was last cleared.
     pub(crate) fn get_mut(&mut self) -> &mut [u8] {
+        // SAFETY: `written <= capacity`, and every byte up to `capacity` is
+        // initialized since `realloc` zeroes all memory it adds.
         unsafe {
             let len = self.capacity - self.written;
             let at = self.data.as_ptr().add(self.written);
@@ -216,32 +222,45 @@ impl UnalignedBuf {
         self.capacity = capacity;
     }
 
+    /// Grow the allocation to `capacity` bytes, zeroing the added region.
+    ///
+    /// `capacity` must be non-zero, larger than the current capacity, and
+    /// within `max_size_for_align(1)`, as `ensure_capacity` checks.
     fn realloc(&mut self, capacity: usize) {
+        // SAFETY: `ensure_capacity` bounds `capacity` to fit in `isize`. The
+        // old layout is the one the current allocation was made with, and
+        // `capacity > self.capacity` so the zeroed tail is in bounds of the new
+        // allocation.
         unsafe {
-            if self.capacity == 0 {
-                let layout = Layout::from_size_align_unchecked(capacity, 1);
-                let ptr = alloc(layout);
+            let new_layout = Layout::from_size_align_unchecked(capacity, 1);
 
-                if ptr.is_null() {
-                    handle_alloc_error(layout);
-                }
-
-                self.data = ptr::NonNull::new_unchecked(ptr);
+            let ptr = if self.capacity == 0 {
+                alloc_zeroed(new_layout)
             } else {
                 let layout = Layout::from_size_align_unchecked(self.capacity, 1);
                 let ptr = realloc(self.data.as_ptr(), layout, capacity);
 
-                if ptr.is_null() {
-                    handle_alloc_error(layout);
+                if !ptr.is_null() {
+                    ptr.add(self.capacity)
+                        .write_bytes(0, capacity - self.capacity);
                 }
 
-                self.data = ptr::NonNull::new_unchecked(ptr);
+                ptr
+            };
+
+            if ptr.is_null() {
+                handle_alloc_error(new_layout);
             }
+
+            self.data = ptr::NonNull::new_unchecked(ptr);
         }
     }
 
     /// Align the write end of the buffer and zero-initialize any padding.
-    pub(crate) fn align_mut<T>(&mut self) {
+    pub(crate) fn align_mut<T>(&mut self)
+    where
+        T: Frame,
+    {
         let padding = padding_to::<T>(self.written - self.base);
         let requested = self.written + padding + size_of::<T>();
         self.ensure_capacity(requested);

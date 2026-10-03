@@ -199,7 +199,10 @@ impl BodyBuf {
 
     /// Align the buffer to the alignment of the given type `T`.
     #[inline]
-    pub(crate) fn align_mut<T>(&mut self) {
+    pub(crate) fn align_mut<T>(&mut self)
+    where
+        T: Frame,
+    {
         self.buf.align_mut::<T>();
     }
 
@@ -652,7 +655,34 @@ impl Default for BodyBuf {
     }
 }
 
-/// Construct an aligned buffer from a read buffer.
+/// Copy a [`Body`] into an owned buffer.
+///
+/// The whole body is copied, including values that have already been read from
+/// it, so that the copy keeps the body's signature and the alignment of the
+/// values in it. A body split off with [`Body::read_until`] keeps the
+/// signature of the body it came from, and only keeps its alignment if it
+/// starts at a multiple of 8 bytes.
+///
+/// # Examples
+///
+/// ```
+/// use tokio_dbus::BodyBuf;
+///
+/// let mut buf = BodyBuf::new();
+/// buf.store(1u8)?;
+/// buf.store(2u64)?;
+///
+/// let mut body = buf.as_body();
+/// assert_eq!(body.load::<u8>()?, 1);
+///
+/// let owned = BodyBuf::from(body);
+/// assert_eq!(owned.signature(), "yt");
+///
+/// let mut body = owned.as_body();
+/// assert_eq!(body.load::<u8>()?, 1);
+/// assert_eq!(body.load::<u64>()?, 2);
+/// # Ok::<_, tokio_dbus::Error>(())
+/// ```
 impl From<Body<'_>> for BodyBuf {
     #[inline]
     fn from(buf: Body<'_>) -> Self {

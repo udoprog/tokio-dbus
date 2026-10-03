@@ -1,22 +1,20 @@
 use core::alloc::Layout;
 use core::fmt;
-use core::mem::{align_of, size_of};
+use core::mem::size_of;
 use core::ptr;
 use core::slice::from_raw_parts;
 
-use alloc::alloc::{alloc, dealloc, handle_alloc_error, realloc};
+use alloc::alloc::{alloc_zeroed, dealloc, handle_alloc_error, realloc};
 
 use crate::Frame;
-use crate::buf::{Aligned, Alloc, max_size_for_align, padding_to};
-
-/// The type we're basing our alignment on.
-pub(crate) type AlignType = u64;
+use crate::buf::{Aligned, Alloc, BUF_ALIGN, BufAlign, max_size_for_align, padding_to};
 
 /// An owned buffer which is aligned per the specification of D-Bus messages.
 pub(crate) struct AlignedBuf {
-    /// Pointed to data of the buffer.
+    /// Pointed to data of the buffer, aligned to `BUF_ALIGN`.
     data: ptr::NonNull<u8>,
-    /// The initialized capacity of the buffer.
+    /// The capacity of the buffer. All of it is initialized, since growth
+    /// zeroes the new region.
     capacity: usize,
     /// Write position in the buffer.
     len: usize,
@@ -26,7 +24,7 @@ impl AlignedBuf {
     /// Construct a new empty buffer.
     pub(crate) const fn new() -> Self {
         Self {
-            data: ptr::NonNull::<AlignType>::dangling().cast(),
+            data: ptr::NonNull::<BufAlign>::dangling().cast(),
             capacity: 0,
             len: 0,
         }
@@ -148,9 +146,13 @@ impl AlignedBuf {
     }
 
     #[cfg(feature = "tokio")]
-    /// Get remaining slice of the buffer that has not been written to, but is
-    /// zeroed.
+    /// Get the remaining capacity of the buffer that has not been written to.
+    ///
+    /// Its contents are unspecified: zeroes, or bytes left over from before the
+    /// buffer was last cleared.
     pub(crate) fn get_mut(&mut self) -> &mut [u8] {
+        // SAFETY: `len <= capacity`, and every byte up to `capacity` is
+        // initialized since `realloc` zeroes all memory it adds.
         unsafe {
             let len = self.capacity - self.len;
             let at = self.data.as_ptr().add(self.len);
@@ -178,7 +180,7 @@ impl AlignedBuf {
         let capacity = 16usize.max(capacity.next_power_of_two());
 
         assert!(
-            capacity <= max_size_for_align(align_of::<AlignType>()),
+            capacity <= max_size_for_align(BUF_ALIGN),
             "capacity overflow"
         );
 
@@ -186,33 +188,46 @@ impl AlignedBuf {
         self.capacity = capacity;
     }
 
+    /// Grow the allocation to `capacity` bytes, zeroing the added region.
+    ///
+    /// `capacity` must be non-zero, larger than the current capacity, and
+    /// within `max_size_for_align(BUF_ALIGN)`, as `ensure_capacity` checks.
     fn realloc(&mut self, capacity: usize) {
+        // SAFETY: `BUF_ALIGN` is a power of two and `ensure_capacity` bounds
+        // `capacity` so that the size rounded up to it does not overflow
+        // `isize`. The old layout is the one the current allocation was made
+        // with, and `capacity > self.capacity` so the zeroed tail is in bounds
+        // of the new allocation.
         unsafe {
-            if self.capacity == 0 {
-                let layout = Layout::from_size_align_unchecked(capacity, align_of::<AlignType>());
-                let ptr = alloc(layout);
+            let new_layout = Layout::from_size_align_unchecked(capacity, BUF_ALIGN);
 
-                if ptr.is_null() {
-                    handle_alloc_error(layout);
-                }
-
-                self.data = ptr::NonNull::new_unchecked(ptr);
+            let ptr = if self.capacity == 0 {
+                alloc_zeroed(new_layout)
             } else {
-                let layout =
-                    Layout::from_size_align_unchecked(self.capacity, align_of::<AlignType>());
+                let layout = Layout::from_size_align_unchecked(self.capacity, BUF_ALIGN);
                 let ptr = realloc(self.data.as_ptr(), layout, capacity);
 
-                if ptr.is_null() {
-                    handle_alloc_error(layout);
+                if !ptr.is_null() {
+                    ptr.add(self.capacity)
+                        .write_bytes(0, capacity - self.capacity);
                 }
 
-                self.data = ptr::NonNull::new_unchecked(ptr);
+                ptr
+            };
+
+            if ptr.is_null() {
+                handle_alloc_error(new_layout);
             }
+
+            self.data = ptr::NonNull::new_unchecked(ptr);
         }
     }
 
     /// Align the write end of the buffer and zero-initialize any padding.
-    pub(crate) fn align_mut<T>(&mut self) {
+    pub(crate) fn align_mut<T>(&mut self)
+    where
+        T: Frame,
+    {
         let padding = padding_to::<T>(self.len);
         let requested = self.len + padding + size_of::<T>();
 
@@ -282,8 +297,7 @@ impl Drop for AlignedBuf {
     fn drop(&mut self) {
         unsafe {
             if self.capacity > 0 {
-                let layout =
-                    Layout::from_size_align_unchecked(self.capacity, align_of::<AlignType>());
+                let layout = Layout::from_size_align_unchecked(self.capacity, BUF_ALIGN);
                 dealloc(self.data.as_ptr(), layout);
                 self.capacity = 0;
             }
@@ -316,12 +330,13 @@ impl Clone for AlignedBuf {
     }
 }
 
-/// Construct an aligned buffer from a read buffer.
+/// Construct an aligned buffer from the whole of a read buffer, ignoring its
+/// read cursor, so that padding stays relative to its start.
 impl From<Aligned<'_>> for AlignedBuf {
     #[inline]
     fn from(value: Aligned<'_>) -> Self {
         let mut buf = Self::new();
-        buf.extend_from_slice(value.get());
+        buf.extend_from_slice(value.get_all());
         buf
     }
 }

@@ -30,11 +30,36 @@ pub(crate) const MAX_BODY_LENGTH: u32 = 1u32 << 27;
 
 use core::mem::align_of;
 
-/// Calculate padding with the assumption that alignment is a power of two.
+use crate::Frame;
+
+/// The alignment of the start of every aligned buffer, which is the largest
+/// alignment D-Bus uses. It is fixed rather than taken from `align_of::<u64>()`,
+/// which is 4 on some 32-bit targets.
+pub(crate) const BUF_ALIGN: usize = 8;
+
+/// Zero-sized type with the alignment of [`BUF_ALIGN`], used for dangling
+/// pointers to empty buffers.
+#[repr(align(8))]
+pub(crate) struct BufAlign;
+
+const _: () = assert!(align_of::<BufAlign>() == BUF_ALIGN);
+
+/// Calculate the padding needed to align `len` to the D-Bus alignment of `T`.
 #[inline(always)]
-pub(crate) fn padding_to<T>(len: usize) -> usize {
-    // SAFETY: Alignment of `T` is always valid.
-    unsafe { padding_to_with(align_of::<T>(), len) }
+pub(crate) fn padding_to<T>(len: usize) -> usize
+where
+    T: Frame,
+{
+    const {
+        // Buffers read and write frames in place at offsets padded to
+        // `T::ALIGNMENT` from a `BUF_ALIGN`-aligned start, so that must cover
+        // the target's own alignment of `T`.
+        assert!(T::ALIGNMENT.in_bytes() >= align_of::<T>());
+        assert!(T::ALIGNMENT.in_bytes() <= BUF_ALIGN);
+    }
+
+    // SAFETY: `Alignment::in_bytes` is always a non-zero power of two.
+    unsafe { padding_to_with(T::ALIGNMENT.in_bytes(), len) }
 }
 
 /// Calculate padding with the assumption that alignment is a power of two.

@@ -201,3 +201,28 @@ fn nested_variants_round_trip() -> Result<()> {
     assert_eq!(value.load_entry()?, None);
     Ok(())
 }
+
+/// Converting a partially read body copies it whole, so values keep their
+/// alignment and the signature still describes the bytes.
+#[test]
+fn from_partially_read_body() -> Result<()> {
+    let mut buf = BodyBuf::with_endianness(Endianness::LITTLE);
+    buf.store(1u8)?;
+    buf.store(2u64)?;
+
+    let mut body = buf.as_body();
+    assert_eq!(body.load::<u8>()?, 1);
+
+    let owned = BodyBuf::from(body);
+    assert_eq!(owned.signature(), "yt");
+    assert_eq!(
+        owned.get(),
+        &[1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0]
+    );
+
+    let mut body = owned.as_body();
+    assert_eq!(body.load::<u8>()?, 1);
+    assert_eq!(body.load::<u64>()?, 2);
+    assert!(body.is_empty());
+    Ok(())
+}

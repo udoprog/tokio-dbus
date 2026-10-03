@@ -1,4 +1,4 @@
-use crate::ty;
+use crate::{Frame, ty};
 
 /// The alignment of a D-Bus type, as a runtime value.
 ///
@@ -45,12 +45,7 @@ impl Alignment {
     where
         T: ty::Aligned,
     {
-        match align_of::<T::Alignment>() {
-            1 => Alignment::BYTE,
-            2 => Alignment::U16,
-            4 => Alignment::U32,
-            _ => Alignment::U64,
-        }
+        <T::Alignment as Frame>::ALIGNMENT
     }
 
     /// The alignment as a number of bytes, which is always a power of two.

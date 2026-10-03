@@ -173,6 +173,9 @@ fn last_message<'a>(
     }
 
     buf.align::<u64>()?;
+    // Split the body off so that it starts at its own read position zero,
+    // which `BodyBuf::from` copies from.
+    let body = buf.read_until(buf.len())?;
 
     let kind = match message_type {
         proto::MessageType::METHOD_CALL => {
@@ -228,7 +231,7 @@ fn last_message<'a>(
         interface,
         destination,
         sender,
-        body: buf.with_signature(signature),
+        body: body.with_signature(signature),
     })
 }
 

@@ -57,3 +57,37 @@ async fn partial_message_is_not_visible() -> Result<()> {
     assert_eq!(message.body().load::<u32>()?, 42);
     Ok(())
 }
+
+/// An owned copy of a received message holds its body alone, not the headers
+/// in front of it.
+#[tokio::test]
+async fn received_message_to_owned() -> Result<()> {
+    let (mut encoder, mut buf, mut raw) = connect().await?;
+    let mut body = BodyBuf::new();
+    body.store(1u8)?;
+    body.store(2u64)?;
+    let m = buf
+        .send
+        .signal(ObjectPath::new_const(b"/test"), "Ping")
+        .with_body(&body);
+    buf.send.write_message(m)?;
+    encoder.flush(&mut buf).await?;
+
+    let mut message = [0; 1024];
+    let n = raw.read(&mut message)?;
+
+    let (mut c, mut buf, mut raw) = connect().await?;
+    raw.write_all(&message[..n])?;
+    c.wait(&mut buf).await?;
+
+    let owned = buf.recv.last_message()?.to_owned();
+    let mut body = owned.body();
+    assert_eq!(body.signature(), "yt");
+    assert_eq!(
+        body.get(),
+        &[1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0]
+    );
+    assert_eq!(body.load::<u8>()?, 1);
+    assert_eq!(body.load::<u64>()?, 2);
+    Ok(())
+}
