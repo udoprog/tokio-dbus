@@ -1,6 +1,6 @@
 [package]
 name = "tokio-dbus-codegen"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["John-John Tedro <udoprog@tedro.se>"]
 edition = "2024"
 rust-version = "1.90"
@@ -9,13 +9,12 @@ Build time code generation of D-Bus clients and servers for tokio-dbus.
 """
 documentation = "https://docs.rs/tokio-dbus"
 readme = "README.md"
-homepage = "https://github.com/udoprog/tokio-dbus"
 repository = "https://github.com/udoprog/tokio-dbus"
 license = "MIT OR Apache-2.0"
 keywords = ["async", "d-bus", "dbus", "ipc", "tokio"]
 categories = ["asynchronous", "development-tools::build-utils", "os::unix-apis"]
 
 [dependencies]
-tokio-dbus-core = { path = "../tokio-dbus-core", version = "=0.2.1" }
-tokio-dbus-xml = { path = "../tokio-dbus-xml", version = "=0.2.1" }
+tokio-dbus-core = { path = "../tokio-dbus-core", version = "=0.2.2" }
+tokio-dbus-xml = { path = "../tokio-dbus-xml", version = "=0.2.2" }
 genco = "0.19.0"

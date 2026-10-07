@@ -24,10 +24,10 @@ Add the generator as a build dependency and the runtime as a regular one:
 
 ```toml
 [dependencies]
-tokio-dbus-runtime = "0.2.1"
+tokio-dbus-runtime = "0.2.2"
 
 [build-dependencies]
-tokio-dbus-codegen = "0.2.1"
+tokio-dbus-codegen = "0.2.2"
 ```
 
 Then write a `build.rs` which names the interface files to read and what to

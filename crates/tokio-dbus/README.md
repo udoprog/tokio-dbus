@@ -7,9 +7,9 @@
 
 An asynchronous D-Bus implementation for the Tokio ecosystem.
 
-So far this is a fairly low-level implementation, but is sufficient to write
-efficient servers without some of the flair associated with other clients
-(like proxies generated from xml).
+This crate is the low-level, borrowed API: it is sufficient to write efficient
+clients and servers by hand. For proxies and servers generated from interface
+xml, see [`tokio-dbus-codegen`] and [`tokio-dbus-runtime`].
 
 To currently see how it's used, see:
 * [examples/client.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/examples/client.rs)
@@ -20,9 +20,9 @@ To currently see how it's used, see:
 * [examples/notification.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/examples/notification.rs),
   sending a desktop notification through `org.freedesktop.Notifications`.
 
-Both of those have a counterpart which does the same thing through bindings
-generated from an interface file by [`tokio-dbus-codegen`], driven by
-[`tokio-dbus-runtime`]:
+The systray and notification examples have a counterpart which does the same
+thing through bindings generated from an interface file by
+[`tokio-dbus-codegen`], driven by [`tokio-dbus-runtime`]:
 [examples/systray_codegen.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/examples/systray_codegen.rs)
 and
 [examples/notification_codegen.rs](https://github.com/udoprog/tokio-dbus/blob/main/examples/examples/notification_codegen.rs).
